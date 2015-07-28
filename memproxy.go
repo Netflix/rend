@@ -19,8 +19,6 @@ const verbose = false
 
 const CHUNK_SIZE = 1024
 
-const ENCODING = binary.LittleEndian
-
 type SetCmdLine struct {
     cmd     string
     key     string
@@ -36,10 +34,10 @@ type GetCmdLine struct {
 
 const METADATA_SIZE = 16
 type Metadata struct {
-    length    int32
-    origFlags int32
-    numChunks int32
-    chunkSize int32
+    Length    int32
+    OrigFlags int32
+    NumChunks int32
+    ChunkSize int32
 }
 
 func main() {
@@ -54,7 +52,7 @@ func main() {
             fmt.Println(err.Error())
             continue
         }
-    
+        
         local, err := net.Dial("tcp", ":11211")
         
         if err != nil {
@@ -75,6 +73,8 @@ func handleConnection(remote net.Conn, local net.Conn) {
     
     for {
         data, err := remoteReader.ReadString('\n')
+        
+        data = strings.TrimSpace(data)
         
         if err != nil {
             if err == io.EOF {
@@ -142,15 +142,15 @@ func handleConnection(remote net.Conn, local net.Conn) {
 func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.Writer,
                                 localReader *bufio.Reader,  localWriter *bufio.Writer) error {
     // Read in the data from the remote connection
-    buf, err := (remoteReader, cmd.length)
+    buf, err := readData(remoteReader, cmd.length)
     
     numChunks := int(math.Ceil(float64(cmd.length) / float64(CHUNK_SIZE)))
     
     metaKey := makeMetaKey(cmd.key)
     metaData := Metadata {
-        length:    int32(cmd.length),
-        numChunks: int32(numChunks),
-        chunkSize: CHUNK_SIZE,
+        Length:    int32(cmd.length),
+        NumChunks: int32(numChunks),
+        ChunkSize: CHUNK_SIZE,
     }
     
     if verbose {
@@ -159,7 +159,11 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     }
     
     metaDataBuf := new(bytes.Buffer)
-    binary.Write(metaDataBuf, ENCODING, metaData)
+    binary.Write(metaDataBuf, binary.LittleEndian, metaData)
+    
+    if verbose {
+        fmt.Printf("% x", metaDataBuf.Bytes())
+    }
     
     // Write metadata key
     localCmd := makeSetCommand(metaKey, cmd.exptime, METADATA_SIZE)
@@ -232,28 +236,54 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         if verbose { fmt.Println("metaKey:", metaKey) }
         
         // Read in the metadata for number of chunks, chunk size, etc.
-        metaBytes, err := getLocal(localReader, localWriter, metaKey, METADATA_SIZE)
+        getCmd := makeGetCommand(metaKey)
+        metaBytes, err := getLocal(localReader, localWriter, getCmd, METADATA_SIZE)
         if err != nil { return err }
         
-        metaDataBuf := new(bytes.Buffer)
-        metaDataBuf.Write(metaBytes)
+        if verbose { fmt.Printf("% x", metaBytes)}
+        
+        metaDataBuf := bytes.NewBuffer(metaBytes)
         
         var metaData Metadata
-        binary.Read(metaDataBuf, ENCODING, metaData)
+        binary.Read(metaDataBuf, binary.LittleEndian, &metaData)
         
-        dataBuf := make([]byte, metaData.length)
+        if verbose { fmt.Println("Metadata:", metaData) }
         
-        for i := 0; i < metaData.numChunks; i++ {
+        // Retrieve all the data from memcached
+        dataBuf := make([]byte, metaData.Length)
+        
+        for i := 0; i < int(metaData.NumChunks); i++ {
+            if verbose { fmt.Println("CHUNK", i) }
             chunkKey := makeChunkKey(key, i)
             
             // indices for slicing, end exclusive
-            start, end := sliceIndices(i, metaData.length)
+            // TODO: pass chunk size
+            start, end := sliceIndices(i, int(metaData.Length))
             
+            if verbose { fmt.Println("start:", start, "| end:", end) }
+            
+            // Get the data directly into our buf
             chunkBuf := dataBuf[start:end]
-            
-            readDataIntoBuf
+            getCmd = makeGetCommand(chunkKey)
+            getLocalIntoBuf(localReader, localWriter, getCmd, chunkBuf)
         }
+        
+        // Write data out to client
+        // [
+        // VALUE <key> <flags> <bytes>\r\n
+        // <data block>\r\n
+        // ]*
+        // END\r\n
+        _, err = fmt.Fprintf(remoteWriter, "VALUE %s %d %d\r\n", key, metaData.OrigFlags, metaData.Length)
+        if err != nil { return err }
+        _, err = remoteWriter.Write(dataBuf)
+        if err != nil { return err }
     }
+    
+    _, err := fmt.Fprintf(remoteWriter, "\r\nEND\r\n")
+    if err != nil { return err }
+    
+    remoteWriter.Flush()
     
     return nil
 }
@@ -263,7 +293,7 @@ func makeMetaKey(key string) string {
 }
 
 func makeChunkKey(key string, chunk int) string {
-    return fmt.Sprintf("$s_%d", key, chunk)
+    return fmt.Sprintf("%s_%d", key, chunk)
 }
 
 // <command name> <key> <flags> <exptime> <bytes>\r\n
@@ -271,7 +301,13 @@ func makeSetCommand(key string, exptime string, size int) string {
     return fmt.Sprintf("set %s 0 %s %d\r\n", key, exptime, size)
 }
 
-func sliceIndices(chunkNum, totalLength) int, int {
+// get(s) <key>*\r\n
+// TODO: batch get
+func makeGetCommand(key string) string {
+    return fmt.Sprintf("get %s\r\n", key)
+}
+
+func sliceIndices(chunkNum int, totalLength int) (int, int) {
     // Indices for slicing. End is exclusive
     start := CHUNK_SIZE * chunkNum
     end := int(math.Min(float64(start + CHUNK_SIZE), float64(totalLength)))
@@ -279,9 +315,9 @@ func sliceIndices(chunkNum, totalLength) int, int {
     return start, end
 }
 
-func readData(reader *bufio.Reader, length int) []byte, err {
+func readData(reader *bufio.Reader, length int) ([]byte, error) {
     // Make a new slice to hold the content. For now this seems performant enough.
-    buf := make([]byte, cmd.length)
+    buf := make([]byte, length)
     
     // Read into an explicitly sized buffer because there may be \r's and \n's in the data
     err := readDataIntoBuf(reader, buf)
@@ -290,14 +326,21 @@ func readData(reader *bufio.Reader, length int) []byte, err {
     return buf, nil 
 }
 
-func readDataIntoBuf(reader *bufio.Reader, buf []byte) err {
+func readDataIntoBuf(reader *bufio.Reader, buf []byte) error {
+    if verbose {
+        fmt.Println("readDataIntoBuf")
+        fmt.Println("buf length:", len(buf))
+    }
+    
     // TODO: real error handling for not enough bytes
     _, err := io.ReadFull(reader, buf)
     if err != nil { return err }
     
-    // Consume the \r\n at the end of the data
-    _, err = remoteReader.ReadBytes('\n')
+    // Consume the <buffer bytes>\r\n at the end of the data
+    endData, err := reader.ReadBytes('\n')
     if err != nil { return err }
+    
+    if verbose { fmt.Println("End data:", endData) }
     
     return nil
 }
@@ -321,29 +364,47 @@ func setLocal(localWriter *bufio.Writer, cmd string, data []byte) error {
 }
 
 // TODO: Batch get
-func getLocal(localReader *bufio.Reader, localWriter *bufio.writer, cmd string, length int) []byte, error {
+func getLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd string, length int) ([]byte, error) {
     // Write key/cmd
     if verbose { fmt.Println("cmd:", cmd) }
-    _, err := fmt.Fprintf(localWriter, cmd)
+    _, err := localWriter.WriteString(cmd)
     if err != nil { return nil, err }
+    localWriter.Flush()
+    
+    // Read and discard value header line
+    header, err := localReader.ReadBytes('\n')
+    
+    if verbose { fmt.Println("Header:", string(header)) }
     
     // Read in value
     data, err := readData(localReader, length)
     if err != nil { return nil, err }
+    
+    // consume END
+    _, err = localReader.ReadBytes('\n')
     
     return data, nil
 }
 
 // TODO: Batch get
-func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.writer, cmd string, length int) []byte, error {
+func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd string, buf []byte) error {
     // Write key/cmd
     if verbose { fmt.Println("cmd:", cmd) }
-    _, err := fmt.Fprintf(localWriter, cmd)
-    if err != nil { return nil, err }
+    _, err := localWriter.WriteString(cmd)
+    if err != nil { return err }
+    localWriter.Flush()
+    
+    // Read and discard value header line
+    header, err := localReader.ReadBytes('\n')
+    
+    if verbose { fmt.Println("Header:", string(header)) }
     
     // Read in value
-    data, err := readData(localReader, length)
-    if err != nil { return nil, err }
+    err = readDataIntoBuf(localReader, buf)
+    if err != nil { return err }
     
-    return data, nil
+    // consume END
+    _, err = localReader.ReadBytes('\n')
+    
+    return nil
 }
