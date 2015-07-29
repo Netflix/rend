@@ -8,6 +8,7 @@ package main
 import "bufio"
 import "bytes"
 import "encoding/binary"
+import "errors"
 import "fmt"
 import "io"
 import "math"
@@ -18,6 +19,8 @@ import "strings"
 const verbose = false
 
 const CHUNK_SIZE = 1024
+
+var MISS error
 
 type SetCmdLine struct {
     cmd     string
@@ -41,6 +44,9 @@ type Metadata struct {
 }
 
 func main() {
+    // "constant" initialization
+    MISS = errors.New("Cache miss")
+    
     server, err := net.Listen("tcp", ":11212")
     
     if err != nil { print(err.Error()) }
@@ -230,15 +236,21 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     //   read chunk, append to buffer
     // send response
     
-    for _, key := range cmd.keys {
+    outer: for _, key := range cmd.keys {
         metaKey := makeMetaKey(key)
         
         if verbose { fmt.Println("metaKey:", metaKey) }
         
         // Read in the metadata for number of chunks, chunk size, etc.
         getCmd := makeGetCommand(metaKey)
-        metaBytes, err := getLocal(localReader, localWriter, getCmd, METADATA_SIZE)
-        if err != nil { return err }
+        metaBytes := make([]byte, METADATA_SIZE)
+        err := getLocalIntoBuf(localReader, localWriter, getCmd, metaBytes)
+        if err != nil {
+            if err == MISS {
+                continue;
+            }
+            return err
+        }
         
         if verbose { fmt.Printf("% x", metaBytes)}
         
@@ -265,7 +277,14 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
             // Get the data directly into our buf
             chunkBuf := dataBuf[start:end]
             getCmd = makeGetCommand(chunkKey)
-            getLocalIntoBuf(localReader, localWriter, getCmd, chunkBuf)
+            err = getLocalIntoBuf(localReader, localWriter, getCmd, chunkBuf)
+            
+            // Skip this key entirely if any chunks miss
+            if err != nil {
+                if err == MISS {
+                    continue outer
+                }
+            }
         }
         
         // Write data out to client
@@ -364,29 +383,6 @@ func setLocal(localWriter *bufio.Writer, cmd string, data []byte) error {
 }
 
 // TODO: Batch get
-func getLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd string, length int) ([]byte, error) {
-    // Write key/cmd
-    if verbose { fmt.Println("cmd:", cmd) }
-    _, err := localWriter.WriteString(cmd)
-    if err != nil { return nil, err }
-    localWriter.Flush()
-    
-    // Read and discard value header line
-    header, err := localReader.ReadBytes('\n')
-    
-    if verbose { fmt.Println("Header:", string(header)) }
-    
-    // Read in value
-    data, err := readData(localReader, length)
-    if err != nil { return nil, err }
-    
-    // consume END
-    _, err = localReader.ReadBytes('\n')
-    
-    return data, nil
-}
-
-// TODO: Batch get
 func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd string, buf []byte) error {
     // Write key/cmd
     if verbose { fmt.Println("cmd:", cmd) }
@@ -395,7 +391,11 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd s
     localWriter.Flush()
     
     // Read and discard value header line
-    header, err := localReader.ReadBytes('\n')
+    header, err := localReader.ReadString('\n')
+    
+    if header == "END" {
+        return MISS
+    }
     
     if verbose { fmt.Println("Header:", string(header)) }
     
