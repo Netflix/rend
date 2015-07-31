@@ -18,7 +18,8 @@ var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 const verbose = false
 const numThreads = 10
 
-// 4-character keys with 26 possibilities = 456,976 keys
+// 3-character keys with 26 possibilities =     17,576 keys
+// 4-character keys with 26 possibilities =    456,976 keys
 // 5-character keys with 26 possibilities = 11,881,376 keys
 const keyLength = 4
 //const numKeys = 1000000
