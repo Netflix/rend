@@ -17,7 +17,6 @@ import "strconv"
 import "strings"
 
 const verbose = false
-
 const CHUNK_SIZE = 1024
 
 var MISS error
@@ -44,7 +43,7 @@ type Metadata struct {
 }
 
 func main() {
-    // "constant" initialization
+    // create miss error value
     MISS = errors.New("Cache miss")
     
     server, err := net.Listen("tcp", ":11212")
@@ -148,7 +147,8 @@ func handleConnection(remote net.Conn, local net.Conn) {
 func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.Writer,
                                 localReader *bufio.Reader,  localWriter *bufio.Writer) error {
     // Read in the data from the remote connection
-    buf, err := readData(remoteReader, cmd.length)
+    buf := make([]byte, cmd.length)
+    err := readDataIntoBuf(remoteReader, buf)
     
     numChunks := int(math.Ceil(float64(cmd.length) / float64(CHUNK_SIZE)))
     
@@ -247,17 +247,17 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         err := getLocalIntoBuf(localReader, localWriter, getCmd, metaBytes)
         if err != nil {
             if err == MISS {
-                continue;
+                if verbose { fmt.Println("Cache miss because of missing metadata. Cmd:", getCmd) }
+                continue outer
             }
+            
             return err
         }
         
         if verbose { fmt.Printf("% x", metaBytes)}
         
-        metaDataBuf := bytes.NewBuffer(metaBytes)
-        
         var metaData Metadata
-        binary.Read(metaDataBuf, binary.LittleEndian, &metaData)
+        binary.Read(bytes.NewBuffer(metaBytes), binary.LittleEndian, &metaData)
         
         if verbose { fmt.Println("Metadata:", metaData) }
         
@@ -279,19 +279,19 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
             getCmd = makeGetCommand(chunkKey)
             err = getLocalIntoBuf(localReader, localWriter, getCmd, chunkBuf)
             
-            // Skip this key entirely if any chunks miss
             if err != nil {
                 if err == MISS {
+                    if verbose { fmt.Println("Cache miss because of missing chunk. Cmd:", getCmd) }
                     continue outer
                 }
+                
+                return err
             }
         }
         
         // Write data out to client
-        // [
-        // VALUE <key> <flags> <bytes>\r\n
-        // <data block>\r\n
-        // ]*
+        // [VALUE <key> <flags> <bytes>\r\n
+        // <data block>\r\n]*
         // END\r\n
         _, err = fmt.Fprintf(remoteWriter, "VALUE %s %d %d\r\n", key, metaData.OrigFlags, metaData.Length)
         if err != nil { return err }
@@ -299,7 +299,7 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         if err != nil { return err }
     }
     
-    _, err := fmt.Fprintf(remoteWriter, "\r\nEND\r\n")
+    _, err := fmt.Fprintf(remoteWriter, "END\r\n")
     if err != nil { return err }
     
     remoteWriter.Flush()
@@ -326,23 +326,13 @@ func makeGetCommand(key string) string {
     return fmt.Sprintf("get %s\r\n", key)
 }
 
+// TODO: pass chunk size
 func sliceIndices(chunkNum int, totalLength int) (int, int) {
     // Indices for slicing. End is exclusive
     start := CHUNK_SIZE * chunkNum
     end := int(math.Min(float64(start + CHUNK_SIZE), float64(totalLength)))
     
     return start, end
-}
-
-func readData(reader *bufio.Reader, length int) ([]byte, error) {
-    // Make a new slice to hold the content. For now this seems performant enough.
-    buf := make([]byte, length)
-    
-    // Read into an explicitly sized buffer because there may be \r's and \n's in the data
-    err := readDataIntoBuf(reader, buf)
-    if err != nil { return nil, err }
-    
-    return buf, nil 
 }
 
 func readDataIntoBuf(reader *bufio.Reader, buf []byte) error {
@@ -391,13 +381,14 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd s
     localWriter.Flush()
     
     // Read and discard value header line
-    header, err := localReader.ReadString('\n')
+    line, err := localReader.ReadString('\n')
     
-    if header == "END" {
+    if strings.TrimSpace(line) == "END" {
+        if verbose { fmt.Println("Cache miss for cmd", cmd) }
         return MISS
     }
     
-    if verbose { fmt.Println("Header:", string(header)) }
+    if verbose { fmt.Println("Header:", string(line)) }
     
     // Read in value
     err = readDataIntoBuf(localReader, buf)
