@@ -297,6 +297,8 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         if err != nil { return err }
         _, err = remoteWriter.Write(dataBuf)
         if err != nil { return err }
+        _, err = remoteWriter.WriteString("\r\n")
+        if err != nil { return err }
     }
     
     _, err := fmt.Fprintf(remoteWriter, "END\r\n")
