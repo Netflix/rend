@@ -68,7 +68,7 @@ func main() {
 func worker(conn net.Conn) {
     for item := range tasks {
         set(conn, item.key, item.value)
-        //get(conn, item.key)
+        get(conn, item.key)
     }
 
     wg.Done()
