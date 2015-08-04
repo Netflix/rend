@@ -166,6 +166,7 @@ func handleConnection(remote net.Conn, local net.Conn) {
                     remote.Close()
                 }
                 
+            // TODO: Error handling for invalid cmd line
             case "touch":
                 cmd := TouchCmdLine {
                     cmd:     clParts[0],
@@ -257,6 +258,8 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         if verbose { fmt.Println(response) }
     }
     
+    if verbose { fmt.Println("Replying for key", cmd.key) }
+    
     // TODO: Error handling for less bytes
     //numWritten, err := writer.WriteString("STORED\r\n")
     _, err = remoteWriter.WriteString("STORED\r\n")
@@ -276,12 +279,12 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     // for numChunks do
     //   read chunk, append to buffer
     // send response
-    
+        
     outer: for _, key := range cmd.keys {
-        metaKey, metaData, err := getMetadata(localReader, localWriter, key)
+        _, metaData, err := getMetadata(localReader, localWriter, key)
         if err != nil {
             if err == MISS {
-                if verbose { fmt.Println("Get miss because of missing metadata. Key:", metaKey) }
+                if verbose { fmt.Println("Get miss because of missing metadata. Key:", key) }
                 continue outer
             }
             
@@ -316,6 +319,8 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
             }
         }
         
+        if verbose { fmt.Println("Replying for key", key) }
+        
         // Write data out to client
         // [VALUE <key> <flags> <bytes>\r\n
         // <data block>\r\n]*
@@ -347,7 +352,12 @@ func handleDelete(cmd DeleteCmdLine, remoteReader *bufio.Reader, remoteWriter *b
     
     if err != nil {
         if err == MISS {
-            if verbose { fmt.Println("Delete miss because of missing metadata. Key:", metaKey) }
+            if verbose { fmt.Println("Delete miss because of missing metadata. Key:", cmd.key) }
+            
+            _, err = fmt.Fprintf(remoteWriter, "NOT_FOUND\r\n")
+            if err != nil { return err }
+            remoteWriter.Flush()
+            
             return nil
         }
         return err
@@ -362,9 +372,10 @@ func handleDelete(cmd DeleteCmdLine, remoteReader *bufio.Reader, remoteWriter *b
         if err != nil { return err }
     }
     
+    if verbose { fmt.Println("Replying for key", cmd.key) }
+    
     _, err = fmt.Fprintf(remoteWriter, "DELETED\r\n")
     if err != nil { return err }
-    
     remoteWriter.Flush()
     
     return nil
@@ -381,7 +392,12 @@ func handleTouch(cmd TouchCmdLine, remoteReader *bufio.Reader, remoteWriter *buf
         
     if err != nil {
         if err == MISS {
-            if verbose { fmt.Println("Touch miss because of missing metadata. Key:", metaKey) }
+            if verbose { fmt.Println("Touch miss because of missing metadata. Key:", cmd.key) }
+            
+            _, err = fmt.Fprintf(remoteWriter, "NOT_FOUND\r\n")
+            if err != nil { return err }
+            remoteWriter.Flush()
+            
             return nil
         }
         return err
@@ -395,6 +411,8 @@ func handleTouch(cmd TouchCmdLine, remoteReader *bufio.Reader, remoteWriter *buf
     
     err = touchLocal(localReader, localWriter, metaKey, cmd.exptime)
     if err != nil { return err }
+    
+    if verbose { fmt.Println("Replying for key", cmd.key) }
     
     _, err = fmt.Fprintf(remoteWriter, "TOUCHED\r\n")
     if err != nil { return err }
