@@ -281,7 +281,7 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         metaKey, metaData, err := getMetadata(localReader, localWriter, key)
         if err != nil {
             if err == MISS {
-                if verbose { fmt.Println("Cache miss because of missing metadata. Key:", metaKey) }
+                if verbose { fmt.Println("Get miss because of missing metadata. Key:", metaKey) }
                 continue outer
             }
             
@@ -308,7 +308,7 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
             
             if err != nil {
                 if err == MISS {
-                    if verbose { fmt.Println("Cache miss because of missing chunk. Cmd:", getCmd) }
+                    if verbose { fmt.Println("Get miss because of missing chunk. Cmd:", getCmd) }
                     continue outer
                 }
                 
@@ -347,6 +347,7 @@ func handleDelete(cmd DeleteCmdLine, remoteReader *bufio.Reader, remoteWriter *b
     
     if err != nil {
         if err == MISS {
+            if verbose { fmt.Println("Delete miss because of missing metadata. Key:", metaKey) }
             return nil
         }
         return err
@@ -380,6 +381,7 @@ func handleTouch(cmd TouchCmdLine, remoteReader *bufio.Reader, remoteWriter *buf
         
     if err != nil {
         if err == MISS {
+            if verbose { fmt.Println("Touch miss because of missing metadata. Key:", metaKey) }
             return nil
         }
         return err
