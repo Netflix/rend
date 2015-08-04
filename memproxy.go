@@ -195,6 +195,7 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     metaKey := makeMetaKey(cmd.key)
     metaData := Metadata {
         Length:    int32(cmd.length),
+        OrigFlags: cmd.flags
         NumChunks: int32(numChunks),
         ChunkSize: CHUNK_SIZE,
     }
