@@ -34,6 +34,17 @@ type GetCmdLine struct {
     keys []string
 }
 
+type DeleteCmdLine struct {
+    cmd string
+    key string
+}
+
+type TouchCmdLine struct {
+    cmd string
+    key string
+    exptime string
+}
+
 const METADATA_SIZE = 16
 type Metadata struct {
     Length    int32
@@ -140,6 +151,35 @@ func handleConnection(remote net.Conn, local net.Conn) {
                     fmt.Fprintf(remoteWriter, "ERROR could not process command")
                     remote.Close()
                 }
+                
+            case "delete":
+                cmd := DeleteCmdLine {
+                    cmd: clParts[0],
+                    key: clParts[1],
+                }
+                
+                err = handleDelete(cmd, remoteReader, remoteWriter, localReader, localWriter)
+                
+                if err != nil {
+                    fmt.Println(err.Error())
+                    fmt.Fprintf(remoteWriter, "ERROR could not process command")
+                    remote.Close()
+                }
+                
+            case "touch":
+                cmd := TouchCmdLine {
+                    cmd:     clParts[0],
+                    key:     clParts[1],
+                    exptime: clParts[2],
+                }
+                
+                err = handleTouch(cmd, remoteReader, remoteWriter, localReader, localWriter)
+                
+                if err != nil {
+                    fmt.Println(err.Error())
+                    fmt.Fprintf(remoteWriter, "ERROR could not process command")
+                    remote.Close()
+                }
         }
     }
 }
@@ -237,29 +277,15 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     // send response
     
     outer: for _, key := range cmd.keys {
-        metaKey := makeMetaKey(key)
-        
-        if verbose { fmt.Println("metaKey:", metaKey) }
-        
-        // Read in the metadata for number of chunks, chunk size, etc.
-        getCmd := makeGetCommand(metaKey)
-        metaBytes := make([]byte, METADATA_SIZE)
-        err := getLocalIntoBuf(localReader, localWriter, getCmd, metaBytes)
+        metaKey, metaData, err := getMetadata(localReader, localWriter, key)
         if err != nil {
             if err == MISS {
-                if verbose { fmt.Println("Cache miss because of missing metadata. Cmd:", getCmd) }
+                if verbose { fmt.Println("Cache miss because of missing metadata. Key:", metaKey) }
                 continue outer
             }
             
             return err
         }
-        
-        if verbose { fmt.Printf("% x", metaBytes)}
-        
-        var metaData Metadata
-        binary.Read(bytes.NewBuffer(metaBytes), binary.LittleEndian, &metaData)
-        
-        if verbose { fmt.Println("Metadata:", metaData) }
         
         // Retrieve all the data from memcached
         dataBuf := make([]byte, metaData.Length)
@@ -276,7 +302,7 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
             
             // Get the data directly into our buf
             chunkBuf := dataBuf[start:end]
-            getCmd = makeGetCommand(chunkKey)
+            getCmd := makeGetCommand(chunkKey)
             err = getLocalIntoBuf(localReader, localWriter, getCmd, chunkBuf)
             
             if err != nil {
@@ -309,6 +335,72 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     return nil
 }
 
+func handleDelete(cmd DeleteCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.Writer,
+                                      localReader *bufio.Reader,  localWriter *bufio.Writer) error {
+    // read metadata
+    // delete metadata
+    // for 0 to metadata.numChunks
+    //  delete item
+    
+    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.key)
+    
+    if err != nil {
+        if err == MISS {
+            return nil
+        }
+        return err
+    }
+    
+    err = deleteLocal(localReader, localWriter, metaKey)
+    if err != nil { return err }
+    
+    for i := 0; i < int(metaData.NumChunks); i++ {
+        chunkKey := makeChunkKey(cmd.key, i)
+        err := deleteLocal(localReader, localWriter, chunkKey)
+        if err != nil { return err }
+    }
+    
+    _, err = fmt.Fprintf(remoteWriter, "DELETED\r\n")
+    if err != nil { return err }
+    
+    remoteWriter.Flush()
+    
+    return nil
+}
+
+func handleTouch(cmd TouchCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.Writer,
+                                    localReader *bufio.Reader,  localWriter *bufio.Writer) error {
+    // read metadata
+    // for 0 to metadata.numChunks
+    //  touch item
+    // touch metadata
+    
+    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.key)
+        
+    if err != nil {
+        if err == MISS {
+            return nil
+        }
+        return err
+    }
+    
+    for i := 0; i < int(metaData.NumChunks); i++ {
+        chunkKey := makeChunkKey(cmd.key, i)
+        err := touchLocal(localReader, localWriter, chunkKey, cmd.exptime)
+        if err != nil { return err }
+    }
+    
+    err = touchLocal(localReader, localWriter, metaKey, cmd.exptime)
+    if err != nil { return err }
+    
+    _, err = fmt.Fprintf(remoteWriter, "TOUCHED\r\n")
+    if err != nil { return err }
+    
+    remoteWriter.Flush()
+    
+    return nil
+}
+
 func makeMetaKey(key string) string {
     return fmt.Sprintf("%s_meta", key)
 }
@@ -326,6 +418,16 @@ func makeSetCommand(key string, exptime string, size int) string {
 // TODO: batch get
 func makeGetCommand(key string) string {
     return fmt.Sprintf("get %s\r\n", key)
+}
+
+// delete <key>\r\n
+func makeDeleteCommand(key string) string {
+    return fmt.Sprintf("delete %s\r\n", key)
+}
+
+// touch <key> <exptime>\r\n
+func makeTouchCommand(key string, exptime string) string {
+    return fmt.Sprintf("touch %s %s\r\n", key, exptime)
 }
 
 // TODO: pass chunk size
@@ -400,4 +502,55 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd s
     _, err = localReader.ReadBytes('\n')
     
     return nil
+}
+
+func deleteLocal(localReader *bufio.Reader, localWriter *bufio.Writer, key string) error {
+    deleteCmd := makeDeleteCommand(key)
+    _, err := localWriter.WriteString(deleteCmd)
+    if err != nil { return err }
+    err = localWriter.Flush()
+    if err != nil { return err }
+    
+    // TODO: Handle ERROR response
+    response, err := localReader.ReadString('\n')
+    if err != nil { return err }
+    if verbose { fmt.Println("Delete response:", response) }
+    
+    return nil
+}
+
+func touchLocal(localReader *bufio.Reader, localWriter *bufio.Writer, key string, exptime string) error {
+    touchCmd := makeTouchCommand(key, exptime)
+    _, err := localWriter.WriteString(touchCmd)
+    if err != nil { return err }
+    err = localWriter.Flush()
+    if err != nil { return err }
+    
+    // TODO: Handle ERROR response
+    response, err := localReader.ReadString('\n')
+    if err != nil { return err }
+    if verbose { fmt.Println("Touch response:", response) }
+    
+    return nil
+}
+
+func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key string) (string, Metadata, error) {
+    metaKey := makeMetaKey(key)
+    
+    if verbose { fmt.Println("metaKey:", metaKey) }
+    
+    // Read in the metadata for number of chunks, chunk size, etc.
+    getCmd := makeGetCommand(metaKey)
+    metaBytes := make([]byte, METADATA_SIZE)
+    err := getLocalIntoBuf(localReader, localWriter, getCmd, metaBytes)
+    if err != nil { return "", Metadata{}, err }
+    
+    if verbose { fmt.Printf("% x", metaBytes)}
+    
+    var metaData Metadata
+    binary.Read(bytes.NewBuffer(metaBytes), binary.LittleEndian, &metaData)
+    
+    if verbose { fmt.Println("Metadata:", metaData) }
+    
+    return metaKey, metaData, nil
 }
