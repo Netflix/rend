@@ -31,10 +31,12 @@ func Connect(host string) (net.Conn, error) {
 }
 
 func Set(reader *bufio.Reader, writer *bufio.Writer, key string, value string) error {
-    if VERBOSE { fmt.Printf("Setting key %v to value of length %v", key, len(value)) }
+    if VERBOSE { fmt.Printf("Setting key %v to value of length %v\r\n", key, len(value)) }
 
-    fmt.Fprintf(writer, "set %v 0 0 %v\r\n", key, len(value))
-    fmt.Fprintf(writer, "%v\r\n", value)
+    _, err := fmt.Fprintf(writer, "set %v 0 0 %v\r\n", key, len(value))
+    if err != nil { return err }
+    _, err = fmt.Fprintf(writer, "%v\r\n", value)
+    if err != nil { return err }
     writer.Flush()
     
     response, err := reader.ReadString('\n')
@@ -42,13 +44,15 @@ func Set(reader *bufio.Reader, writer *bufio.Writer, key string, value string) e
 
     if VERBOSE { fmt.Println(response) }
     
+    if VERBOSE { fmt.Printf("Set key %v\r\n", key) }
     return nil
 }
 
 func Get(reader *bufio.Reader, writer *bufio.Writer, key string) error {
-    if VERBOSE { fmt.Printf("Getting key %v", key) }
+    if VERBOSE { fmt.Printf("Getting key %v\r\n", key) }
 
-    fmt.Fprintf(writer, "get %v\r\n", key)
+    _, err := fmt.Fprintf(writer, "get %v\r\n", key)
+    if err != nil { return err }
     writer.Flush()
     
     // read the header line
@@ -71,13 +75,36 @@ func Get(reader *bufio.Reader, writer *bufio.Writer, key string) error {
     if err != nil { return err }
     if VERBOSE { fmt.Println(response) }
     
+    if VERBOSE { fmt.Printf("Got key %v\r\n", key) }
     return nil
 }
 
-func Delete(reader *bufio.Reader, writer *bufio.Writer, key string) {
-    //if VERBOSE {fmt.Println}
+func Delete(reader *bufio.Reader, writer *bufio.Writer, key string) error {
+    if VERBOSE { fmt.Printf("Deleting key %s\r\n", key) }
+    
+    _, err := fmt.Fprintf(writer, "delete %s\r\n", key)
+    if err != nil { return err }
+    writer.Flush()
+    
+    response, err := reader.ReadString('\n')
+    if err != nil { return err }
+    if VERBOSE { fmt.Println(response) }
+    
+    if VERBOSE { fmt.Printf("Deleted key %s\r\n", key) }
+    return nil
 }
 
-func Touch(reader *bufio.Reader, writer *bufio.Writer, key string) {
-    // if VERBOSE
+func Touch(reader *bufio.Reader, writer *bufio.Writer, key string) error {
+    if VERBOSE { fmt.Printf("Touching key %s\r\n", key) }
+    
+    _, err := fmt.Fprintf(writer, "touch %s 123456\r\n", key)
+    if err != nil { return err }
+    writer.Flush()
+    
+    response, err := reader.ReadString('\n')
+    if err != nil { return err }
+    if VERBOSE { fmt.Println(response) }
+    
+    if VERBOSE { fmt.Printf("Touched key %s\r\n", key) }
+    return nil
 }

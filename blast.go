@@ -25,12 +25,12 @@ const NUM_COMMS = 10
 // 4-character keys with 26 possibilities =    456,976 keys
 // 5-character keys with 26 possibilities = 11,881,376 keys
 const KEY_LENGTH = 4
-const ITERS_PER_GEN = 1000
+const ITERS_PER_GEN = 10000
 
 func main() {
     rand.Seed(time.Now().UTC().UnixNano())
     
-    fmt.Printf("Performing %v operations total\n", ITERS_PER_GEN * NUM_TASK_GENS * 2)
+    fmt.Printf("Performing %v operations total\n", ITERS_PER_GEN * NUM_TASK_GENS * 4)
     
     tasks := make(chan *Task)
     taskGens := new(sync.WaitGroup)
@@ -50,7 +50,11 @@ func main() {
         comms.Add(1)
         
         conn, err := rend.Connect("localhost")
-        if err != nil { i--; continue }
+        if err != nil {
+            i--
+            comms.Add(-1)
+            continue
+        }
         
         go communicator(conn, tasks, comms)
     }
