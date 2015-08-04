@@ -34,7 +34,9 @@ func main() {
 
     // spawn worker goroutines
     for i := 0; i < numWorkers; i++ {
-        go worker(rend.Connect("localhost"), tasks, wg)
+        conn, err := rend.Connect("localhost")
+        if err != nil { fmt.Println("Error:", err.Error()) }
+        go worker(conn, tasks, wg)
     }
     
     source := rend.RandString(10240)
