@@ -32,32 +32,38 @@ func main() {
     
     fmt.Printf("Performing %v operations total\n", ITERS_PER_GEN * NUM_TASK_GENS * 2)
     
-    tasks := make(chan *Task, 10000)
+    tasks := make(chan *Task)
     taskGens := new(sync.WaitGroup)
     comms := new(sync.WaitGroup)
     
     // spawn task generators
     for i := 0; i < NUM_TASK_GENS; i++ {
-        taskGens.Add(2)
+        taskGens.Add(4)
         go setGenerator(tasks, taskGens, ITERS_PER_GEN)
-        go getGenerator(tasks, taskGens, ITERS_PER_GEN)
+        go cmdGenerator(tasks, taskGens, ITERS_PER_GEN, "get")
+        go cmdGenerator(tasks, taskGens, ITERS_PER_GEN, "delete")
+        go cmdGenerator(tasks, taskGens, ITERS_PER_GEN, "touch")
     }
 
     // spawn communicators
     for i := 0; i < NUM_COMMS; i++ {
         comms.Add(1)
-        go communicator(rend.Connect("localhost"), tasks, comms)
+        
+        conn, err := rend.Connect("localhost")
+        if err != nil { i--; continue }
+        
+        go communicator(conn, tasks, comms)
     }
 
     // First wait for all the tasks to be generated,
     // then close the channel so the comm threads complete
-    println("Waiting for taskGens.")
+    fmt.Println("Waiting for taskGens.")
     taskGens.Wait()
-    println("Task gens done.")
+    fmt.Println("Task gens done.")
     close(tasks)
-    println("Tasks closed, waiting on comms.")
+    fmt.Println("Tasks closed, waiting on comms.")
     comms.Wait()
-    println("Comms done.")
+    fmt.Println("Comms done.")
 }
 
 func setGenerator(tasks chan *Task, taskGens *sync.WaitGroup, numTasks int) {
@@ -73,21 +79,21 @@ func setGenerator(tasks chan *Task, taskGens *sync.WaitGroup, numTasks int) {
         tasks <- task
     }
     
-    println("set gen done")
+    fmt.Println("set gen done")
     
     taskGens.Done()
 }
 
-func getGenerator(tasks chan *Task, taskGens *sync.WaitGroup, numTasks int) {
+func cmdGenerator(tasks chan *Task, taskGens *sync.WaitGroup, numTasks int, cmd string) {
     for i := 0; i < numTasks; i++ {
         task := new(Task)
-        task.cmd = "get"
+        task.cmd = cmd
         task.key = rend.RandString(4)
         
         tasks <- task
     }
     
-    println("get gen done")
+    fmt.Println(cmd, "gen done")
     
     taskGens.Done()
 }
@@ -97,14 +103,25 @@ func communicator(conn net.Conn, tasks chan *Task, comms *sync.WaitGroup) {
     writer := bufio.NewWriter(conn)
     
     for item := range tasks {
-        if item.cmd == "get" {
-            rend.Get(reader, writer, item.key)
-        } else {
-            rend.Set(reader, writer, item.key, item.value)
+        var err error
+        
+        switch item.cmd {
+            case "set":
+                err = rend.Set(reader, writer, item.key, item.value)
+            case "get":
+                err = rend.Get(reader, writer, item.key)
+            case "delete":
+                err = rend.Delete(reader, writer, item.key)
+            case "touch":
+                err = rend.Touch(reader, writer, item.key)
+        }
+        
+        if err != nil {
+            fmt.Printf("Error performing operation %s on key %s: %s", item.cmd, item.key, err.Error())
         }
     }
     
-    println("comm done")
+    fmt.Println("comm done")
 
     comms.Done()
 }
