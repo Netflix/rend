@@ -49,7 +49,7 @@ func main() {
     for i := 0; i < NUM_COMMS; i++ {
         comms.Add(1)
         
-        conn, err := rend.Connect("localhost")
+        conn, err := rend.Connect("localhost", 11212)
         if err != nil {
             i--
             comms.Add(-1)

@@ -34,7 +34,7 @@ func main() {
 
     // spawn worker goroutines
     for i := 0; i < numWorkers; i++ {
-        conn, err := rend.Connect("localhost")
+        conn, err := rend.Connect("localhost", 11212)
         if err != nil { fmt.Println("Error:", err.Error()) }
         go worker(conn, tasks, wg)
     }

@@ -21,8 +21,8 @@ func RandString(n int) string {
     return string(b)
 }
 
-func Connect(host string) (net.Conn, error) {
-    conn, err := net.Dial("tcp", host + ":11212")
+func Connect(host string, port int) (net.Conn, error) {
+    conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", host, port))
     if err != nil { return nil, err }
 
     fmt.Println("Connected to memcached.")
