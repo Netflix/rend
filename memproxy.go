@@ -53,9 +53,11 @@ type Metadata struct {
     ChunkSize int32
 }
 
-func main() {
-    // create miss error value
+func init() {
     MISS = errors.New("Cache miss")
+}
+
+func main() {
     
     server, err := net.Listen("tcp", ":11212")
     
