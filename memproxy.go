@@ -18,7 +18,9 @@ import "strconv"
 import "strings"
 
 const verbose = false
-const CHUNK_SIZE = 1024
+// Chunk size, leaving room for the token
+const CHUNK_SIZE = 1024 - 16
+const FULL_DATA_SIZE = 1024
 
 var MISS error
 
@@ -46,7 +48,7 @@ type TouchCmdLine struct {
     exptime string
 }
 
-const METADATA_SIZE = 16
+const METADATA_SIZE = 32
 type Metadata struct {
     Length    int32
     OrigFlags int32
@@ -55,10 +57,10 @@ type Metadata struct {
     Token     [16]byte
 }
 
-var tokens chan [16]byte
+var tokens chan *[16]byte
 func genTokens() [16]byte {
     for {
-        var retval [16]byte
+        retval := new([16]byte)
         rand.Read(retval[:])
         tokens <- retval
     }
@@ -69,7 +71,8 @@ func init() {
     MISS = errors.New("Cache miss")
     
     // keep 1000 unique tokens around
-    tokens = make(chan [16]byte, 1000)
+    // for write-heavy loads
+    tokens = make(chan *[16]byte, 1000)
 }
 
 func main() {
@@ -194,6 +197,9 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     err := readDataIntoBuf(remoteReader, buf)
     
     numChunks := int(math.Ceil(float64(cmd.length) / float64(CHUNK_SIZE)))
+    token := <-tokens
+    
+    if verbose { fmt.Printf("% x", token) }
     
     metaKey := makeMetaKey(cmd.key)
     metaData := Metadata {
@@ -201,6 +207,7 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         OrigFlags: int32(cmd.flags),
         NumChunks: int32(numChunks),
         ChunkSize: CHUNK_SIZE,
+        Token:     *token,
     }
     
     if verbose {
@@ -212,12 +219,12 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
     binary.Write(metaDataBuf, binary.LittleEndian, metaData)
     
     if verbose {
-        fmt.Printf("% x", metaDataBuf.Bytes())
+        fmt.Printf("% x\r\n", metaDataBuf.Bytes())
     }
     
     // Write metadata key
     localCmd := makeSetCommand(metaKey, cmd.exptime, METADATA_SIZE)
-    err = setLocal(localWriter, localCmd, metaDataBuf.Bytes())
+    err = setLocal(localWriter, localCmd, nil, metaDataBuf.Bytes())
     if err != nil { return err }
     
     // Read server's response
@@ -249,8 +256,8 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         }
         
         // Write the key
-        localCmd = makeSetCommand(key, cmd.exptime, CHUNK_SIZE)
-        err = setLocal(localWriter, localCmd, chunkBuf)
+        localCmd = makeSetCommand(key, cmd.exptime, FULL_DATA_SIZE)
+        err = setLocal(localWriter, localCmd, token, chunkBuf)
         if err != nil { return err }
         
         // Read server's response
@@ -295,6 +302,7 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
         
         // Retrieve all the data from memcached
         dataBuf := make([]byte, metaData.Length)
+        tokenBuf := make([]byte, 16)
         
         for i := 0; i < int(metaData.NumChunks); i++ {
             if verbose { fmt.Println("CHUNK", i) }
@@ -309,7 +317,7 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
             // Get the data directly into our buf
             chunkBuf := dataBuf[start:end]
             getCmd := makeGetCommand(chunkKey)
-            err = getLocalIntoBuf(localReader, localWriter, getCmd, chunkBuf)
+            err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf)
             
             if err != nil {
                 if err == MISS {
@@ -318,6 +326,11 @@ func handleGet(cmd GetCmdLine, remoteReader *bufio.Reader, remoteWriter *bufio.W
                 }
                 
                 return err
+            }
+            
+            if (!bytes.Equal(metaData.Token[:], tokenBuf)) {
+                if verbose { fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd) }
+                continue outer
             }
         }
         
@@ -432,12 +445,12 @@ func makeChunkKey(key string, chunk int) string {
     return fmt.Sprintf("%s_%d", key, chunk)
 }
 
-// <command name> <key> <flags> <exptime> <bytes>\r\n
+// set <key> <flags> <exptime> <bytes>\r\n
 func makeSetCommand(key string, exptime string, size int) string {
     return fmt.Sprintf("set %s 0 %s %d\r\n", key, exptime, size)
 }
 
-// get(s) <key>*\r\n
+// get <key>*\r\n
 // TODO: batch get
 func makeGetCommand(key string) string {
     return fmt.Sprintf("get %s\r\n", key)
@@ -481,11 +494,17 @@ func readDataIntoBuf(reader *bufio.Reader, buf []byte) error {
     return nil
 }
 
-func setLocal(localWriter *bufio.Writer, cmd string, data []byte) error {
+func setLocal(localWriter *bufio.Writer, cmd string, token *[16]byte, data []byte) error {
     // Write key/cmd
     if verbose { fmt.Println("cmd:", cmd) }
     _, err := localWriter.WriteString(cmd)
     if err != nil { return err }
+    
+    // Write a token if there is one
+    if token != nil {
+        _, err = localWriter.Write(token[:])
+        if err != nil { return err }
+    }
     
     // Write value
     _, err = localWriter.Write(data)
@@ -500,7 +519,8 @@ func setLocal(localWriter *bufio.Writer, cmd string, data []byte) error {
 }
 
 // TODO: Batch get
-func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd string, buf []byte) error {
+func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer,
+                     cmd string, tokenBuf []byte, buf []byte) error {
     // Write key/cmd
     if verbose { fmt.Println("cmd:", cmd) }
     _, err := localWriter.WriteString(cmd)
@@ -516,6 +536,12 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd s
     }
     
     if verbose { fmt.Println("Header:", string(line)) }
+    
+    // Read in token if requested
+    if tokenBuf != nil {
+        _, err := io.ReadFull(localReader, tokenBuf)
+        if err != nil { return err }
+    }
     
     // Read in value
     err = readDataIntoBuf(localReader, buf)
@@ -565,10 +591,10 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key strin
     // Read in the metadata for number of chunks, chunk size, etc.
     getCmd := makeGetCommand(metaKey)
     metaBytes := make([]byte, METADATA_SIZE)
-    err := getLocalIntoBuf(localReader, localWriter, getCmd, metaBytes)
+    err := getLocalIntoBuf(localReader, localWriter, getCmd, nil, metaBytes)
     if err != nil { return "", Metadata{}, err }
     
-    if verbose { fmt.Printf("% x", metaBytes)}
+    if verbose { fmt.Printf("% x\r\n", metaBytes)}
     
     var metaData Metadata
     binary.Read(bytes.NewBuffer(metaBytes), binary.LittleEndian, &metaData)
