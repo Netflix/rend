@@ -7,6 +7,7 @@ package main
 
 import "bufio"
 import "bytes"
+import "crypto/rand"
 import "encoding/binary"
 import "errors"
 import "fmt"
@@ -51,13 +52,30 @@ type Metadata struct {
     OrigFlags int32
     NumChunks int32
     ChunkSize int32
+    Token     [16]byte
+}
+
+var tokens chan [16]byte
+func genTokens() [16]byte {
+    for {
+        var retval [16]byte
+        rand.Read(retval[:])
+        tokens <- retval
+    }
 }
 
 func init() {
+    // errors are values
     MISS = errors.New("Cache miss")
+    
+    // keep 1000 unique tokens around
+    tokens = make(chan [16]byte, 1000)
 }
 
 func main() {
+    // start generating unique keys immediately to avoid blocking
+    // reads from /dev/urandom during writes
+    go genTokens()
     
     server, err := net.Listen("tcp", ":11212")
     
