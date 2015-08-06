@@ -134,12 +134,6 @@ func handleConnection(remote net.Conn, local net.Conn) {
                 
                 err = handleSet(cmd, remoteReader, remoteWriter, localReader, localWriter)
                 
-                if err != nil {
-                    print(err.Error())
-                    fmt.Fprintf(remoteWriter, "ERROR could not process command")
-                    remote.Close()
-                }
-                
             case "get":
                 cmd := GetCmdLine {
                     cmd:  clParts[0],
@@ -148,12 +142,6 @@ func handleConnection(remote net.Conn, local net.Conn) {
                 
                 err = handleGet(cmd, remoteReader, remoteWriter, localReader, localWriter)
                 
-                if err != nil {
-                    print(err.Error())
-                    fmt.Fprintf(remoteWriter, "ERROR could not process command")
-                    remote.Close()
-                }
-                
             case "delete":
                 cmd := DeleteCmdLine {
                     cmd: clParts[0],
@@ -161,12 +149,6 @@ func handleConnection(remote net.Conn, local net.Conn) {
                 }
                 
                 err = handleDelete(cmd, remoteReader, remoteWriter, localReader, localWriter)
-                
-                if err != nil {
-                    fmt.Println(err.Error())
-                    fmt.Fprintf(remoteWriter, "ERROR could not process command")
-                    remote.Close()
-                }
                 
             // TODO: Error handling for invalid cmd line
             case "touch":
@@ -177,12 +159,12 @@ func handleConnection(remote net.Conn, local net.Conn) {
                 }
                 
                 err = handleTouch(cmd, remoteReader, remoteWriter, localReader, localWriter)
-                
-                if err != nil {
-                    fmt.Println(err.Error())
-                    fmt.Fprintf(remoteWriter, "ERROR could not process command")
-                    remote.Close()
-                }
+        }
+        
+        if err != nil {
+            fmt.Println(err.Error())
+            fmt.Fprintf(remoteWriter, "ERROR could not process command")
+            remote.Close()
         }
     }
 }
