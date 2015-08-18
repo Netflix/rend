@@ -7,7 +7,7 @@ import "net"
 import "time"
 import "sync"
 
-import "./rend"
+import "./rend-client"
 
 type CacheItem struct {
     key string
