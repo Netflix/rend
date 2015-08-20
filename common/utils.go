@@ -3,6 +3,7 @@
  */
 package common
 
+import "crypto/rand"
 import "fmt"
 import "math"
 
@@ -18,8 +19,8 @@ func genTokens() [16]byte {
 }
 
 func init() {
-    // keep 1000 unique tokens around
-    // for write-heavy loads
+    // keep 1000 unique tokens around for write-heavy loads
+    // otherwise we have to wait on a read from /dev/urandom
     tokens = make(chan *[16]byte, 1000)
     go genTokens()
 }

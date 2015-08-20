@@ -11,20 +11,20 @@ import "encoding/binary"
 import "fmt"
 import "math"
 
-func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
+func HandleSet(cmd SetRequest, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
     // Read in the data from the remote connection
-    buf := make([]byte, cmd.length)
+    buf := make([]byte, cmd.Length)
     err := readDataIntoBuf(remoteReader, buf)
     
-    numChunks := int(math.Ceil(float64(cmd.length) / float64(CHUNK_SIZE)))
+    numChunks := int(math.Ceil(float64(cmd.Length) / float64(CHUNK_SIZE)))
     token := <-tokens
     
     if verbose { fmt.Printf("% x", token) }
     
-    metaKey := makeMetaKey(cmd.key)
+    metaKey := makeMetaKey(cmd.Key)
     metaData := Metadata {
-        Length:    int32(cmd.length),
-        OrigFlags: int32(cmd.flags),
+        Length:    int32(cmd.Length),
+        OrigFlags: int32(cmd.Flags),
         NumChunks: int32(numChunks),
         ChunkSize: CHUNK_SIZE,
         Token:     *token,
@@ -43,7 +43,7 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, localReader *bufio.Re
     }
     
     // Write metadata key
-    localCmd := makeSetCommand(metaKey, cmd.exptime, METADATA_SIZE)
+    localCmd := makeSetCommand(metaKey, cmd.Exptime, METADATA_SIZE)
     err = setLocal(localWriter, localCmd, nil, metaDataBuf.Bytes())
     if err != nil { return err }
     
@@ -59,12 +59,12 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, localReader *bufio.Re
     // or at the memcached level, e.g. response == ERROR
     for i := 0; i < numChunks; i++ {
         // Build this chunk's key
-        key := makeChunkKey(cmd.key, i)
+        key := makeChunkKey(cmd.Key, i)
         
         if verbose { fmt.Println(key) }
         
         // indices for slicing, end exclusive
-        start, end := sliceIndices(i, cmd.length)
+        start, end := sliceIndices(i, cmd.Length)
         
         chunkBuf := buf[start:end]
         
@@ -76,7 +76,7 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, localReader *bufio.Re
         }
         
         // Write the key
-        localCmd = makeSetCommand(key, cmd.exptime, FULL_DATA_SIZE)
+        localCmd = makeSetCommand(key, cmd.Exptime, FULL_DATA_SIZE)
         err = setLocal(localWriter, localCmd, token, chunkBuf)
         if err != nil { return err }
         
@@ -87,18 +87,18 @@ func handleSet(cmd SetCmdLine, remoteReader *bufio.Reader, localReader *bufio.Re
         if verbose { fmt.Println(response) }
     }
     
-    return Response{}
+    return nil
 }
 
-func handleGet(cmd GetCmdLine, localReader *bufio.Reader, localWriter *bufio.Writer) (chan GetResponse, chan error) {
+func HandleGet(cmd GetRequest, localReader *bufio.Reader, localWriter *bufio.Writer) (chan GetResponse, chan error) {
     // No buffering here so there's not multiple gets in memory
-    dataOut = make(chan GetResponse)
-    errorOut = make(chan error)
+    dataOut := make(chan GetResponse)
+    errorOut := make(chan error)
     go realHandleGet(cmd, dataOut, errorOut, localReader, localWriter)
     return dataOut, errorOut
 }
 
-func realHandleGet(cmd GetCmdLine, dataOut chan GetResponse, errorOut chan error,
+func realHandleGet(cmd GetRequest, dataOut chan GetResponse, errorOut chan error,
                    localReader *bufio.Reader, localWriter *bufio.Writer) {
     // read index
     // make buf
@@ -106,7 +106,7 @@ func realHandleGet(cmd GetCmdLine, dataOut chan GetResponse, errorOut chan error
     //   read chunk, append to buffer
     // send response
         
-    outer: for _, key := range cmd.keys {
+    outer: for _, key := range cmd.Keys {
         _, metaData, err := getMetadata(localReader, localWriter, key)
         if err != nil {
             if err == MISS {
@@ -158,6 +158,7 @@ func realHandleGet(cmd GetCmdLine, dataOut chan GetResponse, errorOut chan error
         }
         
         dataOut <- GetResponse {
+            Key:      key,
             Metadata: metaData,
             Data:     dataBuf,
         }
@@ -167,18 +168,18 @@ func realHandleGet(cmd GetCmdLine, dataOut chan GetResponse, errorOut chan error
     close(errorOut)
 }
 
-func handleDelete(cmd DeleteCmdLine, localReader *bufio.Reader, localWriter *bufio.Writer) error {
+func HandleDelete(cmd DeleteRequest, localReader *bufio.Reader, localWriter *bufio.Writer) error {
     // read metadata
     // delete metadata
     // for 0 to metadata.numChunks
     //  delete item
     
-    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.key)
+    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
     
     if err != nil {
         if err == MISS {
-            if verbose { fmt.Println("Delete miss because of missing metadata. Key:", cmd.key) }
-            return NOT_FOUND
+            if verbose { fmt.Println("Delete miss because of missing metadata. Key:", cmd.Key) }
+            return err
         }
         return err
     }
@@ -187,7 +188,7 @@ func handleDelete(cmd DeleteCmdLine, localReader *bufio.Reader, localWriter *buf
     if err != nil { return err }
     
     for i := 0; i < int(metaData.NumChunks); i++ {
-        chunkKey := makeChunkKey(cmd.key, i)
+        chunkKey := makeChunkKey(cmd.Key, i)
         err := deleteLocal(localReader, localWriter, chunkKey)
         if err != nil { return err }
     }
@@ -195,30 +196,30 @@ func handleDelete(cmd DeleteCmdLine, localReader *bufio.Reader, localWriter *buf
     return nil
 }
 
-func handleTouch(cmd TouchCmdLine, localReader *bufio.Reader, localWriter *bufio.Writer) error {
+func HandleTouch(cmd TouchRequest, localReader *bufio.Reader, localWriter *bufio.Writer) error {
     // read metadata
     // for 0 to metadata.numChunks
     //  touch item
     // touch metadata
     
-    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.key)
+    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
         
     if err != nil {
         if err == MISS {
-            if verbose { fmt.Println("Touch miss because of missing metadata. Key:", cmd.key) }
-            return NOT_FOUND
+            if verbose { fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key) }
+            return err
         }
         
         return err
     }
     
     for i := 0; i < int(metaData.NumChunks); i++ {
-        chunkKey := makeChunkKey(cmd.key, i)
-        err := touchLocal(localReader, localWriter, chunkKey, cmd.exptime)
+        chunkKey := makeChunkKey(cmd.Key, i)
+        err := touchLocal(localReader, localWriter, chunkKey, cmd.Exptime)
         if err != nil { return err }
     }
     
-    err = touchLocal(localReader, localWriter, metaKey, cmd.exptime)
+    err = touchLocal(localReader, localWriter, metaKey, cmd.Exptime)
     if err != nil { return err }
     
     return nil

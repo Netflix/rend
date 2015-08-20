@@ -5,20 +5,14 @@
 package text
 
 import "bufio"
-import "bytes"
-import "crypto/rand"
-import "encoding/binary"
-import "errors"
 import "fmt"
 import "io"
-import "math"
-import "net"
 import "strconv"
 import "strings"
 
 import "../common"
 
-func Parse(remoteReader *bufio.Reader) (interface{}, error) {
+func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
     
     data, err := remoteReader.ReadString('\n')
     
@@ -28,7 +22,7 @@ func Parse(remoteReader *bufio.Reader) (interface{}, error) {
         } else {
             fmt.Println(err.Error())
         }
-        return interface{}, err
+        return nil, err
     }
     
     clParts := strings.Split(strings.TrimSpace(data), " ")
@@ -39,42 +33,44 @@ func Parse(remoteReader *bufio.Reader) (interface{}, error) {
             
             if err != nil {
                 fmt.Println(err.Error())
-                return interface{}, common.BAD_LENGTH
+                return nil, common.BAD_LENGTH
             }
             
             flags, err := strconv.Atoi(strings.TrimSpace(clParts[2]))
             
             if err != nil {
                 fmt.Println(err.Error())
-                return interface{}, common.BAD_FLAGS
+                return nil, common.BAD_FLAGS
             }
             
-            return SetCmdLine {
-                cmd:     clParts[0],
-                key:     clParts[1],
-                flags:   flags,
-                exptime: clParts[3],
-                length:  length,
+            return common.SetRequest {
+                Cmd:     clParts[0],
+                Key:     clParts[1],
+                Flags:   flags,
+                Exptime: clParts[3],
+                Length:  length,
             }, nil
             
         case "get":
-            return GetCmdLine {
-                cmd:  clParts[0],
-                keys: clParts[1:],
+            return common.GetRequest {
+                Cmd:  clParts[0],
+                Keys: clParts[1:],
             }, nil
             
         case "delete":
-            return DeleteCmdLine {
-                cmd: clParts[0],
-                key: clParts[1],
+            return common.DeleteRequest {
+                Cmd: clParts[0],
+                Key: clParts[1],
             }, nil
             
         // TODO: Error handling for invalid cmd line
         case "touch":
-            return TouchCmdLine {
-                cmd:     clParts[0],
-                key:     clParts[1],
-                exptime: clParts[2],
+            return common.TouchRequest {
+                Cmd:     clParts[0],
+                Key:     clParts[1],
+                Exptime: clParts[2],
             }, nil
     }
+    
+    return nil, nil
 }

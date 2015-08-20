@@ -11,50 +11,38 @@ const verbose = false
 const CHUNK_SIZE = 1024 - 16
 const FULL_DATA_SIZE = 1024
 
-var MISS error
+var MISS       error
 var BAD_LENGTH error
-var BAD_FLAGS error
-var NOT_FOUND error
+var BAD_FLAGS  error
 
-const (
-    SET = iota
-    GET
-    TOUCH
-    DELETE
-)
-
-type Command struct {
-    Operation int
-    CmdLine *interface{}
+type SetRequest struct {
+	Cmd     string
+	Key     string
+	Flags   int
+	Exptime string
+	Length  int
 }
 
-type SetCmdLine struct {
-	cmd     string
-	key     string
-	flags   int
-	exptime string
-	length  int
+type GetRequest struct {
+	Cmd  string
+	Keys []string
 }
 
-type GetCmdLine struct {
-	cmd  string
-	keys []string
+type DeleteRequest struct {
+	Cmd string
+	Key string
 }
 
-type DeleteCmdLine struct {
-	cmd string
-	key string
-}
-
-type TouchCmdLine struct {
-	cmd     string
-	key     string
-	exptime string
+type TouchRequest struct {
+	Cmd     string
+	Key     string
+	Exptime string
 }
 
 type GetResponse struct {
+    Key      string
     Metadata Metadata
-    Data []byte
+    Data     []byte
 }
 
 const METADATA_SIZE = 32
@@ -74,5 +62,4 @@ func init() {
     // External errors
     BAD_LENGTH = errors.New("CLIENT_ERROR length is not a valid integer")
     BAD_FLAGS = errors.New("CLIENT_ERROR flags is not a valid integer")
-    NOT_FOUND = errors.New("NOT_FOUND")
 }
