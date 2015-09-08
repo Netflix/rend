@@ -17,9 +17,9 @@ import "net"
 import "strconv"
 import "strings"
 
-import "./binary"
+import "./binaryprot"
 import "./common"
-import "./text"
+import "./textprot"
 
 const verbose = false
 
@@ -63,10 +63,10 @@ func handleConnection(remote net.Conn, local net.Conn) {
     for {
         if isBinaryRequest(remoteReader) {
             binary = true
-            request = binary.Parse(remoteReader)
+            request = binaryprot.Parse(remoteReader)
         } else {
             binary = false
-            request = text.Parse(remoteReader)
+            request = textprot.Parse(remoteReader)
         }
         
         // TODO: handle nil
@@ -112,5 +112,5 @@ func handleConnection(remote net.Conn, local net.Conn) {
 func isBinaryRequest(reader *bufio.Reader) bool, err {
     headerByte, err := reader.Peek(1)
     if err != nil { return false, err }
-    return headerByte == binary.HeaderByte
+    return headerByte == binaryprot.HeaderByte
 }

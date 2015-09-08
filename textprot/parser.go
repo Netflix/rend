@@ -2,7 +2,7 @@
  * Parses the text-based protocol and returns a command line
  * struct representing the work to be done
  */
-package text
+package textprot
 
 import "bufio"
 import "fmt"

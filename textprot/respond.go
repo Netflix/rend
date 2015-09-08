@@ -1,7 +1,7 @@
 /**
  * Functions to respond in kind to text-based requests
  */
-package text
+package textprot
 
 import "bufio"
 import "fmt"
