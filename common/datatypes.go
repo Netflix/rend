@@ -16,7 +16,6 @@ var BAD_LENGTH error
 var BAD_FLAGS  error
 
 type SetRequest struct {
-	Cmd     string
 	Key     string
 	Flags   int
 	Exptime string
@@ -24,17 +23,14 @@ type SetRequest struct {
 }
 
 type GetRequest struct {
-	Cmd  string
 	Keys []string
 }
 
 type DeleteRequest struct {
-	Cmd string
 	Key string
 }
 
 type TouchRequest struct {
-	Cmd     string
 	Key     string
 	Exptime string
 }

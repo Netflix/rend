@@ -44,7 +44,6 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             }
             
             return common.SetRequest {
-                Cmd:     clParts[0],
                 Key:     clParts[1],
                 Flags:   flags,
                 Exptime: clParts[3],
@@ -53,20 +52,17 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             
         case "get":
             return common.GetRequest {
-                Cmd:  clParts[0],
                 Keys: clParts[1:],
             }, nil
             
         case "delete":
             return common.DeleteRequest {
-                Cmd: clParts[0],
                 Key: clParts[1],
             }, nil
             
         // TODO: Error handling for invalid cmd line
         case "touch":
             return common.TouchRequest {
-                Cmd:     clParts[0],
                 Key:     clParts[1],
                 Exptime: clParts[2],
             }, nil

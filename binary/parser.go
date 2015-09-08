@@ -139,7 +139,6 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             realLength := int(reqHeader.TotalBodyLength) - int(reqHeader.ExtraLength) - int(reqHeader.KeyLength)
             
             return common.SetRequest {
-                Cmd:     "set",
                 Key:     key,
                 Flags:   int(flags),
                 Exptime: exptime,
@@ -156,7 +155,6 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             }
             
             return common.GetRequest {
-                Cmd:  "get",
                 Keys: []string{key},
             }, nil
             
@@ -170,7 +168,6 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             }
             
             return common.DeleteRequest {
-                Cmd: "delete",
                 Key: key,
             }, nil
             
@@ -191,7 +188,6 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             }
             
             return common.TouchRequest {
-                Cmd:     "touch",
                 Key:     key,
                 Exptime: exptime,
             }, nil
