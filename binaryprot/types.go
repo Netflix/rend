@@ -26,3 +26,27 @@ const STATUS_AUTH_ERROR      = 0x20
 const STATUS_AUTH_CONTINUE   = 0x21
 const STATUS_UNKNOWN_COMMAND = 0x81
 const STATUS_ENOMEM          = 0x82
+
+type RequestHeader struct {
+    Magic           int8  // Already known, since we're here
+    Opcode          int8
+    KeyLength       int16
+    ExtraLength     int8
+    DataType        int8  // Always 0
+    VBucket         int16 // Not used
+    TotalBodyLength int32 // Not useful
+    OpaqueToken     int32 // Echoed to the client
+    CASToken        int64 // Unused in current implementation
+}
+
+type ResponseHeader struct {
+    Magic           int8  // always 0x81
+    Opcode          int8
+    KeyLength       int16
+    ExtraLength     int8
+    DataType        int8  // unused, always 0
+    Status          int16
+    TotalBodyLength int32
+    OpaqueToken     int32 // same as the user passed in
+    CASToken        int64
+}

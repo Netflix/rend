@@ -71,18 +71,6 @@ import "../common"
 //     Key                 : The textual string "Hello"
 //     Value               : None
 
-type RequestHeader struct {
-    Magic           int8  // Already known, since we're here
-    Opcode          int8
-    KeyLength       int16
-    ExtraLength     int8
-    DataType        int8  // Always 0
-    VBucket         int16 // Not used
-    TotalBodyLength int32 // Not useful
-    OpaqueToken     int32 // Echoed to the client
-    CASToken        int64 // Unused in current implementation
-}
-
 func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
     
     // read in the full header before any variable length fields
