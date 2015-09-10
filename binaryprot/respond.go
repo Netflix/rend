@@ -133,18 +133,20 @@ func (r BinaryResponder) RespondSet(err error, remoteWriter *bufio.Writer) error
 }
 
 func (r BinaryResponder) RespondGetChunk(response common.GetResponse, remoteWriter *bufio.Writer) error {
-    // Write data out to client
-    // [VALUE <key> <flags> <bytes>\r\n
-    // <data block>\r\n]*
-    // END\r\n
-    _, err := fmt.Fprintf(remoteWriter, "VALUE %s %d %d\r\n",
-        response.Key, response.Metadata.OrigFlags, response.Metadata.Length)
+    var header ResponseHeader
+    
+    // total body length = extras (flags, 4 bytes) + data length
+    totalBodyLength := len(response.Data) + 4
+    
+    header = makeSuccessResponseHeader(OPCODE_GET, 0, 4, totalBodyLength, 0)
+    
+    err := writeHeader(header, remoteWriter)
+    if err != nil { return err }
+    
+    err = binary.Write(remoteWriter, binary.BigEndian, response.Metadata.OrigFlags)
     if err != nil { return err }
     
     _, err = remoteWriter.Write(response.Data)
-    if err != nil { return err }
-    
-    _, err = remoteWriter.WriteString("\r\n")
     if err != nil { return err }
 
     remoteWriter.Flush()
