@@ -60,10 +60,9 @@ func handleConnection(remote net.Conn, local net.Conn) {
     var reqType   common.RequestType
     var request   interface{}
     
-    var binaryParser binaryprot.BinaryParser
-    var textParser   textprot.TextParser
-    
+    var binaryParser    binaryprot.BinaryParser
     var binaryResponder binaryprot.BinaryResponder
+    var textParser      textprot.TextParser
     var textResponder   textprot.TextResponder
     
     for {
@@ -92,32 +91,28 @@ func handleConnection(remote net.Conn, local net.Conn) {
         // TODO: handle nil
         switch reqType {
             case common.REQUEST_SET:
-                setRequest, _ := request.(common.SetRequest)
-                err = common.HandleSet(setRequest, remoteReader, localReader, localWriter)
+                err = common.HandleSet(request.(common.SetRequest), remoteReader, localReader, localWriter)
                 
                 if err == nil {
                     responder.RespondSet(nil, remoteWriter)
                 }
                 
             case common.REQUEST_DELETE:
-                deleteRequest, _ := request.(common.DeleteRequest)
-                err = common.HandleDelete(deleteRequest, localReader, localWriter)
+                err = common.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
                 
                 if err == nil {
                     responder.RespondDelete(nil, remoteWriter)
                 }
                 
             case common.REQUEST_TOUCH:
-                touchRequest, _ := request.(common.TouchRequest)
-                err = common.HandleTouch(touchRequest, localReader, localWriter)
+                err = common.HandleTouch(request.(common.TouchRequest), localReader, localWriter)
                 
                 if err == nil {
                     responder.RespondTouch(nil, remoteWriter)
                 }
                 
             case common.REQUEST_GET:
-                getRequest, _ := request.(common.GetRequest)
-                response, errChan := common.HandleGet(getRequest, localReader, localWriter)
+                response, errChan := common.HandleGet(request.(common.GetRequest), localReader, localWriter)
                 
                 for {
                     select {
