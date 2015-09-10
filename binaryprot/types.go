@@ -1,8 +1,9 @@
 /**
  * Common types and constants
  */
+package binaryprot
 
-var HeaderByte = []byte{0x80}
+var MAGIC_REQUEST = 0x80
 
 const OPCODE_GET    = 0x00
 const OPCODE_GETQ   = 0x09 // (later)
@@ -13,7 +14,7 @@ const OPCODE_DELETE = 0x04
 const OPCODE_TOUCH  = 0x1c
 const OPCODE_NOOP   = 0x0a // (later)
 
-const RESPONSE_MAGIC = 0x81
+const MAGIC_RESPONSE = 0x81
 
 const STATUS_SUCCESS         = 0x00
 const STATUS_KEY_ENOENT      = 0x01

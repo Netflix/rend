@@ -90,7 +90,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
     binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
     
     switch reqHeader.Opcode {
-        case SET:
+        case OPCODE_SET:
             // flags, exptime, key, value (implicit, read in handler)
             flags, err := readUInt32(remoteReader)
             
@@ -122,7 +122,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
                 Length:  realLength,
             }, nil
             
-        case GET:
+        case OPCODE_GET:
             // key
             key, err := readString(remoteReader, reqHeader.KeyLength)
             
@@ -135,7 +135,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
                 Keys: []string{key},
             }, nil
             
-        case DELETE:
+        case OPCODE_DELETE:
             // key
             key, err := readString(remoteReader, reqHeader.KeyLength)
             
@@ -148,7 +148,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
                 Key: key,
             }, nil
             
-        case TOUCH:
+        case OPCODE_TOUCH:
             // exptime, key
             exptime, err := readUInt32AsString(remoteReader)
             
@@ -173,7 +173,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
     return nil, nil
 }
 
-func readString(remoteReader *bufio.Reader, length int16) (string, error) {
+func readString(remoteReader *bufio.Reader, length uint16) (string, error) {
     buf := make([]byte, length)
     _, err := io.ReadFull(remoteReader, buf)
     
