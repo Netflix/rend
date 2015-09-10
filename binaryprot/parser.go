@@ -21,66 +21,66 @@ const NOOP   = 0x0a // (later)
 
 // Example Set Request
 // Field        (offset) (value)
-//    Magic        (0)    : 0x80
-//    Opcode       (1)    : 0x02
-//    Key length   (2,3)  : 0x0005
-//    Extra length (4)    : 0x08
-//    Data type    (5)    : 0x00
-//    VBucket      (6,7)  : 0x0000
-//    Total body   (8-11) : 0x00000012
-//    Opaque       (12-15): 0x00000000
-//    CAS          (16-23): 0x0000000000000000
-//    Extras              :
-//      Flags      (24-27): 0xdeadbeef
-//      Expiry     (28-31): 0x00000e10
-//    Key          (32-36): The textual string "Hello"
-//    Value        (37-41): The textual string "World"
+//     Magic        (0)    : 0x80
+//     Opcode       (1)    : 0x02
+//     Key length   (2,3)  : 0x0005
+//     Extra length (4)    : 0x08
+//     Data type    (5)    : 0x00
+//     VBucket      (6,7)  : 0x0000
+//     Total body   (8-11) : 0x00000012
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x0000000000000000
+//     Extras              :
+//       Flags      (24-27): 0xdeadbeef
+//       Expiry     (28-31): 0x00000e10
+//     Key          (32-36): The textual string "Hello"
+//     Value        (37-41): The textual string "World"
 
 // Example Get request
 // Field        (offset) (value)
-//    Magic        (0)    : 0x80
-//    Opcode       (1)    : 0x00
-//    Key length   (2,3)  : 0x0005
-//    Extra length (4)    : 0x00
-//    Data type    (5)    : 0x00
-//    VBucket      (6,7)  : 0x0000
-//    Total body   (8-11) : 0x00000005 (for "Hello")
-//    Opaque       (12-15): 0x00000000
-//    CAS          (16-23): 0x0000000000000000
-//    Extras              : None
-//    Key          (24-29): The string key (e.g. "Hello")
-//    Value               : None
+//     Magic        (0)    : 0x80
+//     Opcode       (1)    : 0x00
+//     Key length   (2,3)  : 0x0005
+//     Extra length (4)    : 0x00
+//     Data type    (5)    : 0x00
+//     VBucket      (6,7)  : 0x0000
+//     Total body   (8-11) : 0x00000005 (for "Hello")
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x0000000000000000
+//     Extras              : None
+//     Key          (24-29): The string key (e.g. "Hello")
+//     Value               : None
 
 // Example Delete request
 // Field        (offset) (value)
-//    Magic        (0)    : 0x80
-//    Opcode       (1)    : 0x04
-//    Key length   (2,3)  : 0x0005
-//    Extra length (4)    : 0x00
-//    Data type    (5)    : 0x00
-//    VBucket      (6,7)  : 0x0000
-//    Total body   (8-11) : 0x00000005
-//    Opaque       (12-15): 0x00000000
-//    CAS          (16-23): 0x0000000000000000
-//    Extras              : None
-//    Key                 : The textual string "Hello"
-//    Value               : None
+//     Magic        (0)    : 0x80
+//     Opcode       (1)    : 0x04
+//     Key length   (2,3)  : 0x0005
+//     Extra length (4)    : 0x00
+//     Data type    (5)    : 0x00
+//     VBucket      (6,7)  : 0x0000
+//     Total body   (8-11) : 0x00000005
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x0000000000000000
+//     Extras              : None
+//     Key                 : The textual string "Hello"
+//     Value               : None
 
 // Example Touch request (not from docs)
 // Field        (offset) (value)
-//    Magic        (0)    : 0x80
-//    Opcode       (1)    : 0x04
-//    Key length   (2,3)  : 0x0005
-//    Extra length (4)    : 0x04
-//    Data type    (5)    : 0x00
-//    VBucket      (6,7)  : 0x0000
-//    Total body   (8-11) : 0x00000005
-//    Opaque       (12-15): 0x00000000
-//    CAS          (16-23): 0x0000000000000000
-//    Extras              :
-//      Expiry     (24-27): 0x00000e10
-//    Key                 : The textual string "Hello"
-//    Value               : None
+//     Magic        (0)    : 0x80
+//     Opcode       (1)    : 0x04
+//     Key length   (2,3)  : 0x0005
+//     Extra length (4)    : 0x04
+//     Data type    (5)    : 0x00
+//     VBucket      (6,7)  : 0x0000
+//     Total body   (8-11) : 0x00000005
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x0000000000000000
+//     Extras              :
+//       Expiry     (24-27): 0x00000e10
+//     Key                 : The textual string "Hello"
+//     Value               : None
 
 type RequestHeader struct {
     Magic           int8  // Already known, since we're here
