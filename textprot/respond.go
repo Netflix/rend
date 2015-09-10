@@ -8,7 +8,7 @@ import "fmt"
 
 import "../common"
 
-func RespondSet(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func RespondSet(err error, remoteWriter *bufio.Writer) error {
     // BAD_LENGTH
     //BAD_FLAGS
     
@@ -23,7 +23,7 @@ func RespondSet(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Write
     return nil
 }
 
-func RespondGetChunk(response common.GetResponse, remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func RespondGetChunk(response common.GetResponse, remoteWriter *bufio.Writer) error {
     // Write data out to client
     // [VALUE <key> <flags> <bytes>\r\n
     // <data block>\r\n]*
@@ -50,9 +50,9 @@ func RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error
     return nil
 }
 
-func RespondDelete(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func RespondDelete(err error, remoteWriter *bufio.Writer) error {
     if err != nil {
-        return respondError(err, remoteReader, remoteWriter)
+        return respondError(err, remoteWriter)
     }
     
     _, err = fmt.Fprintf(remoteWriter, "DELETED\r\n")
@@ -62,9 +62,9 @@ func RespondDelete(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Wr
     return nil
 }
 
-func RespondTouch(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func RespondTouch(err error, remoteWriter *bufio.Writer) error {
     if err != nil {
-        return respondError(err, remoteReader, remoteWriter)
+        return respondError(err, remoteWriter)
     }
     
     _, err = fmt.Fprintf(remoteWriter, "TOUCHED\r\n")
@@ -74,7 +74,7 @@ func RespondTouch(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Wri
     return nil
 }
 
-func respondError(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func respondError(err error, remoteWriter *bufio.Writer) error {
     if err == common.MISS {
         _, err = fmt.Fprintf(remoteWriter, "NOT_FOUND\r\n")
     } else {

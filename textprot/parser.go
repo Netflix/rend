@@ -12,7 +12,7 @@ import "strings"
 
 import "../common"
 
-func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
+func ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
     
     data, err := remoteReader.ReadString('\n')
     
@@ -22,7 +22,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
         } else {
             fmt.Println(err.Error())
         }
-        return nil, err
+        return nil, common.REQUEST_GET, err
     }
     
     clParts := strings.Split(strings.TrimSpace(data), " ")
@@ -33,14 +33,14 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             
             if err != nil {
                 fmt.Println(err.Error())
-                return nil, common.BAD_LENGTH
+                return nil, common.REQUEST_SET, common.BAD_LENGTH
             }
             
             flags, err := strconv.Atoi(strings.TrimSpace(clParts[2]))
             
             if err != nil {
                 fmt.Println(err.Error())
-                return nil, common.BAD_FLAGS
+                return nil, common.REQUEST_SET, common.BAD_FLAGS
             }
             
             return common.SetRequest {
@@ -48,25 +48,25 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
                 Flags:   flags,
                 Exptime: clParts[3],
                 Length:  length,
-            }, nil
+            }, common.REQUEST_SET, nil
             
         case "get":
             return common.GetRequest {
                 Keys: clParts[1:],
-            }, nil
+            }, common.REQUEST_GET, nil
             
         case "delete":
             return common.DeleteRequest {
                 Key: clParts[1],
-            }, nil
+            }, common.REQUEST_DELETE, nil
             
         // TODO: Error handling for invalid cmd line
         case "touch":
             return common.TouchRequest {
                 Key:     clParts[1],
                 Exptime: clParts[2],
-            }, nil
+            }, common.REQUEST_TOUCH, nil
     }
     
-    return nil, nil
+    return nil, common.REQUEST_GET, nil
 }

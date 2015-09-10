@@ -71,7 +71,7 @@ import "../common"
 //     Key                 : The textual string "Hello"
 //     Value               : None
 
-func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
+func ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
     
     // read in the full header before any variable length fields
     headerBuf := make([]byte, 24)
@@ -83,7 +83,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
         } else {
             fmt.Println(err.Error())
         }
-        return nil, err
+        return nil, common.REQUEST_GET, err
     }
     
     var reqHeader RequestHeader
@@ -96,21 +96,21 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             
             if err != nil {
                 fmt.Println("Error reading flags")
-                return nil, err
+                return nil, common.REQUEST_SET, err
             }
             
             exptime, err := readUInt32AsString(remoteReader)
             
             if err != nil {
                 fmt.Println("Error reading exptime")
-                return nil, err
+                return nil, common.REQUEST_SET, err
             }
             
             key, err := readString(remoteReader, reqHeader.KeyLength)
             
             if err != nil {
                 fmt.Println("Error reading key")
-                return nil, err
+                return nil, common.REQUEST_SET, err
             }
             
             realLength := int(reqHeader.TotalBodyLength) - int(reqHeader.ExtraLength) - int(reqHeader.KeyLength)
@@ -120,7 +120,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
                 Flags:   int(flags),
                 Exptime: exptime,
                 Length:  realLength,
-            }, nil
+            }, common.REQUEST_SET, nil
             
         case OPCODE_GET:
             // key
@@ -128,12 +128,12 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             
             if err != nil {
                 fmt.Println("Error reading key")
-                return nil, err
+                return nil, common.REQUEST_GET, err
             }
             
             return common.GetRequest {
                 Keys: []string{key},
-            }, nil
+            }, common.REQUEST_GET, nil
             
         case OPCODE_DELETE:
             // key
@@ -141,12 +141,12 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             
             if err != nil {
                 fmt.Println("Error reading key")
-                return nil, err
+                return nil, common.REQUEST_DELETE, err
             }
             
             return common.DeleteRequest {
                 Key: key,
-            }, nil
+            }, common.REQUEST_DELETE, nil
             
         case OPCODE_TOUCH:
             // exptime, key
@@ -154,23 +154,23 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             
             if err != nil {
                 fmt.Println("Error reading exptime")
-                return nil, err
+                return nil, common.REQUEST_TOUCH, err
             }
             
             key, err := readString(remoteReader, reqHeader.KeyLength)
             
             if err != nil {
                 fmt.Println("Error reading key")
-                return nil, err
+                return nil, common.REQUEST_TOUCH, err
             }
             
             return common.TouchRequest {
                 Key:     key,
                 Exptime: exptime,
-            }, nil
+            }, common.REQUEST_TOUCH, nil
     }
     
-    return nil, nil
+    return nil, common.REQUEST_GET, nil
 }
 
 func readString(remoteReader *bufio.Reader, length uint16) (string, error) {

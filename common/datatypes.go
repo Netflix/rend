@@ -15,6 +15,12 @@ var MISS       error
 var BAD_LENGTH error
 var BAD_FLAGS  error
 
+type RequestType int
+const REQUEST_GET = RequestType(0)
+const REQUEST_SET = RequestType(1)
+const REQUEST_DELETE = RequestType(2)
+const REQUEST_TOUCH = RequestType(3)
+
 type SetRequest struct {
 	Key     string
 	Flags   int
