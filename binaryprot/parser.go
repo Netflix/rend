@@ -92,14 +92,14 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
     switch reqHeader.Opcode {
         case SET:
             // flags, exptime, key, value (implicit, read in handler)
-            flags, err := readInt32(remoteReader)
+            flags, err := readUInt32(remoteReader)
             
             if err != nil {
                 fmt.Println("Error reading flags")
                 return nil, err
             }
             
-            exptime, err := readInt32AsString(remoteReader)
+            exptime, err := readUInt32AsString(remoteReader)
             
             if err != nil {
                 fmt.Println("Error reading exptime")
@@ -150,7 +150,7 @@ func ParseRequest(remoteReader *bufio.Reader) (interface{}, error) {
             
         case TOUCH:
             // exptime, key
-            exptime, err := readInt32AsString(remoteReader)
+            exptime, err := readUInt32AsString(remoteReader)
             
             if err != nil {
                 fmt.Println("Error reading exptime")
@@ -182,17 +182,17 @@ func readString(remoteReader *bufio.Reader, length int16) (string, error) {
     return string(buf), nil
 }
 
-func readInt32AsString(remoteReader *bufio.Reader) (string, error) {
-    num, err := readInt32(remoteReader)
+func readUInt32AsString(remoteReader *bufio.Reader) (string, error) {
+    num, err := readUInt32(remoteReader)
     if err != nil { return "", err }
     return fmt.Sprintf("%v", num), nil
 }
 
-func readInt32(remoteReader *bufio.Reader) (int32, error) {
-    var num int32
+func readUInt32(remoteReader *bufio.Reader) (uint32, error) {
+    var num uint32
     err := binary.Read(remoteReader, binary.BigEndian, &num)
     
-    if err != nil { return int32(0), err }
+    if err != nil { return uint32(0), err }
     
     return num, nil
 }
