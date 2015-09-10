@@ -8,17 +8,6 @@ import "io"
 
 import "../common"
 
-var HeaderByte = []byte{0x80}
-
-const GET    = 0x00
-const GETQ   = 0x09 // (later)
-const GAT    = 0x1d // (later)
-const GATQ   = 0x1e // (later)
-const SET    = 0x01
-const DELETE = 0x04
-const TOUCH  = 0x1c
-const NOOP   = 0x0a // (later)
-
 // Example Set Request
 // Field        (offset) (value)
 //     Magic        (0)    : 0x80
