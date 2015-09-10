@@ -6,16 +6,8 @@
 package main
 
 import "bufio"
-import "bytes"
-import "crypto/rand"
-import "encoding/binary"
-import "errors"
 import "fmt"
-import "io"
-import "math"
 import "net"
-import "strconv"
-import "strings"
 
 import "./binaryprot"
 import "./common"
@@ -50,46 +42,93 @@ func main() {
     }
 }
 
+func abort(remote net.Conn, err error, binary bool) {
+    // separate fatal errors from "expected"
+    fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
+    // use proper serializer to respond here
+    remote.Close()
+}
+
 func handleConnection(remote net.Conn, local net.Conn) {
     remoteReader := bufio.NewReader(remote)
     remoteWriter := bufio.NewWriter(remote)
     localReader  := bufio.NewReader(local)
     localWriter  := bufio.NewWriter(local)
     
-    var binary   bool
-    var request  interface{}
-    var err      error
+    var parser    common.RequestParser
+    var responder common.Responder
+    var reqType   common.RequestType
+    var request   interface{}
+    
+    var binaryParser binaryprot.BinaryParser
+    var textParser   textprot.TextParser
+    
+    var binaryResponder binaryprot.BinaryResponder
+    var textResponder   textprot.TextResponder
     
     for {
-        if isBinaryRequest(remoteReader) {
-            binary = true
-            request = binaryprot.Parse(remoteReader)
+        binary, err := isBinaryRequest(remoteReader)
+        
+        if err != nil {
+            abort(remote, err, binary)
+            return
+        }
+        
+        if binary {
+            parser = binaryParser
+            responder = binaryResponder
         } else {
-            binary = false
-            request = textprot.Parse(remoteReader)
+            parser = textParser
+            responder = textResponder
+        }
+        
+        request, reqType, err = parser.ParseRequest(remoteReader)
+        
+        if err != nil {
+            abort(remote, err, binary)
+            return
         }
         
         // TODO: handle nil
-        switch request.(type) {
-            case common.SetRequest:
-                err = common.HandleSet(request, remoteReader, localReader, localWriter)
+        switch reqType {
+            case common.REQUEST_SET:
+                setRequest, _ := request.(common.SetRequest)
+                err = common.HandleSet(setRequest, remoteReader, localReader, localWriter)
                 
-            case common.DeleteRequest:
-                err = common.HandleDelete(request, localReader, localWriter)
+                if err == nil {
+                    responder.RespondSet(nil, remoteWriter)
+                }
                 
-            case common.TouchRequest:
-                err = common.HandleTouch(request, localReader, localWriter)
+            case common.REQUEST_DELETE:
+                deleteRequest, _ := request.(common.DeleteRequest)
+                err = common.HandleDelete(deleteRequest, localReader, localWriter)
                 
-            case common.GetRequest:
-                response, errChan := common.HandleSet(request, localReader, localWriter)
+                if err == nil {
+                    responder.RespondDelete(nil, remoteWriter)
+                }
+                
+            case common.REQUEST_TOUCH:
+                touchRequest, _ := request.(common.TouchRequest)
+                err = common.HandleTouch(touchRequest, localReader, localWriter)
+                
+                if err == nil {
+                    responder.RespondTouch(nil, remoteWriter)
+                }
+                
+            case common.REQUEST_GET:
+                getRequest, _ := request.(common.GetRequest)
+                response, errChan := common.HandleGet(getRequest, localReader, localWriter)
                 
                 for {
                     select {
                         case res, ok := <-response:
                             if !ok { response = nil }
-                            // do something to write stuff
-                        case err, ok = <-errChan:
+                            
+                            responder.RespondGetChunk(res, remoteWriter)
+                            
+                        case getErr, ok := <-errChan:
                             if !ok { errChan = nil }
+                            err = getErr
                             break
                     }
                     
@@ -97,20 +136,20 @@ func handleConnection(remote net.Conn, local net.Conn) {
                         break
                     }
                 }
+                
+                responder.RespondGetEnd(remoteReader, remoteWriter)
         }
         
+        // TODO: distinguish fatal errors from non-fatal
         if err != nil {
-            // separate fatal errors from "expected"
-            fmt.Println("Error while processing request. Closing connection. Error:")
-            fmt.Println(err.Error())
-            // use proper serializer to respond here
-            remote.Close()
+            abort(remote, err, binary)
+            return
         }
     }
 }
 
-func isBinaryRequest(reader *bufio.Reader) bool, err {
+func isBinaryRequest(reader *bufio.Reader) (bool, error) {
     headerByte, err := reader.Peek(1)
     if err != nil { return false, err }
-    return headerByte == binaryprot.HeaderByte
+    return int(headerByte[0]) == binaryprot.MAGIC_REQUEST, nil
 }
