@@ -8,7 +8,9 @@ import "fmt"
 
 import "../common"
 
-func RespondSet(err error, remoteWriter *bufio.Writer) error {
+type TextResponder struct { }
+
+func (t TextResponder) RespondSet(err error, remoteWriter *bufio.Writer) error {
     // BAD_LENGTH
     //BAD_FLAGS
     
@@ -23,7 +25,7 @@ func RespondSet(err error, remoteWriter *bufio.Writer) error {
     return nil
 }
 
-func RespondGetChunk(response common.GetResponse, remoteWriter *bufio.Writer) error {
+func (t TextResponder) RespondGetChunk(response common.GetResponse, remoteWriter *bufio.Writer) error {
     // Write data out to client
     // [VALUE <key> <flags> <bytes>\r\n
     // <data block>\r\n]*
@@ -42,7 +44,7 @@ func RespondGetChunk(response common.GetResponse, remoteWriter *bufio.Writer) er
     return nil
 }
 
-func RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func (t TextResponder) RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
     _, err := fmt.Fprintf(remoteWriter, "END\r\n")
     if err != nil { return err }
     
@@ -50,7 +52,7 @@ func RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error
     return nil
 }
 
-func RespondDelete(err error, remoteWriter *bufio.Writer) error {
+func (t TextResponder) RespondDelete(err error, remoteWriter *bufio.Writer) error {
     if err != nil {
         return respondError(err, remoteWriter)
     }
@@ -62,7 +64,7 @@ func RespondDelete(err error, remoteWriter *bufio.Writer) error {
     return nil
 }
 
-func RespondTouch(err error, remoteWriter *bufio.Writer) error {
+func (t TextResponder) RespondTouch(err error, remoteWriter *bufio.Writer) error {
     if err != nil {
         return respondError(err, remoteWriter)
     }

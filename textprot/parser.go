@@ -12,7 +12,9 @@ import "strings"
 
 import "../common"
 
-func ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
+type TextParser struct { }
+
+func (p TextParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
     
     data, err := remoteReader.ReadString('\n')
     

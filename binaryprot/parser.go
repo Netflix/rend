@@ -71,7 +71,9 @@ import "../common"
 //     Key                 : The textual string "Hello"
 //     Value               : None
 
-func ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
+type BinaryParser struct { }
+
+func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
     
     // read in the full header before any variable length fields
     headerBuf := make([]byte, 24)

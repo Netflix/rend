@@ -3,6 +3,7 @@
  */
 package common
 
+import "bufio"
 import "errors"
 
 const verbose = false
@@ -20,6 +21,18 @@ const REQUEST_GET = RequestType(0)
 const REQUEST_SET = RequestType(1)
 const REQUEST_DELETE = RequestType(2)
 const REQUEST_TOUCH = RequestType(3)
+
+type RequestParser interface {
+    ParseRequest(remoteReader *bufio.Reader) (interface{}, RequestType, error)
+}
+
+type Responder interface {
+    RespondSet(err error, remoteWriter *bufio.Writer) error
+    RespondGetChunk(response GetResponse, remoteWriter *bufio.Writer) error
+    RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error
+    RespondDelete(err error, remoteWriter *bufio.Writer) error
+    RespondTouch(err error, remoteWriter *bufio.Writer) error
+}
 
 type SetRequest struct {
 	Key     string
