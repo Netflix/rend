@@ -1,7 +1,7 @@
 /**
  * Functions that talk to the local memcached server
  */
-package common
+package local
 
 import "bufio"
 import "bytes"
@@ -9,31 +9,6 @@ import "encoding/binary"
 import "fmt"
 import "io"
 import "strings"
-
-func readDataIntoBuf(reader *bufio.Reader, buf []byte) error {
-	if verbose {
-		fmt.Println("readDataIntoBuf")
-		fmt.Println("buf length:", len(buf))
-	}
-
-	// TODO: real error handling for not enough bytes
-	_, err := io.ReadFull(reader, buf)
-	if err != nil {
-		return err
-	}
-
-	// Consume the <buffer bytes>\r\n at the end of the data
-	endData, err := reader.ReadBytes('\n')
-	if err != nil {
-		return err
-	}
-
-	if verbose {
-		fmt.Println("End data:", endData)
-	}
-
-	return nil
-}
 
 func setLocal(localWriter *bufio.Writer, cmd string, token *[16]byte, data []byte) error {
 	// Write key/cmd
@@ -170,7 +145,7 @@ func touchLocal(localReader *bufio.Reader, localWriter *bufio.Writer, key string
 	return nil
 }
 
-func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key string) (string, Metadata, error) {
+func GetMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key string) (string, Metadata, error) {
 	metaKey := makeMetaKey(key)
 
 	if verbose {

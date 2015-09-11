@@ -43,7 +43,6 @@ func main() {
 }
 
 func abort(remote net.Conn, err error, binary bool) {
-    // separate fatal errors from "expected"
     fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
     // use proper serializer to respond here
     remote.Close()

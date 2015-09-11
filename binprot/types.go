@@ -35,9 +35,23 @@ type RequestHeader struct {
     ExtraLength     uint8
     DataType        uint8  // Always 0
     VBucket         uint16 // Not used
-    TotalBodyLength uint32 // Not useful
+    TotalBodyLength uint32
     OpaqueToken     uint32 // Echoed to the client
     CASToken        uint64 // Unused in current implementation
+}
+
+func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) {
+    return RequestHeader {
+        Magic:           uint8(MAGIC_REQUEST),
+        Opcode:          uint8(opcode),
+        KeyLength:       uint16(keyLength),
+        ExtraLength:     uint8(extraLength),
+        DataType:        uint8(0),
+        VBucket:         uint16(0),
+        TotalBodyLength: uint32(totalBodyLength),
+        OpaqueToken:     uint32(0),
+        CASToken:        uint64(0),
+    }
 }
 
 type ResponseHeader struct {
@@ -50,4 +64,32 @@ type ResponseHeader struct {
     TotalBodyLength uint32
     OpaqueToken     uint32 // same as the user passed in
     CASToken        uint64
+}
+
+func makeSuccessResponseHeader(opcode, keyLength, extraLength, totalBodyLength, opaqueToken int) ResponseHeader {
+    return ResponseHeader {
+        Magic:           MAGIC_RESPONSE,
+        Opcode:          uint8(opcode),
+        KeyLength:       uint16(keyLength),
+        ExtraLength:     uint8(extraLength),
+        DataType:        uint8(0),
+        Status:          uint16(STATUS_SUCCESS),
+        TotalBodyLength: uint32(totalBodyLength),
+        OpaqueToken:     uint32(opaqueToken),
+        CASToken:        uint64(0),
+    }
+}
+
+func makeErrorResponseHeader(opcode, status, opaqueToken int) ResponseHeader {
+    return ResponseHeader {
+        Magic:           MAGIC_RESPONSE,
+        Opcode:          uint8(opcode),
+        KeyLength:       uint16(0),
+        ExtraLength:     uint8(0),
+        DataType:        uint8(0),
+        Status:          uint16(status),
+        TotalBodyLength: uint32(0),
+        OpaqueToken:     uint32(opaqueToken),
+        CASToken:        uint64(0),
+    }
 }

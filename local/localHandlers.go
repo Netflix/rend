@@ -1,28 +1,28 @@
 /**
- * Memproxy is a proxy for memcached that will split the data input
- * into fixed-size chunks for storage. It will reassemble the data
- * on retrieval with set.
+ * Local request handlers that perform higher level logic.
  */
-package common
+package handlers
 
 import "bufio"
 import "bytes"
 import "encoding/binary"
 import "fmt"
+import "io"
 import "math"
 
-func HandleSet(cmd SetRequest, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
+import "../util"
+
+func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
     // Read in the data from the remote connection
     buf := make([]byte, cmd.Length)
-    err := readDataIntoBuf(remoteReader, buf)
+    // TODO: make sure text protocol \r\n is consumed
+    err := io.ReadFull(remoteReader, buf)
     
     numChunks := int(math.Ceil(float64(cmd.Length) / float64(CHUNK_SIZE)))
     token := <-tokens
     
-    if verbose { fmt.Printf("% x", token) }
-    
-    metaKey := makeMetaKey(cmd.Key)
-    metaData := Metadata {
+    metaKey := util.MetaKey(cmd.Key)
+    metaData := common.Metadata {
         Length:    int32(cmd.Length),
         OrigFlags: int32(cmd.Flags),
         NumChunks: int32(numChunks),
@@ -30,28 +30,17 @@ func HandleSet(cmd SetRequest, remoteReader *bufio.Reader, localReader *bufio.Re
         Token:     *token,
     }
     
-    if verbose {
-        fmt.Println("metaKey:", metaKey)
-        fmt.Println("numChunks:", numChunks)
-    }
-    
     metaDataBuf := new(bytes.Buffer)
     binary.Write(metaDataBuf, binary.LittleEndian, metaData)
     
-    if verbose {
-        fmt.Printf("% x\r\n", metaDataBuf.Bytes())
-    }
-    
     // Write metadata key
-    localCmd := makeSetCommand(metaKey, cmd.Exptime, METADATA_SIZE)
-    err = setLocal(localWriter, localCmd, nil, metaDataBuf.Bytes())
+    localCmd := util.SetCmd(metaKey, cmd.Exptime, METADATA_SIZE)
+    err = common.SetLocal(localWriter, localCmd, nil, metaDataBuf.Bytes())
     if err != nil { return err }
     
     // Read server's response
     // TODO: Error handling of ERROR response
     response, err := localReader.ReadString('\n')
-    
-    if verbose { fmt.Println(response) }
     
     // Write all the data chunks
     // TODO: Clean up if a data chunk write fails
@@ -59,7 +48,7 @@ func HandleSet(cmd SetRequest, remoteReader *bufio.Reader, localReader *bufio.Re
     // or at the memcached level, e.g. response == ERROR
     for i := 0; i < numChunks; i++ {
         // Build this chunk's key
-        key := makeChunkKey(cmd.Key, i)
+        key := (cmd.Key, i)
         
         if verbose { fmt.Println(key) }
         
@@ -174,7 +163,7 @@ func HandleDelete(cmd DeleteRequest, localReader *bufio.Reader, localWriter *buf
     // for 0 to metadata.numChunks
     //  delete item
     
-    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
+    metaKey, metaData, err := common.GetMetadata(localReader, localWriter, cmd.Key)
     
     if err != nil {
         if err == MISS {
@@ -202,7 +191,7 @@ func HandleTouch(cmd TouchRequest, localReader *bufio.Reader, localWriter *bufio
     //  touch item
     // touch metadata
     
-    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
+    metaKey, metaData, err := common.GetMetadata(localReader, localWriter, cmd.Key)
         
     if err != nil {
         if err == MISS {
