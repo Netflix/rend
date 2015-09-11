@@ -1,7 +1,7 @@
 /**
  * Common types and constants
  */
-package binaryprot
+package binprot
 
 var MAGIC_REQUEST = 0x80
 

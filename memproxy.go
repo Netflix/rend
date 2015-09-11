@@ -9,7 +9,7 @@ import "bufio"
 import "fmt"
 import "net"
 
-import "./binaryprot"
+import "./binprot"
 import "./common"
 import "./textprot"
 
@@ -60,8 +60,8 @@ func handleConnection(remote net.Conn, local net.Conn) {
     var reqType   common.RequestType
     var request   interface{}
     
-    var binaryParser    binaryprot.BinaryParser
-    var binaryResponder binaryprot.BinaryResponder
+    var binaryParser    binprot.BinaryParser
+    var binaryResponder binprot.BinaryResponder
     var textParser      textprot.TextParser
     var textResponder   textprot.TextResponder
     
@@ -146,5 +146,5 @@ func handleConnection(remote net.Conn, local net.Conn) {
 func isBinaryRequest(reader *bufio.Reader) (bool, error) {
     headerByte, err := reader.Peek(1)
     if err != nil { return false, err }
-    return int(headerByte[0]) == binaryprot.MAGIC_REQUEST, nil
+    return int(headerByte[0]) == binprot.MAGIC_REQUEST, nil
 }

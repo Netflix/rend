@@ -1,4 +1,4 @@
-package binaryprot
+package binprot
 
 import "bufio"
 import "bytes"

@@ -1,7 +1,7 @@
 /**
  * Functions to respond in kind to binary-based requests
  */
-package binaryprot
+package binprot
 
 import "bufio"
 import "bytes"
