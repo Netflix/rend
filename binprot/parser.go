@@ -93,7 +93,7 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
     
     switch reqHeader.Opcode {
         case OPCODE_SET:
-            // flags, exptime, key, value (implicit, read in handler)
+            // flags, exptime, key, value
             flags, err := readUInt32(remoteReader)
             
             if err != nil {
@@ -101,7 +101,7 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
                 return nil, common.REQUEST_SET, err
             }
             
-            exptime, err := readUInt32AsString(remoteReader)
+            exptime, err := readUInt32(remoteReader)
             
             if err != nil {
                 fmt.Println("Error reading exptime")
@@ -115,11 +115,13 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
                 return nil, common.REQUEST_SET, err
             }
             
-            realLength := int(reqHeader.TotalBodyLength) - int(reqHeader.ExtraLength) - int(reqHeader.KeyLength)
+            realLength := reqHeader.TotalBodyLength -
+                            uint32(reqHeader.ExtraLength) -
+                            uint32(reqHeader.KeyLength)
             
             return common.SetRequest {
                 Key:     key,
-                Flags:   int(flags),
+                Flags:   flags,
                 Exptime: exptime,
                 Length:  realLength,
             }, common.REQUEST_SET, nil
@@ -134,7 +136,7 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
             }
             
             return common.GetRequest {
-                Keys: []string{key},
+                Key: key,
             }, common.REQUEST_GET, nil
             
         case OPCODE_DELETE:
@@ -152,7 +154,7 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
             
         case OPCODE_TOUCH:
             // exptime, key
-            exptime, err := readUInt32AsString(remoteReader)
+            exptime, err := readUInt32(remoteReader)
             
             if err != nil {
                 fmt.Println("Error reading exptime")
@@ -175,19 +177,13 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
     return nil, common.REQUEST_GET, nil
 }
 
-func readString(remoteReader *bufio.Reader, length uint16) (string, error) {
+func readString(remoteReader *bufio.Reader, length uint16) ([]byte, error) {
     buf := make([]byte, length)
     _, err := io.ReadFull(remoteReader, buf)
     
-    if err != nil { return "", err }
+    if err != nil { return nil, err }
     
-    return string(buf), nil
-}
-
-func readUInt32AsString(remoteReader *bufio.Reader) (string, error) {
-    num, err := readUInt32(remoteReader)
-    if err != nil { return "", err }
-    return fmt.Sprintf("%v", num), nil
+    return buf, nil
 }
 
 func readUInt32(remoteReader *bufio.Reader) (uint32, error) {

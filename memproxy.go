@@ -11,6 +11,7 @@ import "net"
 
 import "./binprot"
 import "./common"
+import "./local"
 import "./textprot"
 
 const verbose = false
@@ -90,28 +91,28 @@ func handleConnection(remote net.Conn, local net.Conn) {
         // TODO: handle nil
         switch reqType {
             case common.REQUEST_SET:
-                err = common.HandleSet(request.(common.SetRequest), remoteReader, localReader, localWriter)
+                err = local.HandleSet(request.(common.SetRequest), remoteReader, localReader, localWriter)
                 
                 if err == nil {
                     responder.RespondSet(nil, remoteWriter)
                 }
                 
             case common.REQUEST_DELETE:
-                err = common.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
+                err = local.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
                 
                 if err == nil {
                     responder.RespondDelete(nil, remoteWriter)
                 }
                 
             case common.REQUEST_TOUCH:
-                err = common.HandleTouch(request.(common.TouchRequest), localReader, localWriter)
+                err = local.HandleTouch(request.(common.TouchRequest), localReader, localWriter)
                 
                 if err == nil {
                     responder.RespondTouch(nil, remoteWriter)
                 }
                 
             case common.REQUEST_GET:
-                response, errChan := common.HandleGet(request.(common.GetRequest), localReader, localWriter)
+                response, errChan := local.HandleGet(request.(common.GetRequest), localReader, localWriter)
                 
                 for {
                     select {

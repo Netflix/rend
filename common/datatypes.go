@@ -35,27 +35,33 @@ type Responder interface {
 }
 
 type SetRequest struct {
-	Key     string
-	Flags   int
-	Exptime string
-	Length  int
+	Key     []byte
+	Flags   uint32
+	Exptime uint32
+	Length  uint32
+    Opaque  uint32
+    Data    []byte
 }
 
 type GetRequest struct {
-	Keys []string
+	Key    []byte
+    Opaque uint32
 }
 
 type DeleteRequest struct {
-	Key string
+	Key    []byte
+    Opaque uint32
 }
 
 type TouchRequest struct {
-	Key     string
-	Exptime string
+	Key     []byte
+	Exptime uint32
+    Opaque  uint32
 }
 
 type GetResponse struct {
-    Key      string
+    Key      []byte
+    Opaque   uint32
     Metadata Metadata
     Data     []byte
 }

@@ -1,7 +1,7 @@
 /**
  * Local request handlers that perform higher level logic.
  */
-package handlers
+package local
 
 import "bufio"
 import "bytes"
@@ -48,7 +48,7 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
     // or at the memcached level, e.g. response == ERROR
     for i := 0; i < numChunks; i++ {
         // Build this chunk's key
-        key := (cmd.Key, i)
+        key := util.ChunkKey(cmd.Key, i)
         
         if verbose { fmt.Println(key) }
         
@@ -163,11 +163,11 @@ func HandleDelete(cmd DeleteRequest, localReader *bufio.Reader, localWriter *buf
     // for 0 to metadata.numChunks
     //  delete item
     
-    metaKey, metaData, err := common.GetMetadata(localReader, localWriter, cmd.Key)
+    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
     
     if err != nil {
         if err == MISS {
-            if verbose { fmt.Println("Delete miss because of missing metadata. Key:", cmd.Key) }
+            fmt.Println("Delete miss because of missing metadata. Key:", cmd.Key)
             return err
         }
         return err
@@ -191,11 +191,11 @@ func HandleTouch(cmd TouchRequest, localReader *bufio.Reader, localWriter *bufio
     //  touch item
     // touch metadata
     
-    metaKey, metaData, err := common.GetMetadata(localReader, localWriter, cmd.Key)
+    metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
         
     if err != nil {
         if err == MISS {
-            if verbose { fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key) }
+            fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key) 
             return err
         }
         

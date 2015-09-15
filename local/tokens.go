@@ -1,7 +1,7 @@
 /**
  * Background goroutine to keep 1000 tokens around for heavy write loads
  */
-package handlers
+package local
 
 import "crypto/rand"
 

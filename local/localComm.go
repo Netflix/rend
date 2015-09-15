@@ -6,16 +6,31 @@ package local
 import "bufio"
 import "bytes"
 import "encoding/binary"
-import "fmt"
+//import "fmt"
 import "io"
 import "strings"
 
-func setLocal(localWriter *bufio.Writer, cmd string, token *[16]byte, data []byte) error {
-	// Write key/cmd
-	if verbose {
-		fmt.Println("cmd:", cmd)
+import "../common"
+import "../util"
+
+func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key string) (string, Metadata, error) {
+	metaKey := makeMetaKey(key)
+
+	// Read in the metadata for number of chunks, chunk size, etc.
+	getCmd := util.GetCommand(metaKey)
+	metaBytes := make([]byte, METADATA_SIZE)
+	err := getLocalIntoBuf(localReader, localWriter, getCmd, nil, metaBytes)
+	if err != nil {
+		return "", Metadata{}, err
 	}
-    
+
+	var metaData Metadata
+	binary.Read(bytes.NewBuffer(metaBytes), binary.LittleEndian, &metaData)
+
+	return metaKey, metaData, nil
+}
+
+func setLocal(localWriter *bufio.Writer, cmd string, token *[16]byte, data []byte) error {
 	_, err := localWriter.WriteString(cmd)
 	if err != nil {
 		return err
@@ -47,11 +62,6 @@ func setLocal(localWriter *bufio.Writer, cmd string, token *[16]byte, data []byt
 
 // TODO: Batch get
 func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd string, tokenBuf []byte, buf []byte) error {
-	// Write key/cmd
-	if verbose {
-		fmt.Println("cmd:", cmd)
-	}
-    
 	_, err := localWriter.WriteString(cmd)
 	if err != nil {
 		return err
@@ -63,14 +73,7 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd s
 	line, err := localReader.ReadString('\n')
 
 	if strings.TrimSpace(line) == "END" {
-		if verbose {
-			fmt.Println("Cache miss for cmd", cmd)
-		}
-		return MISS
-	}
-
-	if verbose {
-		fmt.Println("Header:", string(line))
+		return common.MISS
 	}
 
 	// Read in token if requested
@@ -82,8 +85,7 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd s
 	}
 
 	// Read in value
-	err = readDataIntoBuf(localReader, buf)
-	if err != nil {
+    if _, err := io.ReadFull(localReader, buf); err != nil {
 		return err
 	}
 
@@ -112,10 +114,6 @@ func deleteLocal(localReader *bufio.Reader, localWriter *bufio.Writer, key strin
 		return err
 	}
     
-	if verbose {
-		fmt.Println("Delete response:", response)
-	}
-
 	return nil
 }
 
@@ -137,39 +135,6 @@ func touchLocal(localReader *bufio.Reader, localWriter *bufio.Writer, key string
 	if err != nil {
 		return err
 	}
-    
-	if verbose {
-		fmt.Println("Touch response:", response)
-	}
 
 	return nil
-}
-
-func GetMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key string) (string, Metadata, error) {
-	metaKey := makeMetaKey(key)
-
-	if verbose {
-		fmt.Println("metaKey:", metaKey)
-	}
-
-	// Read in the metadata for number of chunks, chunk size, etc.
-	getCmd := makeGetCommand(metaKey)
-	metaBytes := make([]byte, METADATA_SIZE)
-	err := getLocalIntoBuf(localReader, localWriter, getCmd, nil, metaBytes)
-	if err != nil {
-		return "", Metadata{}, err
-	}
-
-	if verbose {
-		fmt.Printf("% x\r\n", metaBytes)
-	}
-
-	var metaData Metadata
-	binary.Read(bytes.NewBuffer(metaBytes), binary.LittleEndian, &metaData)
-
-	if verbose {
-		fmt.Println("Metadata:", metaData)
-	}
-
-	return metaKey, metaData, nil
 }

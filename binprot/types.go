@@ -40,7 +40,7 @@ type RequestHeader struct {
     CASToken        uint64 // Unused in current implementation
 }
 
-func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) {
+func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) RequestHeader {
     return RequestHeader {
         Magic:           uint8(MAGIC_REQUEST),
         Opcode:          uint8(opcode),
