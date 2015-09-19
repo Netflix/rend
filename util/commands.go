@@ -5,16 +5,15 @@ package util
 
 import "bytes"
 import "encoding/binary"
-import "fmt"
 
 import "../binprot"
 
 // TODO: consider moving into binprot package, seems leaky here
 func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
     // opcode, keyLength, extraLength, totalBodyLength
-    // TODO: uint? int?
-    totalBodyLength := len(key) + int(dataSize)
-    header := binprot.MakeRequestHeader(binprot.OPCODE_SET, len(key), 0, totalBodyLength)
+    // key + extras + body
+    totalBodyLength := len(key) + 8 + int(dataSize)
+    header := binprot.MakeRequestHeader(binprot.OPCODE_SET, len(key), 8, totalBodyLength)
     
     reqBuf := new(bytes.Buffer)
     binary.Write(reqBuf, binary.BigEndian, header)
@@ -43,9 +42,32 @@ func GetCommand(key []byte) []byte {
 }
 
 func DeleteCommand(key []byte) []byte {
-	return fmt.Sprintf("delete %s\r\n", key)
+    // opcode, keyLength, extraLength, totalBodyLength
+    header := binprot.MakeRequestHeader(binprot.OPCODE_DELETE, len(key), 0, len(key))
+    
+    reqBuf := new(bytes.Buffer)
+    binary.Write(reqBuf, binary.BigEndian, header)
+    
+    binary.Write(reqBuf, binary.BigEndian, key)
+    
+    return reqBuf.Bytes()
+    
+	//return fmt.Sprintf("delete %s\r\n", key)
 }
 
 func TouchCommand(key []byte, exptime uint32) []byte {
-	return fmt.Sprintf("touch %s %s\r\n", key, exptime)
+    // opcode, keyLength, extraLength, totalBodyLength
+    // key + extras + body
+    totalBodyLength := len(key) + 4
+    header := binprot.MakeRequestHeader(binprot.OPCODE_SET, len(key), 4, totalBodyLength)
+    
+    reqBuf := new(bytes.Buffer)
+    binary.Write(reqBuf, binary.BigEndian, header)
+    
+    binary.Write(reqBuf, binary.BigEndian, exptime)
+    binary.Write(reqBuf, binary.BigEndian, key)
+    
+    return reqBuf.Bytes()
+    
+	//return fmt.Sprintf("touch %s %s\r\n", key, exptime)
 }

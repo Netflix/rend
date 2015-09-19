@@ -92,6 +92,7 @@ func handleConnection(remote net.Conn, local net.Conn) {
         switch reqType {
             case common.REQUEST_SET:
                 err = local.HandleSet(request.(common.SetRequest), remoteReader, localReader, localWriter)
+                //TODO: for text protocol, read in \r\n at end of data
                 
                 if err == nil {
                     responder.RespondSet(nil, remoteWriter)

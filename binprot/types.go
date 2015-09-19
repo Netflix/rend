@@ -3,6 +3,12 @@
  */
 package binprot
 
+import "bytes"
+import "encoding/binary"
+import "io"
+
+import "../common"
+
 var MAGIC_REQUEST = 0x80
 
 const OPCODE_GET    = 0x00
@@ -16,18 +22,35 @@ const OPCODE_NOOP   = 0x0a // (later)
 
 const MAGIC_RESPONSE = 0x81
 
-const STATUS_SUCCESS         = 0x00
-const STATUS_KEY_ENOENT      = 0x01
-const STATUS_KEY_EEXISTS     = 0x02
-const STATUS_E2BIG           = 0x03
-const STATUS_EINVAL          = 0x04
-const STATUS_NOT_STORED      = 0x05
-const STATUS_DELTA_BADVAL    = 0x06
-const STATUS_AUTH_ERROR      = 0x20
-const STATUS_AUTH_CONTINUE   = 0x21
-const STATUS_UNKNOWN_COMMAND = 0x81
-const STATUS_ENOMEM          = 0x82
+const STATUS_SUCCESS         = uint16(0x00)
+const STATUS_KEY_ENOENT      = uint16(0x01)
+const STATUS_KEY_EEXISTS     = uint16(0x02)
+const STATUS_E2BIG           = uint16(0x03)
+const STATUS_EINVAL          = uint16(0x04)
+const STATUS_NOT_STORED      = uint16(0x05)
+const STATUS_DELTA_BADVAL    = uint16(0x06)
+const STATUS_AUTH_ERROR      = uint16(0x20)
+const STATUS_AUTH_CONTINUE   = uint16(0x21)
+const STATUS_UNKNOWN_COMMAND = uint16(0x81)
+const STATUS_ENOMEM          = uint16(0x82)
 
+func DecodeError(header ResponseHeader) error {
+    switch header.Status {
+        case STATUS_KEY_ENOENT:      return common.ERROR_KEY_NOT_FOUND
+        case STATUS_KEY_EEXISTS:     return common.ERROR_KEY_EXISTS
+        case STATUS_E2BIG:           return common.ERROR_VALUE_TOO_BIG
+        case STATUS_EINVAL:          return common.ERROR_INVALID_ARGS
+        case STATUS_NOT_STORED:      return common.ERROR_ITEM_NOT_STORED
+        case STATUS_DELTA_BADVAL:    return common.ERROR_BAD_INC_DEC_VALUE
+        case STATUS_AUTH_ERROR:      return common.ERROR_AUTH_ERROR
+        case STATUS_UNKNOWN_COMMAND: return common.ERROR_UNKNOWN_CMD
+        case STATUS_ENOMEM:          return common.ERROR_NO_MEM
+    }
+    
+    return nil
+}
+
+const REQ_HEADER_LEN = 24
 type RequestHeader struct {
     Magic           uint8  // Already known, since we're here
     Opcode          uint8
@@ -54,6 +77,22 @@ func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) Requ
     }
 }
 
+func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
+    // read in the full header before any variable length fields
+    headerBuf := make([]byte, REQ_HEADER_LEN)
+    _, err := io.ReadFull(reader, headerBuf)
+    
+    if err != nil {
+        return RequestHeader{}, err
+    }
+    
+    var reqHeader RequestHeader
+    binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
+    
+    return reqHeader, nil
+}
+
+const RES_HEADER_LEN = 24
 type ResponseHeader struct {
     Magic           uint8  // always 0x81
     Opcode          uint8
@@ -92,4 +131,19 @@ func makeErrorResponseHeader(opcode, status, opaqueToken int) ResponseHeader {
         OpaqueToken:     uint32(opaqueToken),
         CASToken:        uint64(0),
     }
+}
+
+func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
+    // read in the full header before any variable length fields
+    headerBuf := make([]byte, RES_HEADER_LEN)
+    _, err := io.ReadFull(reader, headerBuf)
+    
+    if err != nil {
+        return ResponseHeader{}, err
+    }
+    
+    var resHeader ResponseHeader
+    binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &resHeader)
+    
+    return resHeader, nil
 }

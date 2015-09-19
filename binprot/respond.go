@@ -74,7 +74,7 @@ import "../common"
 type BinaryResponder struct { }
 
 func errorToCode(err error) int {
-    return STATUS_EINVAL
+    return int(STATUS_EINVAL)
 }
 
 func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {

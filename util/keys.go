@@ -3,15 +3,18 @@
  */
 package util
 
-import "fmt"
+import "bytes"
+import "encoding/binary"
 import "math"
 
 func MetaKey(key []byte) []byte {
-	return []byte(fmt.Sprintf("%s_meta", key))
+    return append(key, ([]byte("_meta"))...)
 }
 
 func ChunkKey(key []byte, chunk int) []byte {
-	return []byte(fmt.Sprintf("%s_%d", key, chunk))
+    buf := new(bytes.Buffer)
+    binary.Write(buf, binary.BigEndian, chunk)
+	return append(key, buf.Bytes()...)
 }
 
 func ChunkSliceIndices(chunkSize, chunkNum, totalLength int) (int, int) {

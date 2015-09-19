@@ -6,21 +6,33 @@ package common
 import "bufio"
 import "errors"
 
-const verbose = false
-
-// Chunk size, leaving room for the token
-const CHUNK_SIZE = 1024 - 16
-const FULL_DATA_SIZE = 1024
-
-var MISS       error
-var BAD_LENGTH error
-var BAD_FLAGS  error
+var (
+    MISS       error
+    BAD_LENGTH error
+    BAD_FLAGS  error
+    
+    ERROR_KEY_NOT_FOUND     error
+    ERROR_KEY_EXISTS        error
+    ERROR_VALUE_TOO_BIG     error
+    ERROR_INVALID_ARGS      error
+    ERROR_ITEM_NOT_STORED   error
+    ERROR_BAD_INC_DEC_VALUE error
+    ERROR_AUTH_ERROR        error
+    ERROR_UNKNOWN_CMD       error
+    ERROR_NO_MEM            error
+)
 
 type RequestType int
-const REQUEST_GET = RequestType(0)
-const REQUEST_SET = RequestType(1)
-const REQUEST_DELETE = RequestType(2)
-const REQUEST_TOUCH = RequestType(3)
+const (
+    // Chunk size, leaving room for the token
+    CHUNK_SIZE = 1024 - 16
+    FULL_DATA_SIZE = 1024
+    
+    REQUEST_GET = RequestType(0)
+    REQUEST_SET = RequestType(1)
+    REQUEST_DELETE = RequestType(2)
+    REQUEST_TOUCH = RequestType(3)
+)
 
 type RequestParser interface {
     ParseRequest(remoteReader *bufio.Reader) (interface{}, RequestType, error)
@@ -67,12 +79,11 @@ type GetResponse struct {
 }
 
 const METADATA_SIZE = 32
-
 type Metadata struct {
-	Length    int32
-	OrigFlags int32
-	NumChunks int32
-	ChunkSize int32
+	Length    uint32
+	OrigFlags uint32
+	NumChunks uint32
+	ChunkSize uint32
 	Token     [16]byte
 }
 
@@ -83,4 +94,14 @@ func init() {
     // External errors
     BAD_LENGTH = errors.New("CLIENT_ERROR length is not a valid integer")
     BAD_FLAGS = errors.New("CLIENT_ERROR flags is not a valid integer")
+    
+    ERROR_KEY_NOT_FOUND = errors.New("ERROR")
+    ERROR_KEY_EXISTS = errors.New("ERROR")
+    ERROR_VALUE_TOO_BIG = errors.New("ERROR")
+    ERROR_INVALID_ARGS = errors.New("ERROR")
+    ERROR_ITEM_NOT_STORED = errors.New("ERROR")
+    ERROR_BAD_INC_DEC_VALUE = errors.New("ERROR")
+    ERROR_AUTH_ERROR = errors.New("ERROR")
+    ERROR_UNKNOWN_CMD = errors.New("ERROR")
+    ERROR_NO_MEM = errors.New("ERROR")
 }
