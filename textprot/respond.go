@@ -44,6 +44,11 @@ func (t TextResponder) RespondGetChunk(response common.GetResponse, remoteWriter
     return nil
 }
 
+func (t TextResponder) RespondGetChunkMiss(response common.GetResponse, remoteWriter *bufio.Writer) error {
+    // A miss is a no-op in the text world
+    return nil
+}
+
 func (t TextResponder) RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
     _, err := fmt.Fprintf(remoteWriter, "END\r\n")
     if err != nil { return err }

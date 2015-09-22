@@ -119,18 +119,24 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
     // for numChunks do
     //   read chunk, append to buffer
     // send response
+
+    defer close(errorOut)
+    defer close(dataOut)
         
     outer: for _, key := range cmd.Keys {
         _, metaData, err := getMetadata(localReader, localWriter, key)
         if err != nil {
-            if err == common.MISS {
+            if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
                 fmt.Println("Get miss because of missing metadata. Key:", key)
+                dataOut <- common.GetResponse {
+                    Miss: true,
+                    Key:  key,
+                    //opaque
+                }
                 continue outer
             }
             
             errorOut <- err
-            close(errorOut)
-            close(dataOut)
             return
         }
         
@@ -150,14 +156,17 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
             err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
             
             if err != nil {
-                if err == common.MISS {
+                if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
                     fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
+                    dataOut <- common.GetResponse {
+                        Miss: true,
+                        Key:  key,
+                        //opaque
+                    }
                     continue outer
                 }
                 
                 errorOut <- err
-                close(errorOut)
-                close(dataOut)
                 return
             }
             
@@ -165,19 +174,23 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
                 fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
                 fmt.Printf("Expected: %v\n", metaData.Token)
                 fmt.Printf("Got:      %v\n", tokenBuf)
+                dataOut <- common.GetResponse {
+                    Miss: true,
+                    Key:  key,
+                    //opaque
+                }
                 continue outer
             }
         }
         
         dataOut <- common.GetResponse {
+            Miss:     false,
             Key:      key,
+            // opaque
             Metadata: metaData,
             Data:     dataBuf,
         }
     }
-    
-    close(dataOut)
-    close(errorOut)
 }
 
 func HandleDelete(cmd common.DeleteRequest, localReader *bufio.Reader, localWriter *bufio.Writer) error {

@@ -37,6 +37,7 @@ type RequestParser interface {
 type Responder interface {
     RespondSet(err error, remoteWriter *bufio.Writer) error
     RespondGetChunk(response GetResponse, remoteWriter *bufio.Writer) error
+    RespondGetChunkMiss(response GetResponse, remoteWriter *bufio.Writer) error
     RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error
     RespondDelete(err error, remoteWriter *bufio.Writer) error
     RespondTouch(err error, remoteWriter *bufio.Writer) error
@@ -68,6 +69,7 @@ type TouchRequest struct {
 }
 
 type GetResponse struct {
+    Miss     bool
     Key      []byte
     Opaque   uint32
     Metadata Metadata

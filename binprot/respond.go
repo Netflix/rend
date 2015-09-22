@@ -125,6 +125,11 @@ func (r BinaryResponder) RespondGetChunk(response common.GetResponse, remoteWrit
     return nil
 }
 
+func (r BinaryResponder) RespondGetChunkMiss(response common.GetResponse, remoteWriter *bufio.Writer) error {
+    header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
+    return writeHeader(header, remoteWriter)
+}
+
 func (r BinaryResponder) RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
     // no-op since the binary protocol does not have batch gets
     return nil

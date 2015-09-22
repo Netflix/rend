@@ -81,10 +81,7 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
             responder = textResponder
         }
         
-        fmt.Println("About to parse request")
         request, reqType, err = parser.ParseRequest(remoteReader)
-        fmt.Println("Parsed reqType: ", reqType)
-        fmt.Println("Parsed request: ", request)
         
         if err != nil {
             abort(remoteConn, err, binary)
@@ -98,7 +95,9 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                 
                 if err == nil {
                     // For text protocol, read in \r\n at end of data.
-                    // A little hacky, but oh well.
+                    // A little hacky, but oh well. Might be wrapped up in a
+                    // "cleaupSet" function or something
+
                     if !binary {
                         _, err = remoteReader.ReadString('\n')
                     }
@@ -132,8 +131,11 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                         if !ok {
                             resChan = nil
                         } else {
-                            fmt.Println("got chunk response: ", res)
-                            responder.RespondGetChunk(res, remoteWriter)
+                            if res.Miss {
+                                responder.RespondGetChunkMiss(res, remoteWriter)
+                            } else {
+                                responder.RespondGetChunk(res, remoteWriter)
+                            }
                         }
                         
                     case getErr, ok := <-errChan:
