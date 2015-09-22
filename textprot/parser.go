@@ -15,7 +15,7 @@ import "../common"
 
 type TextParser struct { }
 
-func (p TextParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
+func (p TextParser) Parse(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
     
     data, err := remoteReader.ReadString('\n')
     

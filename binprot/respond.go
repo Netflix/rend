@@ -92,7 +92,7 @@ func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {
 }
 
 // TODO: CAS?
-func (r BinaryResponder) RespondSet(err error, remoteWriter *bufio.Writer) error {
+func (r BinaryResponder) Set(err error, remoteWriter *bufio.Writer) error {
     var header ResponseHeader
     
     if err != nil {
@@ -104,7 +104,7 @@ func (r BinaryResponder) RespondSet(err error, remoteWriter *bufio.Writer) error
     return writeHeader(header, remoteWriter)
 }
 
-func (r BinaryResponder) RespondGetChunk(response common.GetResponse, remoteWriter *bufio.Writer) error {
+func (r BinaryResponder) Get(response common.GetResponse, remoteWriter *bufio.Writer) error {
     var header ResponseHeader
     
     // total body length = extras (flags, 4 bytes) + data length
@@ -125,17 +125,17 @@ func (r BinaryResponder) RespondGetChunk(response common.GetResponse, remoteWrit
     return nil
 }
 
-func (r BinaryResponder) RespondGetChunkMiss(response common.GetResponse, remoteWriter *bufio.Writer) error {
+func (r BinaryResponder) GetMiss(response common.GetResponse, remoteWriter *bufio.Writer) error {
     header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
     return writeHeader(header, remoteWriter)
 }
 
-func (r BinaryResponder) RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func (r BinaryResponder) GetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
     // no-op since the binary protocol does not have batch gets
     return nil
 }
 
-func (r BinaryResponder) RespondDelete(err error, remoteWriter *bufio.Writer) error {
+func (r BinaryResponder) Delete(err error, remoteWriter *bufio.Writer) error {
     var header ResponseHeader
     
     if err != nil {
@@ -147,7 +147,7 @@ func (r BinaryResponder) RespondDelete(err error, remoteWriter *bufio.Writer) er
     return writeHeader(header, remoteWriter)
 }
 
-func (r BinaryResponder) RespondTouch(err error, remoteWriter *bufio.Writer) error {
+func (r BinaryResponder) Touch(err error, remoteWriter *bufio.Writer) error {
     var header ResponseHeader
     
     if err != nil {

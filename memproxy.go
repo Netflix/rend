@@ -55,7 +55,7 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
     localReader  := bufio.NewReader(localConn)
     localWriter  := bufio.NewWriter(localConn)
     
-    var parser    common.RequestParser
+    var reqParser common.RequestParser
     var responder common.Responder
     var reqType   common.RequestType
     var request   interface{}
@@ -74,14 +74,14 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
         }
         
         if binary {
-            parser = binaryParser
+            reqParser = binaryParser
             responder = binaryResponder
         } else {
-            parser = textParser
+            reqParser = textParser
             responder = textResponder
         }
         
-        request, reqType, err = parser.ParseRequest(remoteReader)
+        request, reqType, err = reqParser.Parse(remoteReader)
         
         if err != nil {
             abort(remoteConn, err, binary)
@@ -103,7 +103,7 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                     }
 
                     if err == nil {
-                        responder.RespondSet(nil, remoteWriter)
+                        responder.Set(nil, remoteWriter)
                     }
                 }
 
@@ -112,14 +112,14 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                 err = local.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
                 
                 if err == nil {
-                    responder.RespondDelete(nil, remoteWriter)
+                    responder.Delete(nil, remoteWriter)
                 }
                 
             case common.REQUEST_TOUCH:
                 err = local.HandleTouch(request.(common.TouchRequest), localReader, localWriter)
                 
                 if err == nil {
-                    responder.RespondTouch(nil, remoteWriter)
+                    responder.Touch(nil, remoteWriter)
                 }
                 
             case common.REQUEST_GET:
@@ -132,9 +132,9 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                             resChan = nil
                         } else {
                             if res.Miss {
-                                responder.RespondGetChunkMiss(res, remoteWriter)
+                                responder.GetMiss(res, remoteWriter)
                             } else {
-                                responder.RespondGetChunk(res, remoteWriter)
+                                responder.Get(res, remoteWriter)
                             }
                         }
                         
@@ -151,7 +151,7 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                     }
                 }
                 
-                responder.RespondGetEnd(remoteReader, remoteWriter)
+                responder.GetEnd(remoteReader, remoteWriter)
         }
         
         // TODO: distinguish fatal errors from non-fatal

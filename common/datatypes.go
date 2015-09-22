@@ -31,16 +31,16 @@ const (
 )
 
 type RequestParser interface {
-    ParseRequest(remoteReader *bufio.Reader) (interface{}, RequestType, error)
+    Parse(remoteReader *bufio.Reader) (interface{}, RequestType, error)
 }
 
 type Responder interface {
-    RespondSet(err error, remoteWriter *bufio.Writer) error
-    RespondGetChunk(response GetResponse, remoteWriter *bufio.Writer) error
-    RespondGetChunkMiss(response GetResponse, remoteWriter *bufio.Writer) error
-    RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error
-    RespondDelete(err error, remoteWriter *bufio.Writer) error
-    RespondTouch(err error, remoteWriter *bufio.Writer) error
+    Set(err error, remoteWriter *bufio.Writer) error
+    Get(response GetResponse, remoteWriter *bufio.Writer) error
+    GetMiss(response GetResponse, remoteWriter *bufio.Writer) error
+    GetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error
+    Delete(err error, remoteWriter *bufio.Writer) error
+    Touch(err error, remoteWriter *bufio.Writer) error
 }
 
 type SetRequest struct {

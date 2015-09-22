@@ -73,7 +73,7 @@ import "../common"
 
 type BinaryParser struct { }
 
-func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
+func (p BinaryParser) Parse(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
     
     // read in the full header before any variable length fields
     headerBuf := make([]byte, 24)

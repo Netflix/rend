@@ -10,7 +10,7 @@ import "../common"
 
 type TextResponder struct { }
 
-func (t TextResponder) RespondSet(err error, remoteWriter *bufio.Writer) error {
+func (t TextResponder) Set(err error, remoteWriter *bufio.Writer) error {
     // BAD_LENGTH
     //BAD_FLAGS
     
@@ -25,7 +25,7 @@ func (t TextResponder) RespondSet(err error, remoteWriter *bufio.Writer) error {
     return nil
 }
 
-func (t TextResponder) RespondGetChunk(response common.GetResponse, remoteWriter *bufio.Writer) error {
+func (t TextResponder) Get(response common.GetResponse, remoteWriter *bufio.Writer) error {
     // Write data out to client
     // [VALUE <key> <flags> <bytes>\r\n
     // <data block>\r\n]*
@@ -44,12 +44,12 @@ func (t TextResponder) RespondGetChunk(response common.GetResponse, remoteWriter
     return nil
 }
 
-func (t TextResponder) RespondGetChunkMiss(response common.GetResponse, remoteWriter *bufio.Writer) error {
+func (t TextResponder) GetMiss(response common.GetResponse, remoteWriter *bufio.Writer) error {
     // A miss is a no-op in the text world
     return nil
 }
 
-func (t TextResponder) RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
+func (t TextResponder) GetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
     _, err := fmt.Fprintf(remoteWriter, "END\r\n")
     if err != nil { return err }
     
@@ -57,7 +57,7 @@ func (t TextResponder) RespondGetEnd(remoteReader *bufio.Reader, remoteWriter *b
     return nil
 }
 
-func (t TextResponder) RespondDelete(err error, remoteWriter *bufio.Writer) error {
+func (t TextResponder) Delete(err error, remoteWriter *bufio.Writer) error {
     if err != nil {
         return respondError(err, remoteWriter)
     }
@@ -69,7 +69,7 @@ func (t TextResponder) RespondDelete(err error, remoteWriter *bufio.Writer) erro
     return nil
 }
 
-func (t TextResponder) RespondTouch(err error, remoteWriter *bufio.Writer) error {
+func (t TextResponder) Touch(err error, remoteWriter *bufio.Writer) error {
     if err != nil {
         return respondError(err, remoteWriter)
     }
