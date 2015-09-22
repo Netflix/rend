@@ -77,11 +77,17 @@ func (p TextParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, commo
                 // TODO: standardize errors
                 return nil, common.REQUEST_GET, errors.New("Bad get")
             }
-        
-            // TODO: multi-get?
+
+            keys := make([][]byte, 0)
+            for _, key := range clParts[1:] {
+                keys = append(keys, []byte(key))
+            }
+
+            opaques := make([]uint32, len(keys))
+
             return common.GetRequest {
-                Key:    []byte(clParts[1]),
-                Opaque: uint32(0),
+                Keys:    keys,
+                Opaques: opaques,
             }, common.REQUEST_GET, nil
             
         case "delete":

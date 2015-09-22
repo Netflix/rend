@@ -127,6 +127,7 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
             }, common.REQUEST_SET, nil
             
         case OPCODE_GET:
+            // TODO: while next command is a get, get the key and add it to the batch.
             // key
             key, err := readString(remoteReader, reqHeader.KeyLength)
             
@@ -136,7 +137,8 @@ func (p BinaryParser) ParseRequest(remoteReader *bufio.Reader) (interface{}, com
             }
             
             return common.GetRequest {
-                Key: key,
+                Keys:    [][]byte{key},
+                Opaques: []uint32{reqHeader.OpaqueToken},
             }, common.REQUEST_GET, nil
             
         case OPCODE_DELETE:

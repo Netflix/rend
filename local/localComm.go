@@ -4,10 +4,8 @@
 package local
 
 import "bufio"
-import "bytes"
 import "encoding/binary"
 import "io"
-import "io/ioutil"
 
 import "../binprot"
 import "../common"
@@ -17,7 +15,6 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byt
 
 	// Read in the metadata for number of chunks, chunk size, etc.
 	getCmd := binprot.GetCmd(metaKey)
-	metaBytes := make([]byte, common.METADATA_SIZE)
     
     _, err := localWriter.Write(getCmd)
     if err != nil {
@@ -35,14 +32,12 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byt
     if err != nil {
         return nil, common.Metadata{}, err
     }
-    
-    _, err = io.ReadFull(localReader, metaBytes)
-	if err != nil {
-		return nil, common.Metadata{}, err
-	}
+
+    serverFlags := make([]byte, 4)
+    binary.Read(localReader, binary.BigEndian, &serverFlags)
 
 	var metaData common.Metadata
-	binary.Read(bytes.NewBuffer(metaBytes), binary.BigEndian, &metaData)
+	binary.Read(localReader, binary.BigEndian, &metaData)
 
 	return metaKey, metaData, nil
 }
@@ -97,7 +92,8 @@ func simpleCmdLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []
 }
 
 // TODO: Batch get
-func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []byte, tokenBuf []byte, buf []byte) error {
+func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer,
+					 cmd []byte, tokenBuf []byte, buf []byte, totalDataLength int) error {
 	_, err := localWriter.Write(cmd)
 	if err != nil {
 		return err
@@ -115,7 +111,8 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd [
 		return err
 	}
     
-	return nil
+    serverFlags := make([]byte, 4)
+    binary.Read(localReader, binary.BigEndian, &serverFlags)
 
 	// Read in token if requested
 	if tokenBuf != nil {
@@ -130,10 +127,15 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer, cmd [
 		return err
 	}
 
-	// consume to end. For all data that are not the last chunk,
-	// this will be a no-op. For last chunks, it will swallow the
-	// padding at the end.
-	_, err = ioutil.ReadAll(localReader)
+	// consume padding at end of chunk if needed
+	if len(buf) < totalDataLength {
+		garbage := make([]byte, totalDataLength - len(buf))
+		_, err = io.ReadFull(localReader, garbage)
+
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

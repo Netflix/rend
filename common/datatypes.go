@@ -48,12 +48,12 @@ type SetRequest struct {
 	Exptime uint32
 	Length  uint32
     Opaque  uint32
-    Data    []byte
 }
 
+// Gets are batch by default
 type GetRequest struct {
-	Key    []byte
-    Opaque uint32
+	Keys    [][]byte
+    Opaques []uint32
 }
 
 type DeleteRequest struct {

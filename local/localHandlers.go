@@ -147,7 +147,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
             // Get the data directly into our buf
             chunkBuf := dataBuf[start:end]
             getCmd := binprot.GetCmd(chunkKey)
-            err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf)
+            err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
             
             if err != nil {
                 if err == common.MISS {
@@ -163,6 +163,8 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
             
             if (!bytes.Equal(metaData.Token[:], tokenBuf)) {
                 fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
+                fmt.Printf("Expected: %v\n", metaData.Token)
+                fmt.Printf("Got:      %v\n", tokenBuf)
                 continue outer
             }
         }

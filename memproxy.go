@@ -49,11 +49,11 @@ func abort(remote net.Conn, err error, binary bool) {
     remote.Close()
 }
 
-func handleConnection(remote net.Conn, local net.Conn) {
-    remoteReader := bufio.NewReader(remote)
-    remoteWriter := bufio.NewWriter(remote)
-    localReader  := bufio.NewReader(local)
-    localWriter  := bufio.NewWriter(local)
+func handleConnection(remoteConn net.Conn, localConn net.Conn) {
+    remoteReader := bufio.NewReader(remoteConn)
+    remoteWriter := bufio.NewWriter(remoteConn)
+    localReader  := bufio.NewReader(localConn)
+    localWriter  := bufio.NewWriter(localConn)
     
     var parser    common.RequestParser
     var responder common.Responder
@@ -69,7 +69,7 @@ func handleConnection(remote net.Conn, local net.Conn) {
         binary, err := isBinaryRequest(remoteReader)
         
         if err != nil {
-            abort(remote, err, binary)
+            abort(remoteConn, err, binary)
             return
         }
         
@@ -81,10 +81,13 @@ func handleConnection(remote net.Conn, local net.Conn) {
             responder = textResponder
         }
         
+        fmt.Println("About to parse request")
         request, reqType, err = parser.ParseRequest(remoteReader)
+        fmt.Println("Parsed reqType: ", reqType)
+        fmt.Println("Parsed request: ", request)
         
         if err != nil {
-            abort(remote, err, binary)
+            abort(remoteConn, err, binary)
             return
         }
         
@@ -92,11 +95,19 @@ func handleConnection(remote net.Conn, local net.Conn) {
         switch reqType {
             case common.REQUEST_SET:
                 err = local.HandleSet(request.(common.SetRequest), remoteReader, localReader, localWriter)
-                //TODO: for text protocol, read in \r\n at end of data
                 
                 if err == nil {
-                    responder.RespondSet(nil, remoteWriter)
+                    // For text protocol, read in \r\n at end of data.
+                    // A little hacky, but oh well.
+                    if !binary {
+                        _, err = remoteReader.ReadString('\n')
+                    }
+
+                    if err == nil {
+                        responder.RespondSet(nil, remoteWriter)
+                    }
                 }
+
                 
             case common.REQUEST_DELETE:
                 err = local.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
@@ -113,22 +124,27 @@ func handleConnection(remote net.Conn, local net.Conn) {
                 }
                 
             case common.REQUEST_GET:
-                response, errChan := local.HandleGet(request.(common.GetRequest), localReader, localWriter)
+                resChan, errChan := local.HandleGet(request.(common.GetRequest), localReader, localWriter)
                 
                 for {
                     select {
-                        case res, ok := <-response:
-                            if !ok { response = nil }
-                            
+                    case res, ok := <-resChan:
+                        if !ok {
+                            resChan = nil
+                        } else {
+                            fmt.Println("got chunk response: ", res)
                             responder.RespondGetChunk(res, remoteWriter)
-                            
-                        case getErr, ok := <-errChan:
-                            if !ok { errChan = nil }
+                        }
+                        
+                    case getErr, ok := <-errChan:
+                        if !ok {
+                            errChan = nil
+                        } else {
                             err = getErr
-                            break
+                        }
                     }
                     
-                    if response == nil && errChan == nil {
+                    if resChan == nil && errChan == nil {
                         break
                     }
                 }
@@ -138,7 +154,7 @@ func handleConnection(remote net.Conn, local net.Conn) {
         
         // TODO: distinguish fatal errors from non-fatal
         if err != nil {
-            abort(remote, err, binary)
+            abort(remoteConn, err, binary)
             return
         }
     }
