@@ -24,10 +24,6 @@ var (
 
 type RequestType int
 const (
-    // Chunk size, leaving room for the token
-    CHUNK_SIZE = 1024 - 16
-    FULL_DATA_SIZE = 1024
-    
     REQUEST_GET = RequestType(0)
     REQUEST_SET = RequestType(1)
     REQUEST_DELETE = RequestType(2)

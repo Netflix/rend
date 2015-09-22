@@ -1,19 +1,16 @@
 /**
  * Utility functions to create commands
  */
-package util
+package binprot
 
 import "bytes"
 import "encoding/binary"
 
-import "../binprot"
-
-// TODO: consider moving into binprot package, seems leaky here
 func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
     // opcode, keyLength, extraLength, totalBodyLength
     // key + extras + body
     totalBodyLength := len(key) + 8 + int(dataSize)
-    header := binprot.MakeRequestHeader(binprot.OPCODE_SET, len(key), 8, totalBodyLength)
+    header := MakeRequestHeader(OPCODE_SET, len(key), 8, totalBodyLength)
     
     reqBuf := new(bytes.Buffer)
     binary.Write(reqBuf, binary.BigEndian, header)
@@ -27,9 +24,9 @@ func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
 	//return fmt.Sprintf("set %s 0 %s %d\r\n", key, exptime, size)
 }
 
-func GetCommand(key []byte) []byte {
+func GetCmd(key []byte) []byte {
     // opcode, keyLength, extraLength, totalBodyLength
-    header := binprot.MakeRequestHeader(binprot.OPCODE_GET, len(key), 0, len(key))
+    header := MakeRequestHeader(OPCODE_GET, len(key), 0, len(key))
     
     reqBuf := new(bytes.Buffer)
     binary.Write(reqBuf, binary.BigEndian, header)
@@ -41,9 +38,9 @@ func GetCommand(key []byte) []byte {
 	//return fmt.Sprintf("get %s\r\n", key)
 }
 
-func DeleteCommand(key []byte) []byte {
+func DeleteCmd(key []byte) []byte {
     // opcode, keyLength, extraLength, totalBodyLength
-    header := binprot.MakeRequestHeader(binprot.OPCODE_DELETE, len(key), 0, len(key))
+    header := MakeRequestHeader(OPCODE_DELETE, len(key), 0, len(key))
     
     reqBuf := new(bytes.Buffer)
     binary.Write(reqBuf, binary.BigEndian, header)
@@ -55,11 +52,11 @@ func DeleteCommand(key []byte) []byte {
 	//return fmt.Sprintf("delete %s\r\n", key)
 }
 
-func TouchCommand(key []byte, exptime uint32) []byte {
+func TouchCmd(key []byte, exptime uint32) []byte {
     // opcode, keyLength, extraLength, totalBodyLength
     // key + extras + body
     totalBodyLength := len(key) + 4
-    header := binprot.MakeRequestHeader(binprot.OPCODE_SET, len(key), 4, totalBodyLength)
+    header := MakeRequestHeader(OPCODE_SET, len(key), 4, totalBodyLength)
     
     reqBuf := new(bytes.Buffer)
     binary.Write(reqBuf, binary.BigEndian, header)
