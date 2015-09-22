@@ -126,6 +126,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
     outer: for _, key := range cmd.Keys {
         _, metaData, err := getMetadata(localReader, localWriter, key)
         if err != nil {
+            // TODO: Better error management
             if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
                 fmt.Println("Get miss because of missing metadata. Key:", key)
                 dataOut <- common.GetResponse {
@@ -156,6 +157,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
             err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
             
             if err != nil {
+                // TODO: Better error management
                 if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
                     fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
                     dataOut <- common.GetResponse {
