@@ -125,5 +125,5 @@ func (p TextParser) Parse(remoteReader *bufio.Reader) (interface{}, common.Reque
             }, common.REQUEST_TOUCH, nil
     }
     
-    return nil, common.REQUEST_GET, nil
+    return nil, common.REQUEST_UNKNOWN, nil
 }

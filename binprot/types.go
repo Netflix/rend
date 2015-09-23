@@ -46,8 +46,22 @@ func DecodeError(header ResponseHeader) error {
         case STATUS_UNKNOWN_COMMAND: return common.ERROR_UNKNOWN_CMD
         case STATUS_ENOMEM:          return common.ERROR_NO_MEM
     }
-    
     return nil
+}
+
+func errorToCode(err error) uint16 {
+    switch err {
+        case common.ERROR_KEY_NOT_FOUND:      return STATUS_KEY_ENOENT
+        case common.ERROR_KEY_EXISTS:         return STATUS_KEY_EEXISTS
+        case common.ERROR_VALUE_TOO_BIG:      return STATUS_E2BIG
+        case common.ERROR_INVALID_ARGS:       return STATUS_EINVAL
+        case common.ERROR_ITEM_NOT_STORED:    return STATUS_NOT_STORED
+        case common.ERROR_BAD_INC_DEC_VALUE:  return STATUS_DELTA_BADVAL
+        case common.ERROR_AUTH_ERROR:         return STATUS_AUTH_ERROR
+        case common.ERROR_UNKNOWN_CMD:        return STATUS_UNKNOWN_COMMAND
+        case common.ERROR_NO_MEM:             return STATUS_ENOMEM
+    }
+    return 0xFFFF
 }
 
 const REQ_HEADER_LEN = 24

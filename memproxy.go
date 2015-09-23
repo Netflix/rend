@@ -97,13 +97,12 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                     // For text protocol, read in \r\n at end of data.
                     // A little hacky, but oh well. Might be wrapped up in a
                     // "cleaupSet" function or something
-
                     if !binary {
                         _, err = remoteReader.ReadString('\n')
                     }
 
                     if err == nil {
-                        responder.Set(nil, remoteWriter)
+                        responder.Set(remoteWriter)
                     }
                 }
 
@@ -112,14 +111,14 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                 err = local.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
                 
                 if err == nil {
-                    responder.Delete(nil, remoteWriter)
+                    responder.Delete(remoteWriter)
                 }
                 
             case common.REQUEST_TOUCH:
                 err = local.HandleTouch(request.(common.TouchRequest), localReader, localWriter)
                 
                 if err == nil {
-                    responder.Touch(nil, remoteWriter)
+                    responder.Touch(remoteWriter)
                 }
                 
             case common.REQUEST_GET:
@@ -132,9 +131,9 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                             resChan = nil
                         } else {
                             if res.Miss {
-                                responder.GetMiss(res, remoteWriter)
+                                responder.GetMiss(remoteWriter, res)
                             } else {
-                                responder.Get(res, remoteWriter)
+                                responder.Get(remoteWriter, res)
                             }
                         }
                         
@@ -151,7 +150,10 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                     }
                 }
                 
-                responder.GetEnd(remoteReader, remoteWriter)
+                responder.GetEnd(remoteWriter, remoteReader)
+
+            case common.REQUEST_UNKNOWN:
+                responder.Error(remoteWriter, common.ERROR_UNKNOWN_CMD)
         }
         
         // TODO: distinguish fatal errors from non-fatal

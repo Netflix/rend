@@ -6,7 +6,6 @@ package binprot
 import "bufio"
 import "bytes"
 import "encoding/binary"
-import "fmt"
 
 import "../common"
 
@@ -73,8 +72,53 @@ import "../common"
 
 type BinaryResponder struct { }
 
-func errorToCode(err error) int {
-    return int(STATUS_EINVAL)
+// TODO: CAS?
+func (b BinaryResponder) Set(remoteWriter *bufio.Writer) error {
+    header := makeSuccessResponseHeader(OPCODE_SET, 0, 0, 0, 0)
+    return writeHeader(header, remoteWriter)
+}
+
+func (b BinaryResponder) Get(remoteWriter *bufio.Writer, response common.GetResponse) error {
+    // total body length = extras (flags, 4 bytes) + data length
+    totalBodyLength := len(response.Data) + 4
+    header := makeSuccessResponseHeader(OPCODE_GET, 0, 4, totalBodyLength, 0)
+    
+    err := writeHeader(header, remoteWriter)
+    if err != nil { return err }
+    
+    err = binary.Write(remoteWriter, binary.BigEndian, response.Metadata.OrigFlags)
+    if err != nil { return err }
+    
+    _, err = remoteWriter.Write(response.Data)
+    if err != nil { return err }
+
+    remoteWriter.Flush()
+    return nil
+}
+
+func (b BinaryResponder) GetMiss(remoteWriter *bufio.Writer, response common.GetResponse) error {
+    header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
+    return writeHeader(header, remoteWriter)
+}
+
+func (b BinaryResponder) GetEnd(remoteWriter *bufio.Writer, remoteReader *bufio.Reader) error {
+    // no-op since the binary protocol does not have batch gets
+    return nil
+}
+
+func (b BinaryResponder) Delete(remoteWriter *bufio.Writer) error {
+    header := makeSuccessResponseHeader(OPCODE_DELETE, 0, 0, 0, 0)
+    return writeHeader(header, remoteWriter)
+}
+
+func (b BinaryResponder) Touch(remoteWriter *bufio.Writer) error {
+    header := makeSuccessResponseHeader(OPCODE_TOUCH, 0, 0, 0, 0)
+    return writeHeader(header, remoteWriter)
+}
+
+func (b BinaryResponder) Error(remoteWriter *bufio.Writer, err error) error {
+    header := makeErrorResponseHeader(OPCODE_GET, int(errorToCode(err)), 0)
+    return writeHeader(header, remoteWriter)
 }
 
 func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {
@@ -90,85 +134,3 @@ func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {
     
     return nil
 }
-
-// TODO: CAS?
-func (r BinaryResponder) Set(err error, remoteWriter *bufio.Writer) error {
-    var header ResponseHeader
-    
-    if err != nil {
-        header = makeSuccessResponseHeader(OPCODE_SET, 0, 0, 0, 0)
-    } else {
-        header = makeErrorResponseHeader(OPCODE_SET, errorToCode(err), 0)
-    }
-    
-    return writeHeader(header, remoteWriter)
-}
-
-func (r BinaryResponder) Get(response common.GetResponse, remoteWriter *bufio.Writer) error {
-    var header ResponseHeader
-    
-    // total body length = extras (flags, 4 bytes) + data length
-    totalBodyLength := len(response.Data) + 4
-    
-    header = makeSuccessResponseHeader(OPCODE_GET, 0, 4, totalBodyLength, 0)
-    
-    err := writeHeader(header, remoteWriter)
-    if err != nil { return err }
-    
-    err = binary.Write(remoteWriter, binary.BigEndian, response.Metadata.OrigFlags)
-    if err != nil { return err }
-    
-    _, err = remoteWriter.Write(response.Data)
-    if err != nil { return err }
-
-    remoteWriter.Flush()
-    return nil
-}
-
-func (r BinaryResponder) GetMiss(response common.GetResponse, remoteWriter *bufio.Writer) error {
-    header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
-    return writeHeader(header, remoteWriter)
-}
-
-func (r BinaryResponder) GetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
-    // no-op since the binary protocol does not have batch gets
-    return nil
-}
-
-func (r BinaryResponder) Delete(err error, remoteWriter *bufio.Writer) error {
-    var header ResponseHeader
-    
-    if err != nil {
-        header = makeSuccessResponseHeader(OPCODE_DELETE, 0, 0, 0, 0)
-    } else {
-        header = makeErrorResponseHeader(OPCODE_DELETE, errorToCode(err), 0)
-    }
-    
-    return writeHeader(header, remoteWriter)
-}
-
-func (r BinaryResponder) Touch(err error, remoteWriter *bufio.Writer) error {
-    var header ResponseHeader
-    
-    if err != nil {
-        header = makeSuccessResponseHeader(OPCODE_TOUCH, 0, 0, 0, 0)
-    } else {
-        header = makeErrorResponseHeader(OPCODE_TOUCH, errorToCode(err), 0)
-    }
-    
-    return writeHeader(header, remoteWriter)
-}
-
-func respondError(err error, remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error {
-    if err == common.MISS {
-        _, err = fmt.Fprintf(remoteWriter, "NOT_FOUND\r\n")
-    } else {
-        fmt.Println(err.Error())
-        _, err = fmt.Fprintf(remoteWriter, "ERROR\r\n")
-    }
-    
-    if err != nil { return err }
-    remoteWriter.Flush()
-    return nil
-}
-

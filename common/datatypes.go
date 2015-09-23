@@ -24,6 +24,7 @@ var (
 
 type RequestType int
 const (
+    REQUEST_UNKNOWN = RequestType(-1)
     REQUEST_GET = RequestType(0)
     REQUEST_SET = RequestType(1)
     REQUEST_DELETE = RequestType(2)
@@ -35,12 +36,13 @@ type RequestParser interface {
 }
 
 type Responder interface {
-    Set(err error, remoteWriter *bufio.Writer) error
-    Get(response GetResponse, remoteWriter *bufio.Writer) error
-    GetMiss(response GetResponse, remoteWriter *bufio.Writer) error
-    GetEnd(remoteReader *bufio.Reader, remoteWriter *bufio.Writer) error
-    Delete(err error, remoteWriter *bufio.Writer) error
-    Touch(err error, remoteWriter *bufio.Writer) error
+    Set    (remoteWriter *bufio.Writer) error
+    Get    (remoteWriter *bufio.Writer, response GetResponse) error
+    GetMiss(remoteWriter *bufio.Writer, response GetResponse) error
+    GetEnd (remoteWriter *bufio.Writer, remoteReader *bufio.Reader) error
+    Delete (remoteWriter *bufio.Writer) error
+    Touch  (remoteWriter *bufio.Writer) error
+    Error  (remoteWriter *bufio.Writer, err error) error
 }
 
 type SetRequest struct {
