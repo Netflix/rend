@@ -11,14 +11,14 @@ func metaKey(key []byte) []byte {
 }
 
 func chunkKey(key []byte, chunk int) []byte {
-	chunkStr := fmt.Sprintf("_%v", chunk)
-	return append(key, []byte(chunkStr)...)
+    chunkStr := fmt.Sprintf("_%v", chunk)
+    return append(key, []byte(chunkStr)...)
 }
 
 func chunkSliceIndices(chunkSize, chunkNum, totalLength int) (int, int) {
-	// Indices for slicing. End is exclusive
-	start := chunkSize * chunkNum
-	end := int(math.Min(float64(start + chunkSize), float64(totalLength)))
+    // Indices for slicing. End is exclusive
+    start := chunkSize * chunkNum
+    end := int(math.Min(float64(start + chunkSize), float64(totalLength)))
 
-	return start, end
+    return start, end
 }

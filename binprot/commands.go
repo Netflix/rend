@@ -21,7 +21,7 @@ func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
     
     return reqBuf.Bytes()
     
-	//return fmt.Sprintf("set %s 0 %s %d\r\n", key, exptime, size)
+    //return fmt.Sprintf("set %s 0 %s %d\r\n", key, exptime, size)
 }
 
 func GetCmd(key []byte) []byte {
@@ -35,7 +35,7 @@ func GetCmd(key []byte) []byte {
     
     return reqBuf.Bytes()
     
-	//return fmt.Sprintf("get %s\r\n", key)
+    //return fmt.Sprintf("get %s\r\n", key)
 }
 
 func DeleteCmd(key []byte) []byte {
@@ -49,7 +49,7 @@ func DeleteCmd(key []byte) []byte {
     
     return reqBuf.Bytes()
     
-	//return fmt.Sprintf("delete %s\r\n", key)
+    //return fmt.Sprintf("delete %s\r\n", key)
 }
 
 func TouchCmd(key []byte, exptime uint32) []byte {
@@ -66,5 +66,5 @@ func TouchCmd(key []byte, exptime uint32) []byte {
     
     return reqBuf.Bytes()
     
-	//return fmt.Sprintf("touch %s %s\r\n", key, exptime)
+    //return fmt.Sprintf("touch %s %s\r\n", key, exptime)
 }

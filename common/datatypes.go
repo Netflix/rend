@@ -44,27 +44,27 @@ type Responder interface {
 }
 
 type SetRequest struct {
-	Key     []byte
-	Flags   uint32
-	Exptime uint32
-	Length  uint32
+    Key     []byte
+    Flags   uint32
+    Exptime uint32
+    Length  uint32
     Opaque  uint32
 }
 
 // Gets are batch by default
 type GetRequest struct {
-	Keys    [][]byte
+    Keys    [][]byte
     Opaques []uint32
 }
 
 type DeleteRequest struct {
-	Key    []byte
+    Key    []byte
     Opaque uint32
 }
 
 type TouchRequest struct {
-	Key     []byte
-	Exptime uint32
+    Key     []byte
+    Exptime uint32
     Opaque  uint32
 }
 
@@ -78,11 +78,11 @@ type GetResponse struct {
 
 const METADATA_SIZE = 32
 type Metadata struct {
-	Length    uint32
-	OrigFlags uint32
-	NumChunks uint32
-	ChunkSize uint32
-	Token     [16]byte
+    Length    uint32
+    OrigFlags uint32
+    NumChunks uint32
+    ChunkSize uint32
+    Token     [16]byte
 }
 
 func init() {
