@@ -5,81 +5,90 @@ package textprot
 
 import "bufio"
 import "fmt"
+import "io"
 
 import "../common"
 
-type TextResponder struct { }
+type TextResponder struct {
+    writer *bufio.Writer
+}
 
-func (t TextResponder) Set(remoteWriter *bufio.Writer) error {
+func NewTextResponder(writer io.Writer) TextResponder {
+    return TextResponder {
+        writer: bufio.NewWriter(writer),
+    }
+}
+
+func (t TextResponder) Set() error {
     // TODO: Error handling for less bytes
     //numWritten, err := writer.WriteString("STORED\r\n")
-    _, err := remoteWriter.WriteString("STORED\r\n")
+    _, err := t.writer.WriteString("STORED\r\n")
     if err != nil { return err }
     
-    err = remoteWriter.Flush()
+    err = t.writer.Flush()
     if err != nil { return err }
     
     return nil
 }
 
-func (t TextResponder) Get(remoteWriter *bufio.Writer, response common.GetResponse) error {
+func (t TextResponder) Get(response common.GetResponse) error {
     // Write data out to client
     // [VALUE <key> <flags> <bytes>\r\n
     // <data block>\r\n]*
     // END\r\n
-    _, err := fmt.Fprintf(remoteWriter, "VALUE %s %d %d\r\n",
+    _, err := fmt.Fprintf(t.writer, "VALUE %s %d %d\r\n",
         response.Key, response.Metadata.OrigFlags, response.Metadata.Length)
     if err != nil { return err }
     
-    _, err = remoteWriter.Write(response.Data)
+    _, err = t.writer.Write(response.Data)
     if err != nil { return err }
     
-    _, err = remoteWriter.WriteString("\r\n")
+    _, err = t.writer.WriteString("\r\n")
     if err != nil { return err }
 
-    remoteWriter.Flush()
+    t.writer.Flush()
     return nil
 }
 
-func (t TextResponder) GetMiss(remoteWriter *bufio.Writer, response common.GetResponse) error {
+func (t TextResponder) GetMiss(response common.GetResponse) error {
     // A miss is a no-op in the text world
     return nil
 }
 
-func (t TextResponder) GetEnd(remoteWriter *bufio.Writer, remoteReader *bufio.Reader) error {
-    _, err := fmt.Fprintf(remoteWriter, "END\r\n")
+func (t TextResponder) GetEnd() error {
+    _, err := fmt.Fprintf(t.writer, "END\r\n")
     if err != nil { return err }
     
-    remoteWriter.Flush()
+    t.writer.Flush()
     return nil
 }
 
-func (t TextResponder) Delete(remoteWriter *bufio.Writer) error {
-    _, err := fmt.Fprintf(remoteWriter, "DELETED\r\n")
+func (t TextResponder) Delete() error {
+    _, err := fmt.Fprintf(t.writer, "DELETED\r\n")
     if err != nil { return err }
     
-    remoteWriter.Flush()
+    t.writer.Flush()
     return nil
 }
 
-func (t TextResponder) Touch(remoteWriter *bufio.Writer) error {
-    _, err := fmt.Fprintf(remoteWriter, "TOUCHED\r\n")
+func (t TextResponder) Touch() error {
+    _, err := fmt.Fprintf(t.writer, "TOUCHED\r\n")
     if err != nil { return err }
     
-    remoteWriter.Flush()
+    t.writer.Flush()
     return nil
 }
 
-func (t TextResponder) Error(remoteWriter *bufio.Writer, err error) error {
+func (t TextResponder) Error(err error) error {
     if err == common.MISS {
-        _, err = fmt.Fprintf(remoteWriter, "NOT_FOUND\r\n")
+        _, err = fmt.Fprintf(t.writer, "NOT_FOUND\r\n")
     } else {
         fmt.Println(err.Error())
-        _, err = fmt.Fprintf(remoteWriter, "ERROR\r\n")
+        _, err = fmt.Fprintf(t.writer, "ERROR\r\n")
     }
     
     if err != nil { return err }
-    remoteWriter.Flush()
+    t.writer.Flush()
     return nil
 }
 

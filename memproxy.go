@@ -51,7 +51,7 @@ func abort(remote net.Conn, err error, binary bool) {
 
 func handleConnection(remoteConn net.Conn, localConn net.Conn) {
     remoteReader := bufio.NewReader(remoteConn)
-    remoteWriter := bufio.NewWriter(remoteConn)
+    //remoteWriter := bufio.NewWriter(remoteConn)
     localReader  := bufio.NewReader(localConn)
     localWriter  := bufio.NewWriter(localConn)
     
@@ -60,10 +60,10 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
     var reqType   common.RequestType
     var request   interface{}
     
-    var binaryParser    binprot.BinaryParser
-    var binaryResponder binprot.BinaryResponder
-    var textParser      textprot.TextParser
-    var textResponder   textprot.TextResponder
+    binaryParser    := binprot.NewBinaryParser(remoteConn)
+    binaryResponder := binprot.NewBinaryResponder(remoteConn)
+    textParser      := textprot.NewTextParser(remoteConn)
+    textResponder   := textprot.NewTextResponder(remoteConn)
     
     for {
         binary, err := isBinaryRequest(remoteReader)
@@ -81,7 +81,7 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
             responder = textResponder
         }
         
-        request, reqType, err = reqParser.Parse(remoteReader)
+        request, reqType, err = reqParser.Parse()
         
         if err != nil {
             abort(remoteConn, err, binary)
@@ -102,7 +102,7 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                     }
 
                     if err == nil {
-                        responder.Set(remoteWriter)
+                        responder.Set()
                     }
                 }
 
@@ -111,14 +111,14 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                 err = local.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
                 
                 if err == nil {
-                    responder.Delete(remoteWriter)
+                    responder.Delete()
                 }
                 
             case common.REQUEST_TOUCH:
                 err = local.HandleTouch(request.(common.TouchRequest), localReader, localWriter)
                 
                 if err == nil {
-                    responder.Touch(remoteWriter)
+                    responder.Touch()
                 }
                 
             case common.REQUEST_GET:
@@ -131,9 +131,9 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                             resChan = nil
                         } else {
                             if res.Miss {
-                                responder.GetMiss(remoteWriter, res)
+                                responder.GetMiss(res)
                             } else {
-                                responder.Get(remoteWriter, res)
+                                responder.Get(res)
                             }
                         }
                         
@@ -150,10 +150,10 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
                     }
                 }
                 
-                responder.GetEnd(remoteWriter, remoteReader)
+                responder.GetEnd()
 
             case common.REQUEST_UNKNOWN:
-                responder.Error(remoteWriter, common.ERROR_UNKNOWN_CMD)
+                responder.Error(common.ERROR_UNKNOWN_CMD)
         }
         
         // TODO: distinguish fatal errors from non-fatal

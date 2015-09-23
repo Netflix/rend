@@ -1,6 +1,5 @@
 package binprot
 
-import "bufio"
 import "bytes"
 import "encoding/binary"
 import "fmt"
@@ -71,13 +70,20 @@ import "../common"
 //     Key                 : The textual string "Hello"
 //     Value               : None
 
-type BinaryParser struct { }
+type BinaryParser struct {
+    reader io.Reader
+}
 
-func (p BinaryParser) Parse(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
-    
+func NewBinaryParser(reader io.Reader) BinaryParser {
+    return BinaryParser {
+        reader: reader,
+    }
+}
+
+func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
     // read in the full header before any variable length fields
     headerBuf := make([]byte, 24)
-    _, err := io.ReadFull(remoteReader, headerBuf)
+    _, err := io.ReadFull(b.reader, headerBuf)
     
     if err != nil {
         if err == io.EOF {
@@ -94,21 +100,21 @@ func (p BinaryParser) Parse(remoteReader *bufio.Reader) (interface{}, common.Req
     switch reqHeader.Opcode {
         case OPCODE_SET:
             // flags, exptime, key, value
-            flags, err := readUInt32(remoteReader)
+            flags, err := readUInt32(b.reader)
             
             if err != nil {
                 fmt.Println("Error reading flags")
                 return nil, common.REQUEST_SET, err
             }
             
-            exptime, err := readUInt32(remoteReader)
+            exptime, err := readUInt32(b.reader)
             
             if err != nil {
                 fmt.Println("Error reading exptime")
                 return nil, common.REQUEST_SET, err
             }
             
-            key, err := readString(remoteReader, reqHeader.KeyLength)
+            key, err := readString(b.reader, reqHeader.KeyLength)
             
             if err != nil {
                 fmt.Println("Error reading key")
@@ -129,7 +135,7 @@ func (p BinaryParser) Parse(remoteReader *bufio.Reader) (interface{}, common.Req
         case OPCODE_GET:
             // TODO: while next command is a get, get the key and add it to the batch.
             // key
-            key, err := readString(remoteReader, reqHeader.KeyLength)
+            key, err := readString(b.reader, reqHeader.KeyLength)
             
             if err != nil {
                 fmt.Println("Error reading key")
@@ -143,7 +149,7 @@ func (p BinaryParser) Parse(remoteReader *bufio.Reader) (interface{}, common.Req
             
         case OPCODE_DELETE:
             // key
-            key, err := readString(remoteReader, reqHeader.KeyLength)
+            key, err := readString(b.reader, reqHeader.KeyLength)
             
             if err != nil {
                 fmt.Println("Error reading key")
@@ -156,14 +162,14 @@ func (p BinaryParser) Parse(remoteReader *bufio.Reader) (interface{}, common.Req
             
         case OPCODE_TOUCH:
             // exptime, key
-            exptime, err := readUInt32(remoteReader)
+            exptime, err := readUInt32(b.reader)
             
             if err != nil {
                 fmt.Println("Error reading exptime")
                 return nil, common.REQUEST_TOUCH, err
             }
             
-            key, err := readString(remoteReader, reqHeader.KeyLength)
+            key, err := readString(b.reader, reqHeader.KeyLength)
             
             if err != nil {
                 fmt.Println("Error reading key")
@@ -179,7 +185,7 @@ func (p BinaryParser) Parse(remoteReader *bufio.Reader) (interface{}, common.Req
     return nil, common.REQUEST_GET, nil
 }
 
-func readString(remoteReader *bufio.Reader, length uint16) ([]byte, error) {
+func readString(remoteReader io.Reader, length uint16) ([]byte, error) {
     buf := make([]byte, length)
     _, err := io.ReadFull(remoteReader, buf)
     
@@ -188,7 +194,7 @@ func readString(remoteReader *bufio.Reader, length uint16) ([]byte, error) {
     return buf, nil
 }
 
-func readUInt32(remoteReader *bufio.Reader) (uint32, error) {
+func readUInt32(remoteReader io.Reader) (uint32, error) {
     var num uint32
     err := binary.Read(remoteReader, binary.BigEndian, &num)
     

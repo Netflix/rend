@@ -3,7 +3,6 @@
  */
 package common
 
-import "bufio"
 import "errors"
 
 var (
@@ -32,17 +31,17 @@ const (
 )
 
 type RequestParser interface {
-    Parse(remoteReader *bufio.Reader) (interface{}, RequestType, error)
+    Parse() (interface{}, RequestType, error)
 }
 
 type Responder interface {
-    Set    (remoteWriter *bufio.Writer) error
-    Get    (remoteWriter *bufio.Writer, response GetResponse) error
-    GetMiss(remoteWriter *bufio.Writer, response GetResponse) error
-    GetEnd (remoteWriter *bufio.Writer, remoteReader *bufio.Reader) error
-    Delete (remoteWriter *bufio.Writer) error
-    Touch  (remoteWriter *bufio.Writer) error
-    Error  (remoteWriter *bufio.Writer, err error) error
+    Set() error
+    Get(response GetResponse) error
+    GetMiss(response GetResponse) error
+    GetEnd() error
+    Delete() error
+    Touch() error
+    Error(err error) error
 }
 
 type SetRequest struct {

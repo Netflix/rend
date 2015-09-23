@@ -13,11 +13,19 @@ import "strings"
 
 import "../common"
 
-type TextParser struct { }
+type TextParser struct {
+    reader *bufio.Reader
+}
 
-func (p TextParser) Parse(remoteReader *bufio.Reader) (interface{}, common.RequestType, error) {
+func NewTextParser(reader io.Reader) TextParser {
+    return TextParser {
+        reader: bufio.NewReader(reader),
+    }
+}
+
+func (t TextParser) Parse() (interface{}, common.RequestType, error) {
     
-    data, err := remoteReader.ReadString('\n')
+    data, err := t.reader.ReadString('\n')
     
     if err != nil {
         if err == io.EOF {
