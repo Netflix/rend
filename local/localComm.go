@@ -30,6 +30,16 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byt
     
     err = binprot.DecodeError(resHeader)
     if err != nil {
+    	if err == common.ERROR_KEY_NOT_FOUND {
+	    	// read in the message "Not found" after a miss 
+	    	garbage := make([]byte, resHeader.TotalBodyLength)
+	    	_, ioerr := io.ReadFull(localReader, garbage)
+
+	    	if ioerr != nil {
+        		return nil, common.Metadata{}, ioerr
+	    	}
+	    }
+
         return nil, common.Metadata{}, err
     }
 
