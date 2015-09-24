@@ -5,7 +5,6 @@ package textprot
 
 import "bufio"
 import "fmt"
-import "io"
 
 import "../common"
 
@@ -13,9 +12,9 @@ type TextResponder struct {
     writer *bufio.Writer
 }
 
-func NewTextResponder(writer io.Writer) TextResponder {
+func NewTextResponder(writer *bufio.Writer) TextResponder {
     return TextResponder {
-        writer: bufio.NewWriter(writer),
+        writer: writer,
     }
 }
 

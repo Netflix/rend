@@ -6,7 +6,6 @@ package binprot
 import "bufio"
 import "bytes"
 import "encoding/binary"
-import "io"
 
 import "../common"
 
@@ -75,9 +74,9 @@ type BinaryResponder struct {
     writer *bufio.Writer
 }
 
-func NewBinaryResponder(writer io.Writer) BinaryResponder {
+func NewBinaryResponder(writer *bufio.Writer) BinaryResponder {
     return BinaryResponder {
-        writer: bufio.NewWriter(writer),
+        writer: writer,
     }
 }
 

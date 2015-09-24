@@ -1,5 +1,6 @@
 package binprot
 
+import "bufio"
 import "bytes"
 import "encoding/binary"
 import "fmt"
@@ -71,10 +72,10 @@ import "../common"
 //     Value               : None
 
 type BinaryParser struct {
-    reader io.Reader
+    reader *bufio.Reader
 }
 
-func NewBinaryParser(reader io.Reader) BinaryParser {
+func NewBinaryParser(reader *bufio.Reader) BinaryParser {
     return BinaryParser {
         reader: reader,
     }
@@ -91,7 +92,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
         } else {
             fmt.Println(err.Error())
         }
-        return nil, common.REQUEST_GET, err
+        return nil, common.REQUEST_UNKNOWN, err
     }
     
     var reqHeader RequestHeader

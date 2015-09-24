@@ -51,7 +51,7 @@ func abort(remote net.Conn, err error, binary bool) {
 
 func handleConnection(remoteConn net.Conn, localConn net.Conn) {
     remoteReader := bufio.NewReader(remoteConn)
-    //remoteWriter := bufio.NewWriter(remoteConn)
+    remoteWriter := bufio.NewWriter(remoteConn)
     localReader  := bufio.NewReader(localConn)
     localWriter  := bufio.NewWriter(localConn)
     
@@ -60,10 +60,10 @@ func handleConnection(remoteConn net.Conn, localConn net.Conn) {
     var reqType   common.RequestType
     var request   interface{}
     
-    binaryParser    := binprot.NewBinaryParser(remoteConn)
-    binaryResponder := binprot.NewBinaryResponder(remoteConn)
-    textParser      := textprot.NewTextParser(remoteConn)
-    textResponder   := textprot.NewTextResponder(remoteConn)
+    binaryParser    := binprot.NewBinaryParser(remoteReader)
+    binaryResponder := binprot.NewBinaryResponder(remoteWriter)
+    textParser      := textprot.NewTextParser(remoteReader)
+    textResponder   := textprot.NewTextResponder(remoteWriter)
     
     for {
         binary, err := isBinaryRequest(remoteReader)

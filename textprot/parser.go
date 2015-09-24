@@ -17,9 +17,9 @@ type TextParser struct {
     reader *bufio.Reader
 }
 
-func NewTextParser(reader io.Reader) TextParser {
+func NewTextParser(reader *bufio.Reader) TextParser {
     return TextParser {
-        reader: bufio.NewReader(reader),
+        reader: reader,
     }
 }
 
@@ -33,7 +33,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
         }
         
         fmt.Println(err.Error())
-        return nil, common.REQUEST_GET, err
+        return nil, common.REQUEST_UNKNOWN, err
     }
     
     clParts := strings.Split(strings.TrimSpace(data), " ")
@@ -131,7 +131,8 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
                 Exptime: uint32(exptime),
                 Opaque:  uint32(0),
             }, common.REQUEST_TOUCH, nil
+
+        default:
+            return nil, common.REQUEST_UNKNOWN, nil
     }
-    
-    return nil, common.REQUEST_UNKNOWN, nil
 }
