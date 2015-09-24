@@ -11,14 +11,40 @@ import "../common"
 
 var MAGIC_REQUEST = 0x80
 
-const OPCODE_GET    = 0x00
-const OPCODE_GETQ   = 0x09 // (later)
-const OPCODE_GAT    = 0x1d // (later)
-const OPCODE_GATQ   = 0x1e // (later)
-const OPCODE_SET    = 0x01
-const OPCODE_DELETE = 0x04
-const OPCODE_TOUCH  = 0x1c
-const OPCODE_NOOP   = 0x0a // (later)
+// All opcodes as defined in memcached
+// Minus SASL and range ops
+const OPCODE_GET        = 0x00
+const OPCODE_SET        = 0x01
+const OPCODE_ADD        = 0x02
+const OPCODE_REPLACE    = 0x03
+const OPCODE_DELETE     = 0x04
+const OPCODE_INCREMENT  = 0x05
+const OPCODE_DECREMENT  = 0x06
+const OPCODE_QUIT       = 0x07
+const OPCODE_FLUSH      = 0x08
+const OPCODE_GETQ       = 0x09
+const OPCODE_NOOP       = 0x0a
+const OPCODE_VERSION    = 0x0b
+const OPCODE_GETK       = 0x0c
+const OPCODE_GETKQ      = 0x0d
+const OPCODE_APPEND     = 0x0e
+const OPCODE_PREPEND    = 0x0f
+const OPCODE_STAT       = 0x10
+const OPCODE_SETQ       = 0x11
+const OPCODE_ADDQ       = 0x12
+const OPCODE_REPLACEQ   = 0x13
+const OPCODE_DELETEQ    = 0x14
+const OPCODE_INCREMENTQ = 0x15
+const OPCODE_DECREMENTQ = 0x16
+const OPCODE_QUITQ      = 0x17
+const OPCODE_FLUSHQ     = 0x18
+const OPCODE_APPENDQ    = 0x19
+const OPCODE_PREPENDQ   = 0x1a
+const OPCODE_TOUCH      = 0x1c
+const OPCODE_GAT        = 0x1d
+const OPCODE_GATQ       = 0x1e
+const OPCODE_GATK       = 0x23
+const OPCODE_GATKQ      = 0x24
 
 const MAGIC_RESPONSE = 0x81
 
