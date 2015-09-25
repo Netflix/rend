@@ -238,7 +238,7 @@ func HandleTouch(cmd common.TouchRequest, localReader *bufio.Reader, localWriter
         
     if err != nil {
         if err == common.MISS {
-            fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key) 
+            fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key)
             return err
         }
         

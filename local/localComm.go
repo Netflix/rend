@@ -97,6 +97,12 @@ func simpleCmdLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []
     if err != nil {
         return err
     }
+
+    // Read in the message bytes from the body
+    localReader.Discard(int(resHeader.TotalBodyLength))
+    if err != nil {
+        return err
+    }
     
     return nil
 }

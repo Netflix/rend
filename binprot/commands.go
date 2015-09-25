@@ -56,7 +56,7 @@ func TouchCmd(key []byte, exptime uint32) []byte {
     // opcode, keyLength, extraLength, totalBodyLength
     // key + extras + body
     totalBodyLength := len(key) + 4
-    header := MakeRequestHeader(OPCODE_SET, len(key), 4, totalBodyLength)
+    header := MakeRequestHeader(OPCODE_TOUCH, len(key), 4, totalBodyLength)
     
     reqBuf := new(bytes.Buffer)
     binary.Write(reqBuf, binary.BigEndian, header)
