@@ -47,9 +47,20 @@ func abort(remote net.Conn, err error, binary bool) {
     fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
     // use proper serializer to respond here
     remote.Close()
+    panic(err)
 }
 
 func handleConnection(remoteConn net.Conn, localConn net.Conn) {
+    defer func() {
+        if r := recover(); r != nil {
+            fmt.Println("Recovered from runtime panic:", r)
+        }
+    }()
+
+    handleConnectionReal(remoteConn, localConn)
+}
+
+func handleConnectionReal(remoteConn net.Conn, localConn net.Conn) {
     remoteReader := bufio.NewReader(remoteConn)
     remoteWriter := bufio.NewWriter(remoteConn)
     localReader  := bufio.NewReader(localConn)
