@@ -9,12 +9,14 @@ func ChunkLimitReader(reader io.Reader, chunkSize, totalSize int64) ChunkedLimit
         reader:     reader,
         remaining:  totalSize,
         chunkSize:  chunkSize,
+        chunkRem:   chunkSize,
         numChunks:  numChunks,
         doneChunks: 0,
     }
 }
 
 // will read *past* the end of the total size to fill in the remainder of a chunk
+// effectively acts as a chunk iterator over the input stream
 type ChunkedLimitedReader struct {
     reader     io.Reader // underlying reader
     remaining  int64     // bytes remaining in total
@@ -24,7 +26,7 @@ type ChunkedLimitedReader struct {
     doneChunks int64     // number of chunks completed
 }
 
-func (c *ChunkedLimitedReader) Read(p []byte) (n int, err error) {
+func (c ChunkedLimitedReader) Read(p []byte) (n int, err error) {
     // If we've already read all our chunks and the remainders are <= 0, we're done
     if c.doneChunks >= c.numChunks || (c.remaining <= 0 && c.chunkRem <= 0) {
         return 0, io.EOF

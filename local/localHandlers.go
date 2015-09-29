@@ -7,11 +7,11 @@ import "bufio"
 import "bytes"
 import "encoding/binary"
 import "fmt"
-import "io"
 import "math"
 
 import "../binprot"
 import "../common"
+import "../stream"
 
 // Chunk size, leaving room for the token
 // Make sure the value subtracted from chunk size stays in sync
@@ -35,10 +35,14 @@ func consumeResponseHeader(localReader *bufio.Reader) error {
 
 func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
     // Read in the data from the remote connection
-    buf := make([]byte, cmd.Length)
-    _, err := io.ReadFull(remoteReader, buf)
-    // TODO: text protocol bytes?
-    
+    //buf := make([]byte, cmd.Length)
+    //_, err := io.ReadFull(remoteReader, buf)
+
+    // For writing chunks, the specialized chunked reader is appropriate.
+    // for unchunked, a limited reader will be needed since the text protocol
+    // includes a /r/n at the end and there's no EOF to be had with a long-lived
+    // connection.
+    limRemoteReader := stream.ChunkLimitReader(remoteReader, int64(CHUNK_SIZE), int64(cmd.Length))
     numChunks := int(math.Ceil(float64(cmd.Length) / float64(CHUNK_SIZE)))
     token := <-tokens
     
@@ -57,7 +61,7 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
     // Write metadata key
     // TODO: should there be a unique flags value for chunked data?
     localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, common.METADATA_SIZE)
-    err = setLocal(localWriter, localCmd, nil, metaDataBuf.Bytes())
+    err := setLocal(localWriter, localCmd, nil, metaDataBuf)
     if err != nil {
         return err
     }
@@ -72,24 +76,14 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
     // TODO: Clean up if a data chunk write fails
     // Failure can mean the write failing at the I/O level
     // or at the memcached level, e.g. response == ERROR
-    for i := 0; i < numChunks; i++ {
+    chunkNum := 0
+    for limRemoteReader.More() {
         // Build this chunk's key
-        key := chunkKey(cmd.Key, i)
-        
-        // indices for slicing, end exclusive
-        start, end := chunkSliceIndices(CHUNK_SIZE, i, int(cmd.Length))
-        chunkBuf := buf[start:end]
-        
-        // Pad the data to always be CHUNK_SIZE
-        if (end-start) < CHUNK_SIZE {
-            padding := CHUNK_SIZE - (end-start)
-            padtext := bytes.Repeat([]byte{byte(0)}, padding)
-            chunkBuf = append(chunkBuf, padtext...)
-        }
+        key := chunkKey(cmd.Key, chunkNum)
         
         // Write the key
         localCmd = binprot.SetCmd(key, cmd.Flags, cmd.Exptime, FULL_DATA_SIZE)
-        err = setLocal(localWriter, localCmd, token, chunkBuf)
+        err = setLocal(localWriter, localCmd, token, limRemoteReader)
         if err != nil {
             return err
         }
@@ -99,6 +93,10 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
         if err != nil {
             return err
         }
+
+        // Reset for next iteration
+        limRemoteReader.Next()
+        chunkNum++
     }
     
     return nil

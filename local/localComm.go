@@ -53,7 +53,7 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byt
 }
 
 // TODO: stream data through instead of buffering the entire value
-func setLocal(localWriter *bufio.Writer, cmd []byte, token *[16]byte, data []byte) error {
+func setLocal(localWriter *bufio.Writer, cmd []byte, token *[16]byte, data io.Reader) error {
     _, err := localWriter.Write(cmd)
     if err != nil {
         return err
@@ -68,7 +68,7 @@ func setLocal(localWriter *bufio.Writer, cmd []byte, token *[16]byte, data []byt
     }
 
     // Write value
-    _, err = localWriter.Write(data)
+    _, err = io.Copy(localWriter, data)
     if err != nil {
         return err
     }
