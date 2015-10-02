@@ -17,12 +17,15 @@ func ChunkLimitReader(reader io.Reader, chunkSize, totalSize int64) ChunkedLimit
     }
 }
 
-// will read *past* the end of the total size to fill in the remainder of a chunk
+// This reader is ***NOT THREAD SAFE***
+// It will read *past* the end of the total size to fill in the remainder of a chunk
 // effectively acts as a chunk iterator over the input stream
 type ChunkedLimitedReader struct {
     d *clrData
 }
 
+// Because the Read method is value-only, we need to keep our state in another struct
+// and maintain a pointer to that struct in the main reader struct.
 type clrData struct {
     reader     io.Reader // underlying reader
     remaining  int64     // bytes remaining in total
@@ -32,6 +35,7 @@ type clrData struct {
     doneChunks int64     // number of chunks completed
 }
 
+// io.Reader's interface implements this as a value method, not a pointer method.
 func (c ChunkedLimitedReader) Read(p []byte) (n int, err error) {
     // If we've already read all our chunks and the remainders are <= 0, we're done
     if c.d.doneChunks >= c.d.numChunks || (c.d.remaining <= 0 && c.d.chunkRem <= 0) {
