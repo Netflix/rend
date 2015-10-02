@@ -95,7 +95,7 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
         }
 
         // Reset for next iteration
-        limRemoteReader.Next()
+        limRemoteReader.NextChunk()
         chunkNum++
     }
     
