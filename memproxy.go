@@ -9,6 +9,9 @@ import "bufio"
 import "fmt"
 import "net"
 
+import "os"
+import "os/signal"
+
 import "./binprot"
 import "./common"
 import "./local"
@@ -17,6 +20,15 @@ import "./textprot"
 const verbose = false
 
 func main() {
+
+    sigs := make(chan os.Signal)
+    signal.Notify(sigs, os.Interrupt)
+
+    go func() {
+        <-sigs
+        panic("Keyboard Interrupt")
+    }()
+
     server, err := net.Listen("tcp", ":11212")
     
     if err != nil { print(err.Error()) }
@@ -164,13 +176,17 @@ func handleConnectionReal(remoteConn net.Conn, localConn net.Conn) {
                 responder.GetEnd()
 
             case common.REQUEST_UNKNOWN:
-                responder.Error(common.ERROR_UNKNOWN_CMD)
+                err = common.ERROR_UNKNOWN_CMD
         }
         
         // TODO: distinguish fatal errors from non-fatal
         if err != nil {
-            abort(remoteConn, err, binary)
-            return
+            if common.IsAppError(err) {
+                responder.Error(err)
+            } else {
+                abort(remoteConn, err, binary)
+                return
+            }
         }
     }
 }

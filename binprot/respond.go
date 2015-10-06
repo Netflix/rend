@@ -125,6 +125,7 @@ func (b BinaryResponder) Touch() error {
 }
 
 func (b BinaryResponder) Error(err error) error {
+    // TODO: proper opcode
     header := makeErrorResponseHeader(OPCODE_GET, int(errorToCode(err)), 0)
     return writeHeader(header, b.writer)
 }

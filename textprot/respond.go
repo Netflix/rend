@@ -79,11 +79,25 @@ func (t TextResponder) Touch() error {
 }
 
 func (t TextResponder) Error(err error) error {
-    if err == common.MISS {
-        _, err = fmt.Fprintf(t.writer, "NOT_FOUND\r\n")
-    } else {
-        fmt.Println(err.Error())
-        _, err = fmt.Fprintf(t.writer, "ERROR\r\n")
+
+    switch (err) {
+        case common.ERROR_KEY_NOT_FOUND:
+            _, err = fmt.Fprintf(t.writer, "NOT_FOUND\r\n")
+        case common.ERROR_KEY_EXISTS:
+            _, err = fmt.Fprintf(t.writer, "EXISTS\r\n")
+        case common.ERROR_ITEM_NOT_STORED:
+            _, err = fmt.Fprintf(t.writer, "NOT_STORED\r\n")
+        case common.ERROR_VALUE_TOO_BIG:
+        case common.ERROR_INVALID_ARGS:
+            _, err = fmt.Fprintf(t.writer, "CLIENT_ERROR bad command line\r\n")
+        case common.ERROR_BAD_INC_DEC_VALUE:
+            _, err = fmt.Fprintf(t.writer, "CLIENT_ERROR invalid numeric delta argument\r\n")
+        case common.ERROR_AUTH_ERROR:
+            _, err = fmt.Fprintf(t.writer, "CLIENT_ERROR\r\n")
+        case common.ERROR_UNKNOWN_CMD:
+        case common.ERROR_NO_MEM:
+        default:
+            _, err = fmt.Fprintf(t.writer, "ERROR\r\n")
     }
     
     if err != nil { return err }

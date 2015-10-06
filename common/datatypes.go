@@ -21,6 +21,21 @@ var (
     ERROR_NO_MEM            error
 )
 
+// Make sure to keep this list in sync with the one above
+// It should contain all ERROR_* that could come back from
+// memcached itself
+func IsAppError(err error) bool {
+    return err == ERROR_KEY_NOT_FOUND     ||
+           err == ERROR_KEY_EXISTS        ||
+           err == ERROR_VALUE_TOO_BIG     ||
+           err == ERROR_INVALID_ARGS      ||
+           err == ERROR_ITEM_NOT_STORED   ||
+           err == ERROR_BAD_INC_DEC_VALUE ||
+           err == ERROR_AUTH_ERROR        ||
+           err == ERROR_UNKNOWN_CMD       ||
+           err == ERROR_NO_MEM
+}
+
 type RequestType int
 const (
     REQUEST_UNKNOWN = RequestType(-1)
