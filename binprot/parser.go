@@ -81,6 +81,10 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
     }
 }
 
+// getq in binary is a bunhc of headers bunched together with a noop or a get
+// https://github.com/couchbase/spymemcached/blob/master/src/main/java/net/spy/memcached/protocol/binary/MultiGetOperationImpl.java#L88
+// spymemcached's implementation ^^^
+
 func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
     // read in the full header before any variable length fields
     headerBuf := make([]byte, 24)
