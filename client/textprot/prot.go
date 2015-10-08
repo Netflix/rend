@@ -1,14 +1,42 @@
 package textprot
 
-import "bufio"
 import "fmt"
+import "io"
 import "strings"
 
 const VERBOSE = false
 
+// reads a line without needing to use a bufio.Reader
+func rl(reader io.Reader) (string, error) {
+    retval := make([]byte, 1024)
+    b := make([]byte, 1)
+    cur := 0
+
+    for b[0] != '\n' {
+        n, err := reader.Read(b)
+        if err != nil {
+            return "", err
+        }
+        if n < 1 {
+            continue
+        }
+
+        retval[cur] = b[0]
+        cur++
+
+        if cur >= cap(retval) {
+            newretval := make([]byte, 2*len(retval))
+            copy(newretval, retval)
+            retval = newretval
+        }
+    }
+
+    return string(retval[:cur]), nil
+}
+
 type TextProt struct {}
 
-func (t TextProt) Set(reader *bufio.Reader, writer *bufio.Writer, key []byte, value []byte) error {
+func (t TextProt) Set(reader io.Reader, writer io.Writer, key []byte, value []byte) error {
     strKey := string(key)
     if VERBOSE { fmt.Printf("Setting key %v to value of length %v\r\n", strKey, len(value)) }
 
@@ -16,9 +44,8 @@ func (t TextProt) Set(reader *bufio.Reader, writer *bufio.Writer, key []byte, va
     if err != nil { return err }
     _, err = fmt.Fprintf(writer, "%v\r\n", string(value))
     if err != nil { return err }
-    writer.Flush()
     
-    response, err := reader.ReadString('\n')
+    response, err := rl(reader)
     if err != nil { return err }
 
     if VERBOSE { fmt.Println(response) }
@@ -27,16 +54,15 @@ func (t TextProt) Set(reader *bufio.Reader, writer *bufio.Writer, key []byte, va
     return nil
 }
 
-func (t TextProt) Get(reader *bufio.Reader, writer *bufio.Writer, key []byte) error {
+func (t TextProt) Get(reader io.Reader, writer io.Writer, key []byte) error {
     strKey := string(key)
     if VERBOSE { fmt.Printf("Getting key %v\r\n", strKey) }
 
     _, err := fmt.Fprintf(writer, "get %v\r\n", strKey)
     if err != nil { return err }
-    writer.Flush()
     
     // read the header line
-    response, err := reader.ReadString('\n')
+    response, err := rl(reader)
     if err != nil { return err }
     if VERBOSE { fmt.Println(response) }
     
@@ -46,12 +72,12 @@ func (t TextProt) Get(reader *bufio.Reader, writer *bufio.Writer, key []byte) er
     }
 
     // then read the value
-    response, err = reader.ReadString('\n')
+    response, err = rl(reader)
     if err != nil { return err }
     if VERBOSE { fmt.Println(response) }
 
     // then read the END
-    response, err = reader.ReadString('\n')
+    response, err = rl(reader)
     if err != nil { return err }
     if VERBOSE { fmt.Println(response) }
     
@@ -59,15 +85,14 @@ func (t TextProt) Get(reader *bufio.Reader, writer *bufio.Writer, key []byte) er
     return nil
 }
 
-func (t TextProt) Delete(reader *bufio.Reader, writer *bufio.Writer, key []byte) error {
+func (t TextProt) Delete(reader io.Reader, writer io.Writer, key []byte) error {
     strKey := string(key)
     if VERBOSE { fmt.Printf("Deleting key %s\r\n", strKey) }
     
     _, err := fmt.Fprintf(writer, "delete %s\r\n", strKey)
     if err != nil { return err }
-    writer.Flush()
     
-    response, err := reader.ReadString('\n')
+    response, err := rl(reader)
     if err != nil { return err }
     if VERBOSE { fmt.Println(response) }
     
@@ -75,15 +100,14 @@ func (t TextProt) Delete(reader *bufio.Reader, writer *bufio.Writer, key []byte)
     return nil
 }
 
-func (t TextProt) Touch(reader *bufio.Reader, writer *bufio.Writer, key []byte) error {
+func (t TextProt) Touch(reader io.Reader, writer io.Writer, key []byte) error {
     strKey := string(key)
     if VERBOSE { fmt.Printf("Touching key %s\r\n", strKey) }
     
     _, err := fmt.Fprintf(writer, "touch %s 123456\r\n", strKey)
     if err != nil { return err }
-    writer.Flush()
-    
-    response, err := reader.ReadString('\n')
+
+    response, err := rl(reader)
     if err != nil { return err }
     if VERBOSE { fmt.Println(response) }
     

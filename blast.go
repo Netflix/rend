@@ -1,6 +1,6 @@
 package main
 
-import "bufio"
+//import "bufio"
 import "flag"
 import "fmt"
 import "math/rand"
@@ -133,17 +133,17 @@ func cmdGenerator(tasks chan *Task, taskGens *sync.WaitGroup, numTasks int, cmd 
 }
 
 func communicator(prot common.Prot, conn net.Conn, tasks chan *Task, comms *sync.WaitGroup) {
-    reader := bufio.NewReader(conn)
-    writer := bufio.NewWriter(conn)
+    //reader := bufio.NewReader(conn)
+    //writer := bufio.NewWriter(conn)
     
     for item := range tasks {
         var err error
         
         switch item.cmd {
-            case "set":    err = prot.Set   (reader, writer, item.key, item.value)
-            case "get":    err = prot.Get   (reader, writer, item.key)
-            case "delete": err = prot.Delete(reader, writer, item.key)
-            case "touch":  err = prot.Touch (reader, writer, item.key)
+            case "set":    err = prot.Set   (conn, conn, item.key, item.value)
+            case "get":    err = prot.Get   (conn, conn, item.key)
+            case "delete": err = prot.Delete(conn, conn, item.key)
+            case "touch":  err = prot.Touch (conn, conn, item.key)
         }
         
         if err != nil {

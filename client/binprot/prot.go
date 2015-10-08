@@ -1,33 +1,61 @@
 package binprot
 
-import "bufio"
-import "fmt"
-import "strings"
+import "encoding/binary"
+import "io"
+import "math/rand"
+import "time"
 
-const VERBOSE = false
+import "../common"
+
+const MAX_TTL = 3600
+var garbage []byte
+
+func init() {
+    rand.Seed(time.Now().UnixNano())
+    garbage = make([]byte, 4096)
+}
 
 type BinProt struct {}
 
-func (b BinProt) Set(reader *bufio.Reader, writer *bufio.Writer, key []byte, value []byte) error {
-    strKey := string(key)
-    if VERBOSE { fmt.Printf("Setting key %v to value of length %v\r\n", strKey, len(value)) }
-
-    _, err := fmt.Fprintf(writer, "set %v 0 0 %v\r\n", strKey, len(value))
-    if err != nil { return err }
-    _, err = fmt.Fprintf(writer, "%v\r\n", string(value))
-    if err != nil { return err }
-    writer.Flush()
+func consumeResponse(reader io.Reader, n uint32) error {
+    lr := io.LimitReader(reader, int64(n))
+    var err error
+    for err == nil {
+        _, err = lr.Read(garbage);
+    }
     
-    response, err := reader.ReadString('\n')
-    if err != nil { return err }
-
-    if VERBOSE { fmt.Println(response) }
-    
-    if VERBOSE { fmt.Printf("Set key %v\r\n", strKey) }
-    return nil
+    if err == io.EOF {
+        return nil
+    }
+    return err
 }
 
-func (b BinProt) Get(reader *bufio.Reader, writer *bufio.Writer, key []byte) error {
+func (b BinProt) Set(reader io.Reader, writer io.Writer, key, value []byte) error {
+    // set packet contains the req header, flags, and expiration
+    // flags are irrelevant, and are thus zero.
+    // expiration could be important, so hammer with random values from 1 sec up to 1 hour
+    bodylen := 8 + len(key) + len(value)
+    writeReq(writer, common.SET, len(key), 8, bodylen)
+    binary.Write(writer, binary.BigEndian, uint32(0))
+    binary.Write(writer, binary.BigEndian, uint32(rand.Intn(MAX_TTL)))
+    writer.Write(key)
+    writer.Write(value)
+
+    res, err := readRes(reader)
+    if err != nil {
+        return err
+    }
+
+    err = statusToError(res.Status)
+    if err != nil {
+        return err
+    }
+
+    // consume all of the response and discard
+    return consumeResponse(reader, res.BodyLen)
+}
+
+func (b BinProt) Get(reader io.Reader, writer io.Writer, key []byte) error {/*
     strKey := string(key)
     if VERBOSE { fmt.Printf("Getting key %v\r\n", strKey) }
 
@@ -56,10 +84,10 @@ func (b BinProt) Get(reader *bufio.Reader, writer *bufio.Writer, key []byte) err
     if VERBOSE { fmt.Println(response) }
     
     if VERBOSE { fmt.Printf("Got key %v\r\n", key) }
-    return nil
+    return nil*/ return nil
 }
 
-func (b BinProt) Delete(reader *bufio.Reader, writer *bufio.Writer, key []byte) error {
+func (b BinProt) Delete(reader io.Reader, writer io.Writer, key []byte) error {/*
     strKey := string(key)
     if VERBOSE { fmt.Printf("Deleting key %s\r\n", strKey) }
     
@@ -72,10 +100,10 @@ func (b BinProt) Delete(reader *bufio.Reader, writer *bufio.Writer, key []byte) 
     if VERBOSE { fmt.Println(response) }
     
     if VERBOSE { fmt.Printf("Deleted key %s\r\n", strKey) }
-    return nil
+    return nil*/ return nil
 }
 
-func (b BinProt) Touch(reader *bufio.Reader, writer *bufio.Writer, key []byte) error {
+func (b BinProt) Touch(reader io.Reader, writer io.Writer, key []byte) error {/*
     strKey := string(key)
     if VERBOSE { fmt.Printf("Touching key %s\r\n", strKey) }
     
@@ -88,5 +116,5 @@ func (b BinProt) Touch(reader *bufio.Reader, writer *bufio.Writer, key []byte) e
     if VERBOSE { fmt.Println(response) }
     
     if VERBOSE { fmt.Printf("Touched key %s\r\n", strKey) }
-    return nil
+    return nil*/ return nil
 }

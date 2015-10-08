@@ -1,10 +1,19 @@
 package common
 
-import "bufio"
+import "io"
+
+type Op int
+
+const (
+    GET = iota
+    SET
+    TOUCH
+    DELETE
+)
 
 type Prot interface {
-    Set   (reader *bufio.Reader, writer *bufio.Writer, key []byte, value []byte) error
-    Get   (reader *bufio.Reader, writer *bufio.Writer, key []byte              ) error
-    Delete(reader *bufio.Reader, writer *bufio.Writer, key []byte              ) error
-    Touch (reader *bufio.Reader, writer *bufio.Writer, key []byte              ) error
+    Set   (reader io.Reader, writer io.Writer, key []byte, value []byte) error
+    Get   (reader io.Reader, writer io.Writer, key []byte              ) error
+    Delete(reader io.Reader, writer io.Writer, key []byte              ) error
+    Touch (reader io.Reader, writer io.Writer, key []byte              ) error
 }
