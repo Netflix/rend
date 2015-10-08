@@ -17,13 +17,28 @@ func init() {
 
 type BinProt struct {}
 
-func consumeResponse(reader io.Reader, n uint32) error {
-    lr := io.LimitReader(reader, int64(n))
-    var err error
+// get a random expiration
+func exp() uint32 {
+    return uint32(rand.Intn(MAX_TTL))
+}
+
+func consumeResponse(reader io.Reader) error {
+    res, err := readRes(reader)
+    if err != nil {
+        return err
+    }
+
+    apperr := statusToError(res.Status)
+
+    // read body in regardless of the error in the header
+    lr := io.LimitReader(reader, int64(res.BodyLen))
     for err == nil {
         _, err = lr.Read(garbage);
     }
-    
+
+    if apperr != nil && srsErr(apperr) {
+        return apperr
+    }
     if err == io.EOF {
         return nil
     }
@@ -34,87 +49,49 @@ func (b BinProt) Set(reader io.Reader, writer io.Writer, key, value []byte) erro
     // set packet contains the req header, flags, and expiration
     // flags are irrelevant, and are thus zero.
     // expiration could be important, so hammer with random values from 1 sec up to 1 hour
+
+    // Header
     bodylen := 8 + len(key) + len(value)
     writeReq(writer, common.SET, len(key), 8, bodylen)
+    // Extras
     binary.Write(writer, binary.BigEndian, uint32(0))
-    binary.Write(writer, binary.BigEndian, uint32(rand.Intn(MAX_TTL)))
+    binary.Write(writer, binary.BigEndian, exp())
+    // Body / data
     writer.Write(key)
     writer.Write(value)
 
-    res, err := readRes(reader)
-    if err != nil {
-        return err
-    }
+    // consume all of the response and discard
+    return consumeResponse(reader)
+}
 
-    err = statusToError(res.Status)
-    if err != nil {
-        return err
-    }
+func (b BinProt) Get(reader io.Reader, writer io.Writer, key []byte) error {
+    // Header
+    writeReq(writer, common.GET, len(key), 0, len(key))
+    // Body
+    writer.Write(key)
 
     // consume all of the response and discard
-    return consumeResponse(reader, res.BodyLen)
+    return consumeResponse(reader)
 }
 
-func (b BinProt) Get(reader io.Reader, writer io.Writer, key []byte) error {/*
-    strKey := string(key)
-    if VERBOSE { fmt.Printf("Getting key %v\r\n", strKey) }
+func (b BinProt) Delete(reader io.Reader, writer io.Writer, key []byte) error {
+    // Header
+    writeReq(writer, common.DELETE, len(key), 0, len(key))
+    // Body
+    writer.Write(key)
 
-    _, err := fmt.Fprintf(writer, "get %v\r\n", strKey)
-    if err != nil { return err }
-    writer.Flush()
-    
-    // read the header line
-    response, err := reader.ReadString('\n')
-    if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-    
-    if strings.TrimSpace(response) == "END" {
-        if VERBOSE { fmt.Println("Empty response / cache miss") }
-        return nil
-    }
-
-    // then read the value
-    response, err = reader.ReadString('\n')
-    if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-
-    // then read the END
-    response, err = reader.ReadString('\n')
-    if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-    
-    if VERBOSE { fmt.Printf("Got key %v\r\n", key) }
-    return nil*/ return nil
+    // consume all of the response and discard
+    return consumeResponse(reader)
 }
 
-func (b BinProt) Delete(reader io.Reader, writer io.Writer, key []byte) error {/*
-    strKey := string(key)
-    if VERBOSE { fmt.Printf("Deleting key %s\r\n", strKey) }
-    
-    _, err := fmt.Fprintf(writer, "delete %s\r\n", strKey)
-    if err != nil { return err }
-    writer.Flush()
-    
-    response, err := reader.ReadString('\n')
-    if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-    
-    if VERBOSE { fmt.Printf("Deleted key %s\r\n", strKey) }
-    return nil*/ return nil
-}
+func (b BinProt) Touch(reader io.Reader, writer io.Writer, key []byte) error {
+    // Header
+    writeReq(writer, common.TOUCH, len(key), 4, len(key)+4)
+    // Extras
+    binary.Write(writer, binary.BigEndian, exp())
+    // Body
+    writer.Write(key)
 
-func (b BinProt) Touch(reader io.Reader, writer io.Writer, key []byte) error {/*
-    strKey := string(key)
-    if VERBOSE { fmt.Printf("Touching key %s\r\n", strKey) }
-    
-    _, err := fmt.Fprintf(writer, "touch %s 123456\r\n", strKey)
-    if err != nil { return err }
-    writer.Flush()
-    
-    response, err := reader.ReadString('\n')
-    if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-    
-    if VERBOSE { fmt.Printf("Touched key %s\r\n", strKey) }
-    return nil*/ return nil
+    // consume all of the response and discard
+    return consumeResponse(reader)
 }

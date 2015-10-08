@@ -99,24 +99,67 @@ func readRes(reader io.Reader) (res, error) {
     return r, nil
 }
 
+var ERR_KEY_NOT_FOUND error
+var ERR_KEY_EXISTS error
+var ERR_VAL_TOO_LARGE error
+var ERR_INVALID_ARGS error
+var ERR_ITEM_NOT_STORED error
+var ERR_INC_DEC_INVAL error
+var ERR_VBUCKET error
+var ERR_AUTH error
+var ERR_AUTH_CONT error
+var ERR_UNKNOWN_CMD error
+var ERR_NO_MEM error
+var ERR_NOT_SUPPORTED error
+var ERR_INTERNAL error
+var ERR_BUSY error
+var ERR_TEMP error
+
+func init() {
+    ERR_KEY_NOT_FOUND = errors.New("Key not found")
+    ERR_KEY_EXISTS = errors.New("Key exists")
+    ERR_VAL_TOO_LARGE = errors.New("Value too large")
+    ERR_INVALID_ARGS = errors.New("Invalid arguments")
+    ERR_ITEM_NOT_STORED = errors.New("Item not stored")
+    ERR_INC_DEC_INVAL = errors.New("Incr/Decr on non-numeric value.")
+    ERR_VBUCKET = errors.New("The vbucket belongs to another server")
+    ERR_AUTH = errors.New("Authentication error")
+    ERR_AUTH_CONT = errors.New("Authentication continue")
+    ERR_UNKNOWN_CMD = errors.New("Unknown command")
+    ERR_NO_MEM = errors.New("Out of memory")
+    ERR_NOT_SUPPORTED = errors.New("Not supported")
+    ERR_INTERNAL = errors.New("Internal error")
+    ERR_BUSY = errors.New("Busy")
+    ERR_TEMP = errors.New("Temporary failure")
+}
+
 func statusToError(status uint16) error {
     switch (status) {
-        case uint16(0x01): return errors.New("Key not found")
-        case uint16(0x02): return errors.New("Key exists")
-        case uint16(0x03): return errors.New("Value too large")
-        case uint16(0x04): return errors.New("Invalid arguments")
-        case uint16(0x05): return errors.New("Item not stored")
-        case uint16(0x06): return errors.New("Incr/Decr on non-numeric value.")
-        case uint16(0x07): return errors.New("The vbucket belongs to another server")
-        case uint16(0x08): return errors.New("Authentication error")
-        case uint16(0x09): return errors.New("Authentication continue")
-        case uint16(0x81): return errors.New("Unknown command")
-        case uint16(0x82): return errors.New("Out of memory")
-        case uint16(0x83): return errors.New("Not supported")
-        case uint16(0x84): return errors.New("Internal error")
-        case uint16(0x85): return errors.New("Busy")
-        case uint16(0x86): return errors.New("Temporary failure")
+        case uint16(0x01): return ERR_KEY_NOT_FOUND
+        case uint16(0x02): return ERR_KEY_EXISTS
+        case uint16(0x03): return ERR_VAL_TOO_LARGE
+        case uint16(0x04): return ERR_INVALID_ARGS
+        case uint16(0x05): return ERR_ITEM_NOT_STORED
+        case uint16(0x06): return ERR_INC_DEC_INVAL
+        case uint16(0x07): return ERR_VBUCKET
+        case uint16(0x08): return ERR_AUTH
+        case uint16(0x09): return ERR_AUTH_CONT
+        case uint16(0x81): return ERR_UNKNOWN_CMD
+        case uint16(0x82): return ERR_NO_MEM
+        case uint16(0x83): return ERR_NOT_SUPPORTED
+        case uint16(0x84): return ERR_INTERNAL
+        case uint16(0x85): return ERR_BUSY
+        case uint16(0x86): return ERR_TEMP
     }
 
     return nil
+}
+
+func srsErr(err error) bool {
+    switch (err) {
+        case ERR_KEY_NOT_FOUND: return false
+        case ERR_KEY_EXISTS: return false
+    }
+
+    return true
 }
