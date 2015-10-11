@@ -157,8 +157,10 @@ func statusToError(status uint16) error {
 
 func srsErr(err error) bool {
     switch (err) {
-        case ERR_KEY_NOT_FOUND: return false
-        case ERR_KEY_EXISTS: return false
+        case ERR_KEY_NOT_FOUND:
+        case ERR_KEY_EXISTS:
+        case ERR_ITEM_NOT_STORED:
+            return false
     }
 
     return true

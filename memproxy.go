@@ -7,8 +7,8 @@ package main
 
 import "bufio"
 import "fmt"
+import "io"
 import "net"
-
 import "os"
 import "os/signal"
 
@@ -55,24 +55,29 @@ func main() {
     }
 }
 
-func abort(remote net.Conn, err error, binary bool) {
-    fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
+func abort(remote, local net.Conn, err error, binary bool) {
+    if err != io.EOF {
+        fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
+    }
     // use proper serializer to respond here
     remote.Close()
+    local.Close()
     panic(err)
 }
 
-func handleConnection(remoteConn net.Conn, localConn net.Conn) {
+func handleConnection(remoteConn, localConn net.Conn) {
     defer func() {
         if r := recover(); r != nil {
-            fmt.Println("Recovered from runtime panic:", r)
+            if r != io.EOF {
+                fmt.Println("Recovered from runtime panic:", r)
+            }
         }
     }()
 
     handleConnectionReal(remoteConn, localConn)
 }
 
-func handleConnectionReal(remoteConn net.Conn, localConn net.Conn) {
+func handleConnectionReal(remoteConn, localConn net.Conn) {
     remoteReader := bufio.NewReader(remoteConn)
     remoteWriter := bufio.NewWriter(remoteConn)
     localReader  := bufio.NewReader(localConn)
@@ -92,7 +97,7 @@ func handleConnectionReal(remoteConn net.Conn, localConn net.Conn) {
         binary, err := isBinaryRequest(remoteReader)
         
         if err != nil {
-            abort(remoteConn, err, binary)
+            abort(remoteConn, localConn, err, binary)
             return
         }
         
@@ -107,7 +112,7 @@ func handleConnectionReal(remoteConn net.Conn, localConn net.Conn) {
         request, reqType, err = reqParser.Parse()
         
         if err != nil {
-            abort(remoteConn, err, binary)
+            abort(remoteConn, localConn, err, binary)
             return
         }
         
@@ -184,7 +189,7 @@ func handleConnectionReal(remoteConn net.Conn, localConn net.Conn) {
             if common.IsAppError(err) {
                 responder.Error(err)
             } else {
-                abort(remoteConn, err, binary)
+                abort(remoteConn, localConn, err, binary)
                 return
             }
         }

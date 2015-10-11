@@ -1,11 +1,12 @@
 package main
 
-//import "bufio"
 import "flag"
 import "fmt"
+import "io"
 import "math/rand"
 import "net"
 import "os"
+import "os/signal"
 import "time"
 import "sync"
 
@@ -51,6 +52,14 @@ func init() {
 }
 
 func main() {
+    sigs := make(chan os.Signal)
+    signal.Notify(sigs, os.Interrupt)
+
+    go func() {
+        <-sigs
+        panic("Keyboard Interrupt")
+    }()
+
     flag.Parse()
 
     if (binary && text) || keyLength <= 0 || numOps <= 0 {
@@ -133,9 +142,6 @@ func cmdGenerator(tasks chan *Task, taskGens *sync.WaitGroup, numTasks int, cmd 
 }
 
 func communicator(prot common.Prot, conn net.Conn, tasks chan *Task, comms *sync.WaitGroup) {
-    //reader := bufio.NewReader(conn)
-    //writer := bufio.NewWriter(conn)
-    
     for item := range tasks {
         var err error
         
@@ -147,9 +153,13 @@ func communicator(prot common.Prot, conn net.Conn, tasks chan *Task, comms *sync
         }
         
         if err != nil {
-            fmt.Printf("Error performing operation %s on key %s: %s\n", item.cmd, item.key, err.Error())
-            comms.Done()
-            return
+            if err != binprot.ERR_KEY_NOT_FOUND {
+                fmt.Printf("Error performing operation %s on key %s: %s\n", item.cmd, item.key, err.Error())
+            }
+            // if the socket was closed, stop. Otherwise keep on hammering.
+            if err == io.EOF {
+                break
+            }
         }
     }
     
