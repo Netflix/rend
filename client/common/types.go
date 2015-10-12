@@ -12,8 +12,8 @@ const (
 )
 
 type Prot interface {
-    Set   (reader io.Reader, writer io.Writer, key []byte, value []byte) error
-    Get   (reader io.Reader, writer io.Writer, key []byte              ) error
-    Delete(reader io.Reader, writer io.Writer, key []byte              ) error
-    Touch (reader io.Reader, writer io.Writer, key []byte              ) error
+    Set   (rw io.ReadWriter, key []byte, value []byte) error
+    Get   (rw io.ReadWriter, key []byte              ) error
+    Delete(rw io.ReadWriter, key []byte              ) error
+    Touch (rw io.ReadWriter, key []byte              ) error
 }

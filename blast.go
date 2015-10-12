@@ -146,10 +146,10 @@ func communicator(prot common.Prot, conn net.Conn, tasks chan *Task, comms *sync
         var err error
         
         switch item.cmd {
-            case "set":    err = prot.Set   (conn, conn, item.key, item.value)
-            case "get":    err = prot.Get   (conn, conn, item.key)
-            case "delete": err = prot.Delete(conn, conn, item.key)
-            case "touch":  err = prot.Touch (conn, conn, item.key)
+            case "set":    err = prot.Set   (conn, item.key, item.value)
+            case "get":    err = prot.Get   (conn, item.key)
+            case "delete": err = prot.Delete(conn, item.key)
+            case "touch":  err = prot.Touch (conn, item.key)
         }
         
         if err != nil {

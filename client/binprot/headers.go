@@ -60,7 +60,7 @@ func opToCode(op common.Op) int {
     }
 }
 
-func writeReq(writer io.Writer, op common.Op, keylen, extralen, bodylen int) error {
+func writeReq(w io.Writer, op common.Op, keylen, extralen, bodylen int) error {
     opcode := opToCode(op)
 
     req := req {
@@ -75,7 +75,7 @@ func writeReq(writer io.Writer, op common.Op, keylen, extralen, bodylen int) err
         CAS: 0,
     }
 
-    return binary.Write(writer, binary.BigEndian, req)
+    return binary.Write(w, binary.BigEndian, req)
 }
 
 type res struct {
@@ -90,13 +90,13 @@ type res struct {
     CAS      uint64
 }
 
-func readRes(reader io.Reader) (res, error) {
-    var r res
-    err := binary.Read(reader, binary.BigEndian, &r);
+func readRes(r io.Reader) (*res, error) {
+    res := new(res)
+    err := binary.Read(r, binary.BigEndian, res);
     if err != nil {
-        return res{}, err
+        return nil, err
     }
-    return r, nil
+    return res, nil
 }
 
 var ERR_KEY_NOT_FOUND error
