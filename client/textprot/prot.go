@@ -53,11 +53,11 @@ type TextProt struct {}
 
 func (t TextProt) Set(rw io.ReadWriter, key []byte, value []byte) error {
     strKey := string(key)
-    if VERBOSE { fmt.Printf("Setting key %v to value of length %v\r\n", strKey, len(value)) }
+    if VERBOSE { fmt.Printf("Setting key %s to value of length %v\n", strKey, len(value)) }
 
-    _, err := fmt.Fprintf(rw, "set %v 0 0 %v\r\n", strKey, len(value))
+    _, err := fmt.Fprintf(rw, "set %s 0 0 %v\r\n", strKey, len(value))
     if err != nil { return err }
-    _, err = fmt.Fprintf(rw, "%v\r\n", string(value))
+    _, err = fmt.Fprintf(rw, "%s\r\n", string(value))
     if err != nil { return err }
     
     response, err := rl(rw)
@@ -65,7 +65,7 @@ func (t TextProt) Set(rw io.ReadWriter, key []byte, value []byte) error {
 
     if VERBOSE {
         fmt.Println(response)
-        fmt.Printf("Set key %v\r\n", strKey)
+        fmt.Printf("Set key %s\n", strKey)
     }
 
     return nil
@@ -73,9 +73,9 @@ func (t TextProt) Set(rw io.ReadWriter, key []byte, value []byte) error {
 
 func (t TextProt) Get(rw io.ReadWriter, key []byte) error {
     strKey := string(key)
-    if VERBOSE { fmt.Printf("Getting key %v\r\n", strKey) }
+    if VERBOSE { fmt.Printf("Getting key %s\n", strKey) }
 
-    _, err := fmt.Fprintf(rw, "get %v\r\n", strKey)
+    _, err := fmt.Fprintf(rw, "get %s\r\n", strKey)
     if err != nil { return err }
     
     // read the header line
@@ -96,38 +96,41 @@ func (t TextProt) Get(rw io.ReadWriter, key []byte) error {
     // then read the END
     response, err = rl(rw)
     if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-    
-    if VERBOSE { fmt.Printf("Got key %v\r\n", key) }
+    if VERBOSE {
+        fmt.Println(response)
+        fmt.Printf("Got key %s\n", key)
+    }
     return nil
 }
 
 func (t TextProt) Delete(rw io.ReadWriter, key []byte) error {
     strKey := string(key)
-    if VERBOSE { fmt.Printf("Deleting key %s\r\n", strKey) }
+    if VERBOSE { fmt.Printf("Deleting key %s\n", strKey) }
     
     _, err := fmt.Fprintf(rw, "delete %s\r\n", strKey)
     if err != nil { return err }
     
     response, err := rl(rw)
     if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-    
-    if VERBOSE { fmt.Printf("Deleted key %s\r\n", strKey) }
+    if VERBOSE {
+        fmt.Println(response)
+        fmt.Printf("Deleted key %s\r\n", strKey)
+    }
     return nil
 }
 
 func (t TextProt) Touch(rw io.ReadWriter, key []byte) error {
     strKey := string(key)
-    if VERBOSE { fmt.Printf("Touching key %s\r\n", strKey) }
+    if VERBOSE { fmt.Printf("Touching key %s\n", strKey) }
     
-    _, err := fmt.Fprintf(rw, "touch %s 123456\r\n", strKey)
+    _, err := fmt.Fprintf(rw, "touch %s %v\r\n", strKey, common.Exp())
     if err != nil { return err }
 
     response, err := rl(rw)
     if err != nil { return err }
-    if VERBOSE { fmt.Println(response) }
-    
-    if VERBOSE { fmt.Printf("Touched key %s\r\n", strKey) }
+    if VERBOSE {
+        fmt.Println(response)
+        fmt.Printf("Touched key %s\n", strKey)
+    }
     return nil
 }

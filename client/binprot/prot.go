@@ -23,18 +23,7 @@ import "time"
 
 import "../common"
 
-const MAX_TTL = 3600
-
-func init() {
-    rand.Seed(time.Now().UnixNano())
-}
-
 type BinProt struct {}
-
-// get a random expiration
-func exp() uint32 {
-    return uint32(rand.Intn(MAX_TTL))
-}
 
 func consumeResponse(r io.Reader) error {
     res, err := readRes(r)
@@ -67,7 +56,7 @@ func (b BinProt) Set(rw io.ReadWriter, key, value []byte) error {
     writeReq(rw, common.SET, len(key), 8, bodylen)
     // Extras
     binary.Write(rw, binary.BigEndian, uint32(0))
-    binary.Write(rw, binary.BigEndian, exp())
+    binary.Write(rw, binary.BigEndian, common.Exp())
     // Body / data
     rw.Write(key)
     rw.Write(value)
@@ -100,7 +89,7 @@ func (b BinProt) Touch(rw io.ReadWriter, key []byte) error {
     // Header
     writeReq(rw, common.TOUCH, len(key), 4, len(key)+4)
     // Extras
-    binary.Write(rw, binary.BigEndian, exp())
+    binary.Write(rw, binary.BigEndian, common.Exp())
     // Body
     rw.Write(key)
 

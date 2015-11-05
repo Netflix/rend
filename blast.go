@@ -49,12 +49,13 @@ var keyLength int
 var numOps int
 var numWorkers int
 
+// Flags
 func init() {
     flag.BoolVar(&binary, "binary", false, "Use the binary protocol. Cannot be combined with --text or -t.")
     flag.BoolVar(&binary, "b", false, "Use the binary protocol. Cannot be combined with --text or -t. (shorthand)")
 
-    flag.BoolVar(&text, "text", false, "Use the text protocol. Cannot be combined with --binary or -b.")
-    flag.BoolVar(&text, "t", false, "Use the text protocol. Cannot be combined with --binary or -b. (shorthand)")
+    flag.BoolVar(&text, "text", false, "Use the text protocol (default). Cannot be combined with --binary or -b.")
+    flag.BoolVar(&text, "t", false, "Use the text protocol (default). Cannot be combined with --binary or -b. (shorthand)")
 
     flag.IntVar(&keyLength, "key-length", 4, "Length in bytes of each key. Smaller values mean more overlap.")
     flag.IntVar(&keyLength, "kl", 4, "Length in bytes of each key. Smaller values mean more overlap. (shorthand)")
@@ -64,16 +65,6 @@ func init() {
 
     flag.IntVar(&numWorkers, "workers", 10, "Number of communication goroutines to run.")
     flag.IntVar(&numWorkers, "w", 10, "Number of communication goroutines to run.")
-}
-
-func main() {
-    sigs := make(chan os.Signal)
-    signal.Notify(sigs, os.Interrupt)
-
-    go func() {
-        <-sigs
-        panic("Keyboard Interrupt")
-    }()
 
     flag.Parse()
 
@@ -81,6 +72,21 @@ func main() {
         flag.Usage()
         os.Exit(1)
     }
+}
+
+// Signals
+func init() {
+    sigs := make(chan os.Signal)
+    signal.Notify(sigs, os.Interrupt)
+
+    go func() {
+        <-sigs
+        panic("Keyboard Interrupt")
+    }()
+}
+
+func main() {
+    rand.Seed(time.Now().UTC().UnixNano())
 
     var prot common.Prot
     if binary {
@@ -90,8 +96,6 @@ func main() {
         var t textprot.TextProt
         prot = t
     }
-
-    rand.Seed(time.Now().UTC().UnixNano())
     
     fmt.Printf("Performing %v operations total, with %v communication goroutines\n", numOps, numWorkers)
     

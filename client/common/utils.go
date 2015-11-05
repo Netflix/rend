@@ -41,3 +41,14 @@ func Connect(host string, port int) (net.Conn, error) {
 
     return conn, nil
 }
+
+const MAX_TTL = 3600
+
+func init() {
+    rand.Seed(time.Now().UnixNano())
+}
+
+// get a random expiration
+func Exp() uint32 {
+    return uint32(rand.Intn(MAX_TTL))
+}
