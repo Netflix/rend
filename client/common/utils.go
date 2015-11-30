@@ -18,6 +18,7 @@ package common
 import "fmt"
 import "math/rand"
 import "net"
+import "time"
 
 // constants and configuration
 // No constant arrays :(

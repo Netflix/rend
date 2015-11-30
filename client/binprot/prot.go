@@ -18,8 +18,6 @@ package binprot
 import "encoding/binary"
 import "io"
 import "io/ioutil"
-import "math/rand"
-import "time"
 
 import "../common"
 

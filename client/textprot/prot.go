@@ -19,6 +19,8 @@ import "fmt"
 import "io"
 import "strings"
 
+import "../common"
+
 const VERBOSE = false
 
 // reads a line without needing to use a bufio.Reader
