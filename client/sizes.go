@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,46 +15,55 @@
  */
 package main
 
-import "bufio"
 import "fmt"
 import "math/rand"
 import "sync"
 import "time"
 
-import "./client/common"
-import "./client/textprot"
+import "./common"
+import "./f"
+import _ "./sigs"
+import "./binprot"
+import "./textprot"
 
-func main() {
-    var t textprot.TextProt
-    var wg sync.WaitGroup
-
-    rand.Seed(time.Now().UTC().UnixNano())
-
-    wg.Add(10)
-    for i := 0; i < 10; i++ {
-        go doStuff(t, wg)
-    }
-
-    wg.Wait()
+// Package init
+func init() {
+	rand.Seed(time.Now().UTC().UnixNano())
 }
 
-func doStuff(prot common.Prot, wg sync.WaitGroup) {
-    conn, err := common.Connect("localhost", 11212)
-    if err != nil {
-        panic("Couldn't connect")
-    }
+func main() {
+	var prot common.Prot
+	if f.Binary {
+		var b binprot.BinProt
+		prot = b
+	} else {
+		var t textprot.TextProt
+		prot = t
+	}
 
-    reader := bufio.NewReader(conn)
-    writer := bufio.NewWriter(conn)
+	var wg sync.WaitGroup
+	wg.Add(f.NumWorkers)
 
-    for i := 0; i < 10240; i++ {
-        key := common.RandData(4)
-        value := common.RandData(i)
+	for i := 0; i < f.NumWorkers; i++ {
+		go func(prot common.Prot, wg sync.WaitGroup) {
+			conn, err := common.Connect("localhost", f.Port)
+			if err != nil {
+				panic("Couldn't connect")
+			}
 
-        prot.Set(reader, writer, key, value)
-        prot.Get(reader, writer, key)
-    }
+			// 0 to 100k data
+			for i := 0; i < 102400; i++ {
+				key := common.RandData(f.KeyLength)
+				value := common.RandData(i)
 
-    fmt.Println("Done.")
-    wg.Done()
+				prot.Set(conn, key, value)
+				prot.Get(conn, key)
+			}
+
+			fmt.Println("Done.")
+			wg.Done()
+		}(prot, wg)
+	}
+
+	wg.Wait()
 }

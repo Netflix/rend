@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,73 +15,71 @@
  */
 package main
 
-import "bufio"
 import "fmt"
+import "io"
 import "math/rand"
-import "net"
 import "time"
 import "sync"
 
-import "./rend-client"
+import "./common"
+import "./f"
+import _ "./sigs"
+import "./binprot"
+import "./textprot"
 
-type CacheItem struct {
-    key string
-    value string
+// Package init
+func init() {
+	rand.Seed(time.Now().UTC().UnixNano())
 }
-
-// constants and configuration
-const verbose = true
-const numWorkers = 10
-
-// 2-character keys with 26 possibilities =        676 keys
-// 3-character keys with 26 possibilities =     17,576 keys
-// 4-character keys with 26 possibilities =    456,976 keys
-// 5-character keys with 26 possibilities = 11,881,376 keys
-const keyLength = 4
-const numKeys = 100000
 
 func main() {
+	var prot common.Prot
+	if f.Binary {
+		var b binprot.BinProt
+		prot = b
+	} else {
+		var t textprot.TextProt
+		prot = t
+	}
 
-    rand.Seed(time.Now().UTC().UnixNano())
-    tasks := make(chan *CacheItem)
-    wg := new(sync.WaitGroup)
-    wg.Add(numWorkers)
+	tasks := make(chan *common.Task)
+	wg := new(sync.WaitGroup)
+	wg.Add(f.NumWorkers)
 
-    // spawn worker goroutines
-    for i := 0; i < numWorkers; i++ {
-        conn, err := rend.Connect("localhost", 11212)
-        if err != nil { fmt.Println("Error:", err.Error()) }
-        go worker(conn, tasks, wg)
-    }
-    
-    source := rend.RandString(10240)
+	// spawn worker goroutines
+	for i := 0; i < f.NumWorkers; i++ {
+		conn, err := common.Connect("localhost", f.Port)
+		if err != nil {
+			fmt.Println("Error:", err.Error())
+		}
+		go worker(prot, conn, tasks, wg)
+	}
 
-    for i := 0; i < numKeys; i++ {
-        // Random length between 1k and 10k
-        valLen := rand.Intn(9 * 1024) + 1024
+	source := common.RandData(10240)
 
-        item := new(CacheItem)
-        item.key = rend.RandString(keyLength)
-        item.value = source[:valLen]
-        tasks <- item
+	for i := 0; i < f.NumOps; i++ {
+		// Random length between 1k and 10k
+		valLen := rand.Intn(9*1024) + 1024
 
-        if i % 10000 == 0 {
-            fmt.Printf("%v\r\n", i)
-        }
-    }
+		tasks <- &common.Task{
+			Key:   common.RandData(f.KeyLength),
+			Value: source[:valLen],
+		}
 
-    close(tasks)
-    wg.Wait()
+		if i%10000 == 0 {
+			fmt.Printf("%v\r\n", i)
+		}
+	}
+
+	close(tasks)
+	wg.Wait()
 }
 
-func worker(conn net.Conn, tasks chan *CacheItem, wg *sync.WaitGroup) {
-    reader := bufio.NewReader(conn)
-    writer := bufio.NewWriter(conn)
-    
-    for item := range tasks {
-        rend.Set(reader, writer, item.key, item.value)
-        rend.Get(reader, writer, item.key)
-    }
+func worker(prot common.Prot, rw io.ReadWriter, tasks chan *common.Task, wg *sync.WaitGroup) {
+	for item := range tasks {
+		prot.Set(rw, item.Key, item.Value)
+		prot.Get(rw, item.Key)
+	}
 
-    wg.Done()
+	wg.Done()
 }

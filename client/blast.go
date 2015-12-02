@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,174 +15,129 @@
  */
 package main
 
-import "flag"
 import "fmt"
 import "io"
 import "math/rand"
-import "net"
-import "os"
-import "os/signal"
 import "time"
 import "sync"
 
-import "./client/common"
-import "./client/binprot"
-import "./client/textprot"
+import "./common"
+import "./f"
+import _ "./sigs"
+import "./binprot"
+import "./textprot"
 
-type Task struct {
-    cmd string
-    key []byte
-    value []byte
-}
-
-// constants and configuration
-const VERBOSE = false
-
-// 2-character keys with 26 possibilities =        676 keys
-// 3-character keys with 26 possibilities =     17,576 keys
-// 4-character keys with 26 possibilities =    456,976 keys
-// 5-character keys with 26 possibilities = 11,881,376 keys
-
-var binary bool
-var text bool
-var keyLength int
-var numOps int
-var numWorkers int
-
-// Flags
+// Package init
 func init() {
-    flag.BoolVar(&binary, "binary", false, "Use the binary protocol. Cannot be combined with --text or -t.")
-    flag.BoolVar(&binary, "b", false, "Use the binary protocol. Cannot be combined with --text or -t. (shorthand)")
-
-    flag.BoolVar(&text, "text", false, "Use the text protocol (default). Cannot be combined with --binary or -b.")
-    flag.BoolVar(&text, "t", false, "Use the text protocol (default). Cannot be combined with --binary or -b. (shorthand)")
-
-    flag.IntVar(&keyLength, "key-length", 4, "Length in bytes of each key. Smaller values mean more overlap.")
-    flag.IntVar(&keyLength, "kl", 4, "Length in bytes of each key. Smaller values mean more overlap. (shorthand)")
-
-    flag.IntVar(&numOps, "num-ops", 1000000, "Total number of operations to perform.")
-    flag.IntVar(&numOps, "n", 1000000, "Total number of operations to perform. (shorthand)")
-
-    flag.IntVar(&numWorkers, "workers", 10, "Number of communication goroutines to run.")
-    flag.IntVar(&numWorkers, "w", 10, "Number of communication goroutines to run.")
-
-    flag.Parse()
-
-    if (binary && text) || keyLength <= 0 || numOps <= 0 {
-        flag.Usage()
-        os.Exit(1)
-    }
-}
-
-// Signals
-func init() {
-    sigs := make(chan os.Signal)
-    signal.Notify(sigs, os.Interrupt)
-
-    go func() {
-        <-sigs
-        panic("Keyboard Interrupt")
-    }()
+	rand.Seed(time.Now().UTC().UnixNano())
 }
 
 func main() {
-    rand.Seed(time.Now().UTC().UnixNano())
+	var prot common.Prot
+	if f.Binary {
+		var b binprot.BinProt
+		prot = b
+	} else {
+		var t textprot.TextProt
+		prot = t
+	}
 
-    var prot common.Prot
-    if binary {
-        var b binprot.BinProt
-        prot = b
-    } else {
-        var t textprot.TextProt
-        prot = t
-    }
-    
-    fmt.Printf("Performing %v operations total, with %v communication goroutines\n", numOps, numWorkers)
-    
-    tasks := make(chan *Task)
-    taskGens := new(sync.WaitGroup)
-    comms := new(sync.WaitGroup)
+	fmt.Printf("Performing %v operations total, with %v communication goroutines\n", f.NumOps, f.NumWorkers)
 
-    // TODO: Better math
-    opsPerTask := numOps / 4 / numWorkers
-    
-    // spawn task generators
-    for i := 0; i < numWorkers; i++ {
-        taskGens.Add(4)
-        go cmdGenerator(tasks, taskGens, opsPerTask, "set")
-        go cmdGenerator(tasks, taskGens, opsPerTask, "get")
-        go cmdGenerator(tasks, taskGens, opsPerTask, "delete")
-        go cmdGenerator(tasks, taskGens, opsPerTask, "touch")
-    }
+	tasks := make(chan *common.Task)
+	taskGens := new(sync.WaitGroup)
+	comms := new(sync.WaitGroup)
 
-    // spawn communicators
-    for i := 0; i < numWorkers; i++ {
-        comms.Add(1)
-        
-        conn, err := common.Connect("localhost", 11212)
-        if err != nil {
-            i--
-            comms.Add(-1)
-            continue
-        }
-        
-        go communicator(prot, conn, tasks, comms)
-    }
+	// TODO: Better math
+	opsPerTask := f.NumOps / 4 / f.NumWorkers
 
-    // First wait for all the tasks to be generated,
-    // then close the channel so the comm threads complete
-    fmt.Println("Waiting for taskGens.")
-    taskGens.Wait()
-    fmt.Println("Task gens done.")
-    close(tasks)
-    fmt.Println("Tasks closed, waiting on comms.")
-    comms.Wait()
-    fmt.Println("Comms done.")
+	// spawn task generators
+	for i := 0; i < f.NumWorkers; i++ {
+		taskGens.Add(4)
+		go cmdGenerator(tasks, taskGens, opsPerTask, "set")
+		go cmdGenerator(tasks, taskGens, opsPerTask, "get")
+		go cmdGenerator(tasks, taskGens, opsPerTask, "delete")
+		go cmdGenerator(tasks, taskGens, opsPerTask, "touch")
+	}
+
+	// spawn communicators
+	for i := 0; i < f.NumWorkers; i++ {
+		comms.Add(1)
+		conn, err := common.Connect("localhost", f.Port)
+
+		if err != nil {
+			i--
+			comms.Add(-1)
+			continue
+		}
+
+		go communicator(prot, conn, tasks, comms)
+	}
+
+	// First wait for all the tasks to be generated,
+	// then close the channel so the comm threads complete
+	fmt.Println("Waiting for taskGens.")
+	taskGens.Wait()
+
+	fmt.Println("Task gens done.")
+	close(tasks)
+
+	fmt.Println("Tasks closed, waiting on comms.")
+	comms.Wait()
+
+	fmt.Println("Comms done.")
 }
 
-func cmdGenerator(tasks chan *Task, taskGens *sync.WaitGroup, numTasks int, cmd string) {
-    for i := 0; i < numTasks; i++ {
-        task := new(Task)
-        task.cmd = cmd
-        task.key = common.RandData(keyLength)
+func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks int, cmd string) {
+	for i := 0; i < numTasks; i++ {
+		tasks <- &common.Task{
+			Cmd:   cmd,
+			Key:   common.RandData(f.KeyLength),
+			Value: taskValue(cmd),
+		}
+	}
 
-        if cmd == "set" {
-            // Random length between 1k and 10k
-            valLen := rand.Intn(9 * 1024) + 1024
-            task.value = common.RandData(valLen)
-        }
-        
-        tasks <- task
-    }
-    
-    fmt.Println(cmd, "gen done")
-    
-    taskGens.Done()
+	fmt.Println(cmd, "gen done")
+	taskGens.Done()
 }
 
-func communicator(prot common.Prot, conn net.Conn, tasks chan *Task, comms *sync.WaitGroup) {
-    for item := range tasks {
-        var err error
-        
-        switch item.cmd {
-            case "set":    err = prot.Set   (conn, item.key, item.value)
-            case "get":    err = prot.Get   (conn, item.key)
-            case "delete": err = prot.Delete(conn, item.key)
-            case "touch":  err = prot.Touch (conn, item.key)
-        }
-        
-        if err != nil {
-            if err != binprot.ERR_KEY_NOT_FOUND {
-                fmt.Printf("Error performing operation %s on key %s: %s\n", item.cmd, item.key, err.Error())
-            }
-            // if the socket was closed, stop. Otherwise keep on hammering.
-            if err == io.EOF {
-                break
-            }
-        }
-    }
-    
-    fmt.Println("comm done")
+func taskValue(cmd string) []byte {
+	if cmd == "set" {
+		// Random length between 1k and 10k
+		valLen := rand.Intn(9*1024) + 1024
+		return common.RandData(valLen)
+	}
 
-    comms.Done()
+	return nil
+}
+
+func communicator(prot common.Prot, rw io.ReadWriter, tasks <-chan *common.Task, comms *sync.WaitGroup) {
+	for item := range tasks {
+		var err error
+
+		switch item.Cmd {
+		case "set":
+			err = prot.Set(rw, item.Key, item.Value)
+		case "get":
+			err = prot.Get(rw, item.Key)
+		case "delete":
+			err = prot.Delete(rw, item.Key)
+		case "touch":
+			err = prot.Touch(rw, item.Key)
+		}
+
+		if err != nil {
+			if err != binprot.ERR_KEY_NOT_FOUND {
+				fmt.Printf("Error performing operation %s on key %s: %s\n", item.Cmd, item.Key, err.Error())
+			}
+			// if the socket was closed, stop. Otherwise keep on hammering.
+			if err == io.EOF {
+				break
+			}
+		}
+	}
+
+	fmt.Println("comm done")
+
+	comms.Done()
 }
