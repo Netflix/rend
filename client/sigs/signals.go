@@ -20,11 +20,11 @@ import "os/signal"
 
 // Signals
 func init() {
-    sigs := make(chan os.Signal)
-    signal.Notify(sigs, os.Interrupt)
+	sigs := make(chan os.Signal)
+	signal.Notify(sigs, os.Interrupt)
 
-    go func() {
-        <-sigs
-        panic("Keyboard Interrupt")
-    }()
+	go func() {
+		<-sigs
+		panic("Keyboard Interrupt")
+	}()
 }

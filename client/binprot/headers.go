@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -54,64 +54,69 @@ const GAT = 0x1d
 const GATQ = 0x1e
 
 type req struct {
-    Magic    uint8
-    Opcode   uint8
-    KeyLen   uint16
-    ExtraLen uint8
-    DataType uint8
-    VBucket  uint16
-    BodyLen  uint32
-    Opaque   uint32
-    CAS      uint64
+	Magic    uint8
+	Opcode   uint8
+	KeyLen   uint16
+	ExtraLen uint8
+	DataType uint8
+	VBucket  uint16
+	BodyLen  uint32
+	Opaque   uint32
+	CAS      uint64
 }
 
 func opToCode(op common.Op) int {
-    switch(op) {
-        case common.GET:    return Get
-        case common.SET:    return Set
-        case common.TOUCH:  return Touch
-        case common.DELETE: return Delete
-        default: return -1
-    }
+	switch op {
+	case common.GET:
+		return Get
+	case common.SET:
+		return Set
+	case common.TOUCH:
+		return Touch
+	case common.DELETE:
+		return Delete
+	default:
+		return -1
+	}
 }
 
 func writeReq(w io.Writer, op common.Op, keylen, extralen, bodylen int) error {
-    opcode := opToCode(op)
+	opcode := opToCode(op)
 
-    req := req {
-        Magic: 0x80,
-        Opcode: uint8(opcode),
-        KeyLen: uint16(keylen),
-        ExtraLen: uint8(extralen),
-        DataType: 0,
-        VBucket: 0,
-        BodyLen: uint32(bodylen),
-        Opaque: 0,
-        CAS: 0,
-    }
+	req := req{
+		Magic:    0x80,
+		Opcode:   uint8(opcode),
+		KeyLen:   uint16(keylen),
+		ExtraLen: uint8(extralen),
+		DataType: 0,
+		VBucket:  0,
+		BodyLen:  uint32(bodylen),
+		Opaque:   0,
+		CAS:      0,
+	}
 
-    return binary.Write(w, binary.BigEndian, req)
+	return binary.Write(w, binary.BigEndian, req)
 }
 
 type res struct {
-    Magic    uint8
-    Opcode   uint8
-    KeyLen   uint16
-    ExtraLen uint8
-    DataType uint8
-    Status   uint16
-    BodyLen  uint32
-    Opaque   uint32
-    CAS      uint64
+	Magic    uint8
+	Opcode   uint8
+	KeyLen   uint16
+	ExtraLen uint8
+	DataType uint8
+	Status   uint16
+	BodyLen  uint32
+	Opaque   uint32
+	CAS      uint64
 }
 
 func readRes(r io.Reader) (*res, error) {
-    res := new(res)
-    err := binary.Read(r, binary.BigEndian, res);
-    if err != nil {
-        return nil, err
-    }
-    return res, nil
+	res := new(res)
+	err := binary.Read(r, binary.BigEndian, res)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 var ERR_KEY_NOT_FOUND error
@@ -131,52 +136,67 @@ var ERR_BUSY error
 var ERR_TEMP error
 
 func init() {
-    ERR_KEY_NOT_FOUND = errors.New("Key not found")
-    ERR_KEY_EXISTS = errors.New("Key exists")
-    ERR_VAL_TOO_LARGE = errors.New("Value too large")
-    ERR_INVALID_ARGS = errors.New("Invalid arguments")
-    ERR_ITEM_NOT_STORED = errors.New("Item not stored")
-    ERR_INC_DEC_INVAL = errors.New("Incr/Decr on non-numeric value.")
-    ERR_VBUCKET = errors.New("The vbucket belongs to another server")
-    ERR_AUTH = errors.New("Authentication error")
-    ERR_AUTH_CONT = errors.New("Authentication continue")
-    ERR_UNKNOWN_CMD = errors.New("Unknown command")
-    ERR_NO_MEM = errors.New("Out of memory")
-    ERR_NOT_SUPPORTED = errors.New("Not supported")
-    ERR_INTERNAL = errors.New("Internal error")
-    ERR_BUSY = errors.New("Busy")
-    ERR_TEMP = errors.New("Temporary failure")
+	ERR_KEY_NOT_FOUND = errors.New("Key not found")
+	ERR_KEY_EXISTS = errors.New("Key exists")
+	ERR_VAL_TOO_LARGE = errors.New("Value too large")
+	ERR_INVALID_ARGS = errors.New("Invalid arguments")
+	ERR_ITEM_NOT_STORED = errors.New("Item not stored")
+	ERR_INC_DEC_INVAL = errors.New("Incr/Decr on non-numeric value.")
+	ERR_VBUCKET = errors.New("The vbucket belongs to another server")
+	ERR_AUTH = errors.New("Authentication error")
+	ERR_AUTH_CONT = errors.New("Authentication continue")
+	ERR_UNKNOWN_CMD = errors.New("Unknown command")
+	ERR_NO_MEM = errors.New("Out of memory")
+	ERR_NOT_SUPPORTED = errors.New("Not supported")
+	ERR_INTERNAL = errors.New("Internal error")
+	ERR_BUSY = errors.New("Busy")
+	ERR_TEMP = errors.New("Temporary failure")
 }
 
 func statusToError(status uint16) error {
-    switch (status) {
-        case uint16(0x01): return ERR_KEY_NOT_FOUND
-        case uint16(0x02): return ERR_KEY_EXISTS
-        case uint16(0x03): return ERR_VAL_TOO_LARGE
-        case uint16(0x04): return ERR_INVALID_ARGS
-        case uint16(0x05): return ERR_ITEM_NOT_STORED
-        case uint16(0x06): return ERR_INC_DEC_INVAL
-        case uint16(0x07): return ERR_VBUCKET
-        case uint16(0x08): return ERR_AUTH
-        case uint16(0x09): return ERR_AUTH_CONT
-        case uint16(0x81): return ERR_UNKNOWN_CMD
-        case uint16(0x82): return ERR_NO_MEM
-        case uint16(0x83): return ERR_NOT_SUPPORTED
-        case uint16(0x84): return ERR_INTERNAL
-        case uint16(0x85): return ERR_BUSY
-        case uint16(0x86): return ERR_TEMP
-    }
+	switch status {
+	case uint16(0x01):
+		return ERR_KEY_NOT_FOUND
+	case uint16(0x02):
+		return ERR_KEY_EXISTS
+	case uint16(0x03):
+		return ERR_VAL_TOO_LARGE
+	case uint16(0x04):
+		return ERR_INVALID_ARGS
+	case uint16(0x05):
+		return ERR_ITEM_NOT_STORED
+	case uint16(0x06):
+		return ERR_INC_DEC_INVAL
+	case uint16(0x07):
+		return ERR_VBUCKET
+	case uint16(0x08):
+		return ERR_AUTH
+	case uint16(0x09):
+		return ERR_AUTH_CONT
+	case uint16(0x81):
+		return ERR_UNKNOWN_CMD
+	case uint16(0x82):
+		return ERR_NO_MEM
+	case uint16(0x83):
+		return ERR_NOT_SUPPORTED
+	case uint16(0x84):
+		return ERR_INTERNAL
+	case uint16(0x85):
+		return ERR_BUSY
+	case uint16(0x86):
+		return ERR_TEMP
+	}
 
-    return nil
+	return nil
 }
 
 func srsErr(err error) bool {
-    switch (err) {
-        case ERR_KEY_NOT_FOUND:
-        case ERR_KEY_EXISTS:
-        case ERR_ITEM_NOT_STORED:
-            return false
-    }
+	switch err {
+	case ERR_KEY_NOT_FOUND:
+	case ERR_KEY_EXISTS:
+	case ERR_ITEM_NOT_STORED:
+		return false
+	}
 
-    return true
+	return true
 }

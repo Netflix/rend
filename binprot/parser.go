@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -87,13 +87,13 @@ import "../common"
 //     Value               : None
 
 type BinaryParser struct {
-    reader *bufio.Reader
+	reader *bufio.Reader
 }
 
 func NewBinaryParser(reader *bufio.Reader) BinaryParser {
-    return BinaryParser {
-        reader: reader,
-    }
+	return BinaryParser{
+		reader: reader,
+	}
 }
 
 // getq in binary is a bunhc of headers bunched together with a noop or a get
@@ -101,124 +101,128 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
 // spymemcached's implementation ^^^
 
 func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
-    // read in the full header before any variable length fields
-    headerBuf := make([]byte, 24)
-    _, err := io.ReadFull(b.reader, headerBuf)
-    
-    if err != nil {
-        if err == io.EOF {
-            fmt.Println("End of file: Connection closed?")
-        } else {
-            fmt.Println(err.Error())
-        }
-        return nil, common.REQUEST_UNKNOWN, err
-    }
-    
-    var reqHeader RequestHeader
-    binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
-    
-    switch reqHeader.Opcode {
-        case OPCODE_SET:
-            // flags, exptime, key, value
-            flags, err := readUInt32(b.reader)
-            
-            if err != nil {
-                fmt.Println("Error reading flags")
-                return nil, common.REQUEST_SET, err
-            }
-            
-            exptime, err := readUInt32(b.reader)
-            
-            if err != nil {
-                fmt.Println("Error reading exptime")
-                return nil, common.REQUEST_SET, err
-            }
-            
-            key, err := readString(b.reader, reqHeader.KeyLength)
-            
-            if err != nil {
-                fmt.Println("Error reading key")
-                return nil, common.REQUEST_SET, err
-            }
-            
-            realLength := reqHeader.TotalBodyLength -
-                            uint32(reqHeader.ExtraLength) -
-                            uint32(reqHeader.KeyLength)
-            
-            return common.SetRequest {
-                Key:     key,
-                Flags:   flags,
-                Exptime: exptime,
-                Length:  realLength,
-            }, common.REQUEST_SET, nil
-            
-        case OPCODE_GET:
-            // TODO: while next command is a get, get the key and add it to the batch.
-            // key
-            key, err := readString(b.reader, reqHeader.KeyLength)
-            
-            if err != nil {
-                fmt.Println("Error reading key")
-                return nil, common.REQUEST_GET, err
-            }
-            
-            return common.GetRequest {
-                Keys:    [][]byte{key},
-                Opaques: []uint32{reqHeader.OpaqueToken},
-            }, common.REQUEST_GET, nil
-            
-        case OPCODE_DELETE:
-            // key
-            key, err := readString(b.reader, reqHeader.KeyLength)
-            
-            if err != nil {
-                fmt.Println("Error reading key")
-                return nil, common.REQUEST_DELETE, err
-            }
-            
-            return common.DeleteRequest {
-                Key: key,
-            }, common.REQUEST_DELETE, nil
-            
-        case OPCODE_TOUCH:
-            // exptime, key
-            exptime, err := readUInt32(b.reader)
-            
-            if err != nil {
-                fmt.Println("Error reading exptime")
-                return nil, common.REQUEST_TOUCH, err
-            }
-            
-            key, err := readString(b.reader, reqHeader.KeyLength)
-            
-            if err != nil {
-                fmt.Println("Error reading key")
-                return nil, common.REQUEST_TOUCH, err
-            }
-            
-            return common.TouchRequest {
-                Key:     key,
-                Exptime: exptime,
-            }, common.REQUEST_TOUCH, nil
-    }
-    
-    return nil, common.REQUEST_GET, nil
+	// read in the full header before any variable length fields
+	headerBuf := make([]byte, 24)
+	_, err := io.ReadFull(b.reader, headerBuf)
+
+	if err != nil {
+		if err == io.EOF {
+			fmt.Println("End of file: Connection closed?")
+		} else {
+			fmt.Println(err.Error())
+		}
+		return nil, common.REQUEST_UNKNOWN, err
+	}
+
+	var reqHeader RequestHeader
+	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
+
+	switch reqHeader.Opcode {
+	case OPCODE_SET:
+		// flags, exptime, key, value
+		flags, err := readUInt32(b.reader)
+
+		if err != nil {
+			fmt.Println("Error reading flags")
+			return nil, common.REQUEST_SET, err
+		}
+
+		exptime, err := readUInt32(b.reader)
+
+		if err != nil {
+			fmt.Println("Error reading exptime")
+			return nil, common.REQUEST_SET, err
+		}
+
+		key, err := readString(b.reader, reqHeader.KeyLength)
+
+		if err != nil {
+			fmt.Println("Error reading key")
+			return nil, common.REQUEST_SET, err
+		}
+
+		realLength := reqHeader.TotalBodyLength -
+			uint32(reqHeader.ExtraLength) -
+			uint32(reqHeader.KeyLength)
+
+		return common.SetRequest{
+			Key:     key,
+			Flags:   flags,
+			Exptime: exptime,
+			Length:  realLength,
+		}, common.REQUEST_SET, nil
+
+	case OPCODE_GET:
+		// TODO: while next command is a get, get the key and add it to the batch.
+		// key
+		key, err := readString(b.reader, reqHeader.KeyLength)
+
+		if err != nil {
+			fmt.Println("Error reading key")
+			return nil, common.REQUEST_GET, err
+		}
+
+		return common.GetRequest{
+			Keys:    [][]byte{key},
+			Opaques: []uint32{reqHeader.OpaqueToken},
+		}, common.REQUEST_GET, nil
+
+	case OPCODE_DELETE:
+		// key
+		key, err := readString(b.reader, reqHeader.KeyLength)
+
+		if err != nil {
+			fmt.Println("Error reading key")
+			return nil, common.REQUEST_DELETE, err
+		}
+
+		return common.DeleteRequest{
+			Key: key,
+		}, common.REQUEST_DELETE, nil
+
+	case OPCODE_TOUCH:
+		// exptime, key
+		exptime, err := readUInt32(b.reader)
+
+		if err != nil {
+			fmt.Println("Error reading exptime")
+			return nil, common.REQUEST_TOUCH, err
+		}
+
+		key, err := readString(b.reader, reqHeader.KeyLength)
+
+		if err != nil {
+			fmt.Println("Error reading key")
+			return nil, common.REQUEST_TOUCH, err
+		}
+
+		return common.TouchRequest{
+			Key:     key,
+			Exptime: exptime,
+		}, common.REQUEST_TOUCH, nil
+	}
+
+	return nil, common.REQUEST_GET, nil
 }
 
 func readString(remoteReader io.Reader, length uint16) ([]byte, error) {
-    buf := make([]byte, length)
-    _, err := io.ReadFull(remoteReader, buf)
-    
-    if err != nil { return nil, err }
-    
-    return buf, nil
+	buf := make([]byte, length)
+	_, err := io.ReadFull(remoteReader, buf)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return buf, nil
 }
 
 func readUInt32(remoteReader io.Reader) (uint32, error) {
-    var num uint32
-    err := binary.Read(remoteReader, binary.BigEndian, &num)
-    
-    if err != nil { return uint32(0), err }
-    
-    return num, nil
+	var num uint32
+	err := binary.Read(remoteReader, binary.BigEndian, &num)
+
+	if err != nil {
+		return uint32(0), err
+	}
+
+	return num, nil
 }

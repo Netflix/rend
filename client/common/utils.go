@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,31 +25,33 @@ import "time"
 var letters = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 func RandData(n int) []byte {
-    b := make([]byte, n)
+	b := make([]byte, n)
 
-    for i := range b {
-        b[i] = letters[rand.Intn(len(letters))]
-    }
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
 
-    return b
+	return b
 }
 
 func Connect(host string, port int) (net.Conn, error) {
-    conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", host, port))
-    if err != nil { return nil, err }
+	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", host, port))
+	if err != nil {
+		return nil, err
+	}
 
-    fmt.Println("Connected to memcached.")
+	fmt.Println("Connected to memcached.")
 
-    return conn, nil
+	return conn, nil
 }
 
 const MAX_TTL = 3600
 
 func init() {
-    rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UnixNano())
 }
 
 // get a random expiration
 func Exp() uint32 {
-    return uint32(rand.Intn(MAX_TTL))
+	return uint32(rand.Intn(MAX_TTL))
 }

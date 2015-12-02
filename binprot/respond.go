@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -86,75 +86,85 @@ import "../common"
 //     Value               : None
 
 type BinaryResponder struct {
-    writer *bufio.Writer
+	writer *bufio.Writer
 }
 
 func NewBinaryResponder(writer *bufio.Writer) BinaryResponder {
-    return BinaryResponder {
-        writer: writer,
-    }
+	return BinaryResponder{
+		writer: writer,
+	}
 }
 
 // TODO: CAS?
 func (b BinaryResponder) Set() error {
-    header := makeSuccessResponseHeader(OPCODE_SET, 0, 0, 0, 0)
-    return writeHeader(header, b.writer)
+	header := makeSuccessResponseHeader(OPCODE_SET, 0, 0, 0, 0)
+	return writeHeader(header, b.writer)
 }
 
 func (b BinaryResponder) Get(response common.GetResponse) error {
-    // total body length = extras (flags, 4 bytes) + data length
-    totalBodyLength := len(response.Data) + 4
-    header := makeSuccessResponseHeader(OPCODE_GET, 0, 4, totalBodyLength, 0)
-    
-    err := writeHeader(header, b.writer)
-    if err != nil { return err }
-    
-    err = binary.Write(b.writer, binary.BigEndian, response.Metadata.OrigFlags)
-    if err != nil { return err }
-    
-    _, err = b.writer.Write(response.Data)
-    if err != nil { return err }
+	// total body length = extras (flags, 4 bytes) + data length
+	totalBodyLength := len(response.Data) + 4
+	header := makeSuccessResponseHeader(OPCODE_GET, 0, 4, totalBodyLength, 0)
 
-    b.writer.Flush()
-    return nil
+	err := writeHeader(header, b.writer)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(b.writer, binary.BigEndian, response.Metadata.OrigFlags)
+	if err != nil {
+		return err
+	}
+
+	_, err = b.writer.Write(response.Data)
+	if err != nil {
+		return err
+	}
+
+	b.writer.Flush()
+	return nil
 }
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
-    header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
-    return writeHeader(header, b.writer)
+	header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
+	return writeHeader(header, b.writer)
 }
 
 func (b BinaryResponder) GetEnd() error {
-    // no-op since the binary protocol does not have batch gets
-    return nil
+	// no-op since the binary protocol does not have batch gets
+	return nil
 }
 
 func (b BinaryResponder) Delete() error {
-    header := makeSuccessResponseHeader(OPCODE_DELETE, 0, 0, 0, 0)
-    return writeHeader(header, b.writer)
+	header := makeSuccessResponseHeader(OPCODE_DELETE, 0, 0, 0, 0)
+	return writeHeader(header, b.writer)
 }
 
 func (b BinaryResponder) Touch() error {
-    header := makeSuccessResponseHeader(OPCODE_TOUCH, 0, 0, 0, 0)
-    return writeHeader(header, b.writer)
+	header := makeSuccessResponseHeader(OPCODE_TOUCH, 0, 0, 0, 0)
+	return writeHeader(header, b.writer)
 }
 
 func (b BinaryResponder) Error(err error) error {
-    // TODO: proper opcode
-    header := makeErrorResponseHeader(OPCODE_GET, int(errorToCode(err)), 0)
-    return writeHeader(header, b.writer)
+	// TODO: proper opcode
+	header := makeErrorResponseHeader(OPCODE_GET, int(errorToCode(err)), 0)
+	return writeHeader(header, b.writer)
 }
 
 func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {
-    headerBuf := new(bytes.Buffer)
-    binary.Write(headerBuf, binary.BigEndian, header)
-    
-    // TODO: Error handling for less bytes
-    _, err := remoteWriter.Write(headerBuf.Bytes())
-    if err != nil { return err }
-    
-    err = remoteWriter.Flush()
-    if err != nil { return err }
-    
-    return nil
+	headerBuf := new(bytes.Buffer)
+	binary.Write(headerBuf, binary.BigEndian, header)
+
+	// TODO: Error handling for less bytes
+	_, err := remoteWriter.Write(headerBuf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	err = remoteWriter.Flush()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
