@@ -13,7 +13,13 @@ Rend is still under active development and is in the testing phases internally. 
 
 ## Motivation
 
-Rend is born out of necessity. Caching is used several ways at Netflix. 
+Caching is used several ways at Netflix. Some people use it as a true working set cache, while others use it as the only storage mechanism for their service. Others use it as a session cache. This means that some services can continue as usual with some data loss, while others will permanently lose data and start to serve fallbacks. The caching project that Rend is built to complement is [EVCache](https://github.com/Netflix/EVCache).
+
+The genesis of rend starts with memcached memory management. Internally, memcached keeps a set of slabs for different size data. Slabs are logical groupings of pages, which are a fixed size set on startup. Pages map to real physical memory and are split based on the slab's data size. In versions 1.4.24 and prior, pages were permanently allocated to a particular slab and never released even if empty. As well, if there were many holes in the data in RAM, there was no compaction and therefore memory could get very fragmented over time.
+
+The second half of the story is within Netflix. There was a set of data being written daily to a cache en masse during nightly computation. An underlying data source changed in such a way that caused the output of one such process to change drastically in size from one day to the next. When the data set was being written to the cache, it was different enough in size to land in a different memcached slab. The cache was sized to hold one copy of the data, not two, so when the new data was written the memory filled completely. Once full, memcached was evicting large portions of newly-computed data while holding on to mostly empty memory in a different slab.
+
+So what was the solution? Take the incoming data and split it into fixed-size chunks prior to inserting into memcached to bypass the complication of the slab allocator. If everything is the same size, there will never be holes which are out of reach for new data. This hardened us against future data changes, which are inevitable. Rend (which means "to tear apart") is the server-side solution to this problem, which also enables much more intelligence on the server at the cost of increased complexity.
 
 ## Setup and Prerequisites
 
