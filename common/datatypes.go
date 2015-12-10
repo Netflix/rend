@@ -41,7 +41,7 @@ var (
 // memcached itself
 func IsAppError(err error) bool {
 	return err == ERROR_KEY_NOT_FOUND ||
-		err == ERROR_KEY_EXISTS ||
+		err == ERROR_KEY_EXISTS ||	
 		err == ERROR_VALUE_TOO_BIG ||
 		err == ERROR_INVALID_ARGS ||
 		err == ERROR_ITEM_NOT_STORED ||
@@ -54,11 +54,12 @@ func IsAppError(err error) bool {
 type RequestType int
 
 const (
-	REQUEST_UNKNOWN = RequestType(-1)
-	REQUEST_GET     = RequestType(0)
-	REQUEST_SET     = RequestType(1)
-	REQUEST_DELETE  = RequestType(2)
-	REQUEST_TOUCH   = RequestType(3)
+	REQUEST_UNKNOWN = iota
+	REQUEST_GET
+	REQUEST_GETQ
+	REQUEST_SET
+	REQUEST_DELETE
+	REQUEST_TOUCH
 )
 
 type RequestParser interface {
