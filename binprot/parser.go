@@ -16,7 +16,6 @@
 package binprot
 
 import "bufio"
-import "bytes"
 import "encoding/binary"
 import "fmt"
 import "io"
@@ -125,20 +124,12 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
 
 func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	// read in the full header before any variable length fields
-	headerBuf := make([]byte, 24)
-	_, err := io.ReadFull(b.reader, headerBuf)
+	var reqHeader RequestHeader
+	err := binary.Read(b.reader, binary.BigEndian, &reqHeader)
 
 	if err != nil {
-		if err == io.EOF {
-			fmt.Println("End of file: Connection closed?")
-		} else {
-			fmt.Println(err.Error())
-		}
 		return nil, common.REQUEST_UNKNOWN, err
 	}
-
-	var reqHeader RequestHeader
-	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
 
 	switch reqHeader.Opcode {
 	case OPCODE_SET:
@@ -176,7 +167,14 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 		}, common.REQUEST_SET, nil
 
 	case OPCODE_GETQ:
-		return 
+		req, err := readBatchGet(b.reader, reqHeader)
+
+		if err != nil {
+			fmt.Println("Error reading batch get")
+			return nil, common.REQUEST_GET, err
+		}
+
+		return req, common.REQUEST_GET, nil
 
 	case OPCODE_GET:
 		// key
@@ -230,25 +228,53 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	return nil, common.REQUEST_GET, nil
 }
 
-func readBatchGet(r io.Reader, firstHeader RequestHeader) (common.GetRequest, error) {
-	keys = make([][]byte)
+func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {
+	keys := make([][]byte, 0)
+	opaques := make([]uint32, 0)
 
-	// key
-	key, err := readString(b.reader, reqHeader.KeyLength)
+	// while GETQ
+	// read key, read header
+	for header.Opcode == OPCODE_GETQ {
+		// key
+		key, err := readString(r, header.KeyLength)
 
-	if err != nil {
-		fmt.Println("Error reading key")
-		return nil, common.REQUEST_GET, err
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+
+		keys = append(keys, key)
+		opaques = append(opaques, header.OpaqueToken)
+
+		// read in the next header
+		err = binary.Read(r, binary.BigEndian, &header)
+
+		if err != nil {
+			return common.GetRequest{}, err
+		}
 	}
-}
 
-func parseGetBody(r io.Reader, l uint16) ([]byte, error) {
-	// key
-	key, err := readString(b.reader, l)
+	if header.Opcode == OPCODE_GET {
+		// key
+		key, err := readString(r, header.KeyLength)
 
-	if err != nil {
-		return nil, common.REQUEST_GET, err
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+
+		keys = append(keys, key)
+		opaques = append(opaques, header.OpaqueToken)
+	} else if header.Opcode == OPCODE_NOOP {
+		// nothing to do, header is read already
+	} else {
+		// no idea... this is a problem though.
+		// unexpected patterns shouldn't come over the wire, so maybe it will
+		// be OK to simply discount this situation. Probably not.
 	}
+
+	return common.GetRequest{
+		Keys:    keys,
+		Opaques: opaques,
+	}, nil
 }
 
 func readString(r io.Reader, l uint16) ([]byte, error) {
