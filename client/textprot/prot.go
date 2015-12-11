@@ -129,6 +129,51 @@ func (t TextProt) Get(rw io.ReadWriter, key []byte) error {
 	return nil
 }
 
+func (t TextProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
+	if VERBOSE {
+		fmt.Printf("Getting keys %v\n", keys)
+	}
+
+	cmd := []byte("get")
+	space := byte(' ')
+
+	for _, key := range keys {
+		cmd = append(cmd, space)
+		cmd = append(cmd, key...)
+	}
+
+	cmd = append(cmd, byte('\r'), byte('\n'))
+
+	_, err := fmt.Fprint(rw, string(cmd))
+	if err != nil {
+		return err
+	}
+
+	for {
+		// read the header line
+		response, err := rl(rw)
+		if err != nil {
+			return err
+		}
+		if VERBOSE {
+			fmt.Println(response)
+		}
+
+		if strings.TrimSpace(response) == "END" {
+			if VERBOSE {
+				fmt.Println("End of batch response")
+			}
+			return nil
+		}
+
+		// then read the value
+		response, err = rl(rw)
+		if err != nil {
+			return err
+		}
+	}
+}
+
 func (t TextProt) Delete(rw io.ReadWriter, key []byte) error {
 	strKey := string(key)
 	if VERBOSE {
