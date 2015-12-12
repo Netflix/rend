@@ -137,12 +137,12 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 	defer close(dataOut)
 
 outer:
-	for _, key := range cmd.Keys {
+	for idx, key := range cmd.Keys {
 		_, metaData, err := getMetadata(localReader, localWriter, key)
 		if err != nil {
 			// TODO: Better error management
 			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
-				fmt.Println("Get miss because of missing metadata. Key:", key)
+				//fmt.Println("Get miss because of missing metadata. Key:", key)
 				dataOut <- common.GetResponse{
 					Miss: true,
 					Key:  key,
@@ -177,7 +177,9 @@ outer:
 					dataOut <- common.GetResponse{
 						Miss: true,
 						Key:  key,
-						//opaque
+						Opaque: cmd.Opaques[idx],
+						Quiet: cmd.Quiet[idx],
+						Metadata: cmd.Metadata,
 					}
 					continue outer
 				}
@@ -193,7 +195,9 @@ outer:
 				dataOut <- common.GetResponse{
 					Miss: true,
 					Key:  key,
-					//opaque
+					Opaque: cmd.Opaques[idx],
+					Quiet: cmd.Quiet[idx],
+					Metadata: cmd.Metadata,
 				}
 				continue outer
 			}

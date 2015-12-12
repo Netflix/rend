@@ -88,6 +88,7 @@ type SetRequest struct {
 type GetRequest struct {
 	Keys    [][]byte
 	Opaques []uint32
+	Quiet   []bool
 }
 
 type DeleteRequest struct {
@@ -106,7 +107,7 @@ type GetResponse struct {
 	Key      []byte
 	Opaque   uint32
 	Metadata Metadata
-	Data     []byte
+	Quiet    bool
 }
 
 const METADATA_SIZE = 32

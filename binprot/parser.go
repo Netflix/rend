@@ -231,10 +231,12 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {
 	keys := make([][]byte, 0)
 	opaques := make([]uint32, 0)
+	quiet := make([]bool, 0)
 
 	// while GETQ
 	// read key, read header
 	for header.Opcode == OPCODE_GETQ {
+		fmt.Println("GETQ")
 		// key
 		key, err := readString(r, header.KeyLength)
 
@@ -244,6 +246,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 
 		keys = append(keys, key)
 		opaques = append(opaques, header.OpaqueToken)
+		quiet = append(quiet, true)
 
 		// read in the next header
 		err = binary.Read(r, binary.BigEndian, &header)
@@ -254,6 +257,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	}
 
 	if header.Opcode == OPCODE_GET {
+		fmt.Println("GET")
 		// key
 		key, err := readString(r, header.KeyLength)
 
@@ -263,7 +267,9 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 
 		keys = append(keys, key)
 		opaques = append(opaques, header.OpaqueToken)
+		quiet = append(quiet, false)
 	} else if header.Opcode == OPCODE_NOOP {
+		fmt.Println("NOOP")
 		// nothing to do, header is read already
 	} else {
 		// no idea... this is a problem though.
