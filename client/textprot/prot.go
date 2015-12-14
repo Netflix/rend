@@ -136,14 +136,15 @@ func (t TextProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
 
 	cmd := []byte("get")
 	space := byte(' ')
+	end := []byte("\r\n")
 
 	for _, key := range keys {
 		cmd = append(cmd, space)
 		cmd = append(cmd, key...)
 	}
 
-	cmd = append(cmd, byte('\r'), byte('\n'))
-
+	cmd = append(cmd, end...)
+	
 	_, err := fmt.Fprint(rw, string(cmd))
 	if err != nil {
 		return err

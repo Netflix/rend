@@ -18,8 +18,8 @@ package main
 import "fmt"
 import "io"
 import "math/rand"
-import "time"
 import "sync"
+import "time"
 
 import "./common"
 import "./f"
