@@ -107,10 +107,12 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		}
 
 		opaques := make([]uint32, len(keys))
+		quiet := make([]bool, len(keys))
 
 		return common.GetRequest{
 			Keys:    keys,
 			Opaques: opaques,
+			Quiet:   quiet,
 		}, common.REQUEST_GET, nil
 
 	case "delete":

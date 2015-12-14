@@ -146,7 +146,9 @@ outer:
 				dataOut <- common.GetResponse{
 					Miss: true,
 					Key:  key,
-					//opaque
+					Opaque: cmd.Opaques[idx],
+					Quiet: cmd.Quiet[idx],
+					Metadata: metaData,
 				}
 				continue outer
 			}
@@ -179,7 +181,7 @@ outer:
 						Key:  key,
 						Opaque: cmd.Opaques[idx],
 						Quiet: cmd.Quiet[idx],
-						Metadata: cmd.Metadata,
+						Metadata: metaData,
 					}
 					continue outer
 				}
@@ -197,7 +199,7 @@ outer:
 					Key:  key,
 					Opaque: cmd.Opaques[idx],
 					Quiet: cmd.Quiet[idx],
-					Metadata: cmd.Metadata,
+					Metadata: metaData,
 				}
 				continue outer
 			}
@@ -206,7 +208,8 @@ outer:
 		dataOut <- common.GetResponse{
 			Miss: false,
 			Key:  key,
-			// opaque
+			Opaque: cmd.Opaques[idx],
+			Quiet: cmd.Quiet[idx],
 			Metadata: metaData,
 			Data:     dataBuf,
 		}

@@ -107,6 +107,7 @@ type GetResponse struct {
 	Key      []byte
 	Opaque   uint32
 	Metadata Metadata
+	Data     []byte
 	Quiet    bool
 }
 
