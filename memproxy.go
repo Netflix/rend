@@ -27,6 +27,9 @@ import "net"
 import "os"
 import "os/signal"
 
+ import "runtime"
+ import "strings"
+
 import "./binprot"
 import "./common"
 import "./local"
@@ -84,11 +87,33 @@ func abort(remote, local net.Conn, err error, binary bool) {
 	panic(err)
 }
 
+func identifyPanic() string {
+	var name, file string
+	var line int
+	var pc [16]uintptr
+	
+	n := runtime.Callers(3, pc[:])
+	for _, pc := range pc[:n] {
+		fn := runtime.FuncForPC(pc)
+		if fn == nil {
+			continue
+		}
+		file, line = fn.FileLine(pc)
+		name = fn.Name()
+		if !strings.HasPrefix(name, "runtime.") {
+			break
+		}
+	}
+	
+	return fmt.Sprintf("%v:%v:%v", file, name, line)
+}
+
 func handleConnection(remoteConn, localConn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			if r != io.EOF {
 				fmt.Println("Recovered from runtime panic:", r)
+				fmt.Println("Panic location: ", identifyPanic())
 			}
 		}
 	}()
