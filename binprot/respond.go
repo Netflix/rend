@@ -126,7 +126,7 @@ func (b BinaryResponder) Get(response common.GetResponse) error {
 }
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
-	if (!response.Quiet) {
+	if !response.Quiet {
 		header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
 		return writeHeader(header, b.writer)
 	}

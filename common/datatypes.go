@@ -41,7 +41,7 @@ var (
 // memcached itself
 func IsAppError(err error) bool {
 	return err == ERROR_KEY_NOT_FOUND ||
-		err == ERROR_KEY_EXISTS ||	
+		err == ERROR_KEY_EXISTS ||
 		err == ERROR_VALUE_TOO_BIG ||
 		err == ERROR_INVALID_ARGS ||
 		err == ERROR_ITEM_NOT_STORED ||

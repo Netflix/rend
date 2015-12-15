@@ -144,10 +144,10 @@ outer:
 			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
 				//fmt.Println("Get miss because of missing metadata. Key:", key)
 				dataOut <- common.GetResponse{
-					Miss: true,
-					Key:  key,
-					Opaque: cmd.Opaques[idx],
-					Quiet: cmd.Quiet[idx],
+					Miss:     true,
+					Key:      key,
+					Opaque:   cmd.Opaques[idx],
+					Quiet:    cmd.Quiet[idx],
 					Metadata: metaData,
 				}
 				continue outer
@@ -177,10 +177,10 @@ outer:
 				if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
 					fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
 					dataOut <- common.GetResponse{
-						Miss: true,
-						Key:  key,
-						Opaque: cmd.Opaques[idx],
-						Quiet: cmd.Quiet[idx],
+						Miss:     true,
+						Key:      key,
+						Opaque:   cmd.Opaques[idx],
+						Quiet:    cmd.Quiet[idx],
 						Metadata: metaData,
 					}
 					continue outer
@@ -195,10 +195,10 @@ outer:
 				fmt.Printf("Expected: %v\n", metaData.Token)
 				fmt.Printf("Got:      %v\n", tokenBuf)
 				dataOut <- common.GetResponse{
-					Miss: true,
-					Key:  key,
-					Opaque: cmd.Opaques[idx],
-					Quiet: cmd.Quiet[idx],
+					Miss:     true,
+					Key:      key,
+					Opaque:   cmd.Opaques[idx],
+					Quiet:    cmd.Quiet[idx],
 					Metadata: metaData,
 				}
 				continue outer
@@ -206,10 +206,10 @@ outer:
 		}
 
 		dataOut <- common.GetResponse{
-			Miss: false,
-			Key:  key,
-			Opaque: cmd.Opaques[idx],
-			Quiet: cmd.Quiet[idx],
+			Miss:     false,
+			Key:      key,
+			Opaque:   cmd.Opaques[idx],
+			Quiet:    cmd.Quiet[idx],
 			Metadata: metaData,
 			Data:     dataBuf,
 		}

@@ -144,7 +144,7 @@ func (t TextProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
 	}
 
 	cmd = append(cmd, end...)
-	
+
 	_, err := fmt.Fprint(rw, string(cmd))
 	if err != nil {
 		return err
