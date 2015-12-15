@@ -54,11 +54,12 @@ func IsAppError(err error) bool {
 type RequestType int
 
 const (
-	REQUEST_UNKNOWN = RequestType(-1)
-	REQUEST_GET     = RequestType(0)
-	REQUEST_SET     = RequestType(1)
-	REQUEST_DELETE  = RequestType(2)
-	REQUEST_TOUCH   = RequestType(3)
+	REQUEST_UNKNOWN = iota
+	REQUEST_GET
+	REQUEST_GETQ
+	REQUEST_SET
+	REQUEST_DELETE
+	REQUEST_TOUCH
 )
 
 type RequestParser interface {
@@ -69,7 +70,7 @@ type Responder interface {
 	Set() error
 	Get(response GetResponse) error
 	GetMiss(response GetResponse) error
-	GetEnd() error
+	GetEnd(noopEnd bool) error
 	Delete() error
 	Touch() error
 	Error(err error) error
@@ -87,6 +88,8 @@ type SetRequest struct {
 type GetRequest struct {
 	Keys    [][]byte
 	Opaques []uint32
+	Quiet   []bool
+	NoopEnd bool
 }
 
 type DeleteRequest struct {
@@ -106,6 +109,7 @@ type GetResponse struct {
 	Opaque   uint32
 	Metadata Metadata
 	Data     []byte
+	Quiet    bool
 }
 
 const METADATA_SIZE = 32

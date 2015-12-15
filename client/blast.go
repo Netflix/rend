@@ -18,8 +18,8 @@ package main
 import "fmt"
 import "io"
 import "math/rand"
-import "time"
 import "sync"
+import "time"
 
 import "./common"
 import "./f"
@@ -49,13 +49,14 @@ func main() {
 	comms := new(sync.WaitGroup)
 
 	// TODO: Better math
-	opsPerTask := f.NumOps / 4 / f.NumWorkers
+	opsPerTask := f.NumOps / 5 / f.NumWorkers
 
 	// spawn task generators
 	for i := 0; i < f.NumWorkers; i++ {
-		taskGens.Add(4)
+		taskGens.Add(5)
 		go cmdGenerator(tasks, taskGens, opsPerTask, "set")
 		go cmdGenerator(tasks, taskGens, opsPerTask, "get")
+		go cmdGenerator(tasks, taskGens, opsPerTask, "bget")
 		go cmdGenerator(tasks, taskGens, opsPerTask, "delete")
 		go cmdGenerator(tasks, taskGens, opsPerTask, "touch")
 	}
@@ -120,6 +121,8 @@ func communicator(prot common.Prot, rw io.ReadWriter, tasks <-chan *common.Task,
 			err = prot.Set(rw, item.Key, item.Value)
 		case "get":
 			err = prot.Get(rw, item.Key)
+		case "bget":
+			err = prot.BatchGet(rw, batchkeys(item.Key))
 		case "delete":
 			err = prot.Delete(rw, item.Key)
 		case "touch":
@@ -140,4 +143,16 @@ func communicator(prot common.Prot, rw io.ReadWriter, tasks <-chan *common.Task,
 	fmt.Println("comm done")
 
 	comms.Done()
+}
+
+func batchkeys(key []byte) [][]byte {
+	key = key[1:]
+	retval := make([][]byte, 0)
+	numKeys := rand.Intn(25) + 2 + int('A')
+
+	for i := int('A'); i < numKeys; i++ {
+		retval = append(retval, append([]byte{byte(i)}, key...))
+	}
+
+	return retval
 }

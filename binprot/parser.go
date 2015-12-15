@@ -16,7 +16,6 @@
 package binprot
 
 import "bufio"
-import "bytes"
 import "encoding/binary"
 import "fmt"
 import "io"
@@ -44,6 +43,21 @@ import "../common"
 // Field        (offset) (value)
 //     Magic        (0)    : 0x80
 //     Opcode       (1)    : 0x00
+//     Key length   (2,3)  : 0x0005
+//     Extra length (4)    : 0x00
+//     Data type    (5)    : 0x00
+//     VBucket      (6,7)  : 0x0000
+//     Total body   (8-11) : 0x00000005 (for "Hello")
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x0000000000000000
+//     Extras              : None
+//     Key          (24-29): The string key (e.g. "Hello")
+//     Value               : None
+
+// Example GetQ request
+// Field        (offset) (value)
+//     Magic        (0)    : 0x80
+//     Opcode       (1)    : 0x0d
 //     Key length   (2,3)  : 0x0005
 //     Extra length (4)    : 0x00
 //     Data type    (5)    : 0x00
@@ -96,26 +110,26 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
 	}
 }
 
-// getq in binary is a bunhc of headers bunched together with a noop or a get
+// Gets can be pipelined by sending many headers at once to the server.
+// In this case, it is to our advantage to read as many as we can before replying
+// to the client. The form of a pipelined get is a series of GETQ headers, followed
+// by a GET or a NOOP. Once all the headers are sent, the client will start to read
+// data sent by the server.
+//
+// A further optimization would be to return a channel of keys so the retrival can
+// get started right away.
+//
 // https://github.com/couchbase/spymemcached/blob/master/src/main/java/net/spy/memcached/protocol/binary/MultiGetOperationImpl.java#L88
 // spymemcached's implementation ^^^
 
 func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	// read in the full header before any variable length fields
-	headerBuf := make([]byte, 24)
-	_, err := io.ReadFull(b.reader, headerBuf)
+	var reqHeader RequestHeader
+	err := binary.Read(b.reader, binary.BigEndian, &reqHeader)
 
 	if err != nil {
-		if err == io.EOF {
-			fmt.Println("End of file: Connection closed?")
-		} else {
-			fmt.Println(err.Error())
-		}
 		return nil, common.REQUEST_UNKNOWN, err
 	}
-
-	var reqHeader RequestHeader
-	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
 
 	switch reqHeader.Opcode {
 	case OPCODE_SET:
@@ -152,8 +166,17 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Length:  realLength,
 		}, common.REQUEST_SET, nil
 
+	case OPCODE_GETQ:
+		req, err := readBatchGet(b.reader, reqHeader)
+
+		if err != nil {
+			fmt.Println("Error reading batch get")
+			return nil, common.REQUEST_GET, err
+		}
+
+		return req, common.REQUEST_GET, nil
+
 	case OPCODE_GET:
-		// TODO: while next command is a get, get the key and add it to the batch.
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 
@@ -165,6 +188,8 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 		return common.GetRequest{
 			Keys:    [][]byte{key},
 			Opaques: []uint32{reqHeader.OpaqueToken},
+			Quiet:   []bool{false},
+			NoopEnd: false,
 		}, common.REQUEST_GET, nil
 
 	case OPCODE_DELETE:
@@ -205,9 +230,66 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	return nil, common.REQUEST_GET, nil
 }
 
-func readString(remoteReader io.Reader, length uint16) ([]byte, error) {
-	buf := make([]byte, length)
-	_, err := io.ReadFull(remoteReader, buf)
+func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {
+	keys := make([][]byte, 0)
+	opaques := make([]uint32, 0)
+	quiet := make([]bool, 0)
+	var noopEnd bool
+
+	// while GETQ
+	// read key, read header
+	for header.Opcode == OPCODE_GETQ {
+		// key
+		key, err := readString(r, header.KeyLength)
+
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+
+		keys = append(keys, key)
+		opaques = append(opaques, header.OpaqueToken)
+		quiet = append(quiet, true)
+
+		// read in the next header
+		err = binary.Read(r, binary.BigEndian, &header)
+
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+	}
+
+	if header.Opcode == OPCODE_GET {
+		// key
+		key, err := readString(r, header.KeyLength)
+
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+
+		keys = append(keys, key)
+		opaques = append(opaques, header.OpaqueToken)
+		quiet = append(quiet, false)
+		noopEnd = false
+	} else if header.Opcode == OPCODE_NOOP {
+		// nothing to do, header is read already
+		noopEnd = true
+	} else {
+		// no idea... this is a problem though.
+		// unexpected patterns shouldn't come over the wire, so maybe it will
+		// be OK to simply discount this situation. Probably not.
+	}
+
+	return common.GetRequest{
+		Keys:    keys,
+		Opaques: opaques,
+		Quiet:   quiet,
+		NoopEnd: noopEnd,
+	}, nil
+}
+
+func readString(r io.Reader, l uint16) ([]byte, error) {
+	buf := make([]byte, l)
+	_, err := io.ReadFull(r, buf)
 
 	if err != nil {
 		return nil, err
@@ -216,9 +298,9 @@ func readString(remoteReader io.Reader, length uint16) ([]byte, error) {
 	return buf, nil
 }
 
-func readUInt32(remoteReader io.Reader) (uint32, error) {
+func readUInt32(r io.Reader) (uint32, error) {
 	var num uint32
-	err := binary.Read(remoteReader, binary.BigEndian, &num)
+	err := binary.Read(r, binary.BigEndian, &num)
 
 	if err != nil {
 		return uint32(0), err

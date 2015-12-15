@@ -26,6 +26,8 @@ import "io"
 import "net"
 import "os"
 import "os/signal"
+import "runtime"
+import "strings"
 
 import "./binprot"
 import "./common"
@@ -84,11 +86,33 @@ func abort(remote, local net.Conn, err error, binary bool) {
 	panic(err)
 }
 
+func identifyPanic() string {
+	var name, file string
+	var line int
+	var pc [16]uintptr
+	
+	n := runtime.Callers(3, pc[:])
+	for _, pc := range pc[:n] {
+		fn := runtime.FuncForPC(pc)
+		if fn == nil {
+			continue
+		}
+		file, line = fn.FileLine(pc)
+		name = fn.Name()
+		if !strings.HasPrefix(name, "runtime.") {
+			break
+		}
+	}
+	
+	return fmt.Sprintf("%v:%v:%v", file, name, line)
+}
+
 func handleConnection(remoteConn, localConn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			if r != io.EOF {
 				fmt.Println("Recovered from runtime panic:", r)
+				fmt.Println("Panic location: ", identifyPanic())
 			}
 		}
 	}()
@@ -168,7 +192,8 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			}
 
 		case common.REQUEST_GET:
-			resChan, errChan := local.HandleGet(request.(common.GetRequest), localReader, localWriter)
+			getReq := request.(common.GetRequest)
+			resChan, errChan := local.HandleGet(getReq, localReader, localWriter)
 
 			for {
 				select {
@@ -196,7 +221,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 				}
 			}
 
-			responder.GetEnd()
+			responder.GetEnd(getReq.NoopEnd)
 
 		case common.REQUEST_UNKNOWN:
 			err = common.ERROR_UNKNOWN_CMD

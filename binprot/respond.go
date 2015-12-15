@@ -126,12 +126,21 @@ func (b BinaryResponder) Get(response common.GetResponse) error {
 }
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
-	header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
-	return writeHeader(header, b.writer)
+	if !response.Quiet {
+		header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
+		return writeHeader(header, b.writer)
+	}
+	return nil
 }
 
-func (b BinaryResponder) GetEnd() error {
-	// no-op since the binary protocol does not have batch gets
+func (b BinaryResponder) GetEnd(noopEnd bool) error {
+	// if Noop was the end of the pipelined batch gets, respond with a Noop header
+	// otherwise, stay quiet as the last get would be a GET and not a GETQ
+	if noopEnd {
+		header := makeSuccessResponseHeader(OPCODE_NOOP, 0, 0, 0, 0)
+		return writeHeader(header, b.writer)
+	}
+
 	return nil
 }
 

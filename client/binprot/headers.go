@@ -19,8 +19,6 @@ import "encoding/binary"
 import "errors"
 import "io"
 
-import "../common"
-
 const Get = 0x00
 const Set = 0x01
 const Add = 0x02
@@ -65,24 +63,7 @@ type req struct {
 	CAS      uint64
 }
 
-func opToCode(op common.Op) int {
-	switch op {
-	case common.GET:
-		return Get
-	case common.SET:
-		return Set
-	case common.TOUCH:
-		return Touch
-	case common.DELETE:
-		return Delete
-	default:
-		return -1
-	}
-}
-
-func writeReq(w io.Writer, op common.Op, keylen, extralen, bodylen int) error {
-	opcode := opToCode(op)
-
+func writeReq(w io.Writer, opcode int, keylen, extralen, bodylen int) error {
 	req := req{
 		Magic:    0x80,
 		Opcode:   uint8(opcode),

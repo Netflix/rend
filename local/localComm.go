@@ -21,6 +21,7 @@ package local
 import "bufio"
 import "encoding/binary"
 import "io"
+import "io/ioutil"
 
 import "../binprot"
 import "../common"
@@ -47,8 +48,8 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byt
 	if err != nil {
 		if err == common.ERROR_KEY_NOT_FOUND {
 			// read in the message "Not found" after a miss
-			garbage := make([]byte, resHeader.TotalBodyLength)
-			_, ioerr := io.ReadFull(localReader, garbage)
+			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+			_, ioerr := io.Copy(ioutil.Discard, lr)
 
 			if ioerr != nil {
 				return nil, common.Metadata{}, ioerr
@@ -110,6 +111,14 @@ func simpleCmdLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
+		if err == common.ERROR_KEY_NOT_FOUND {
+			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+			_, ioerr := io.Copy(ioutil.Discard, lr)
+
+			if ioerr != nil {
+				return ioerr
+			}
+		}
 		return err
 	}
 
@@ -122,7 +131,6 @@ func simpleCmdLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []
 	return nil
 }
 
-// TODO: Batch get
 func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer,
 	cmd []byte, tokenBuf []byte, buf []byte, totalDataLength int) error {
 	_, err := localWriter.Write(cmd)
@@ -139,6 +147,14 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer,
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
+		if err == common.ERROR_KEY_NOT_FOUND {
+			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+			_, ioerr := io.Copy(ioutil.Discard, lr)
+
+			if ioerr != nil {
+				return ioerr
+			}
+		}
 		return err
 	}
 
@@ -160,8 +176,8 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer,
 
 	// consume padding at end of chunk if needed
 	if len(buf) < totalDataLength {
-		garbage := make([]byte, totalDataLength-len(buf))
-		_, err = io.ReadFull(localReader, garbage)
+		lr := io.LimitReader(localReader, int64(totalDataLength-len(buf)))
+		_, err = io.Copy(ioutil.Discard, lr)
 
 		if err != nil {
 			return err

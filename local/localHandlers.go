@@ -137,16 +137,18 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 	defer close(dataOut)
 
 outer:
-	for _, key := range cmd.Keys {
+	for idx, key := range cmd.Keys {
 		_, metaData, err := getMetadata(localReader, localWriter, key)
 		if err != nil {
 			// TODO: Better error management
 			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
-				fmt.Println("Get miss because of missing metadata. Key:", key)
+				//fmt.Println("Get miss because of missing metadata. Key:", key)
 				dataOut <- common.GetResponse{
-					Miss: true,
-					Key:  key,
-					//opaque
+					Miss:     true,
+					Key:      key,
+					Opaque:   cmd.Opaques[idx],
+					Quiet:    cmd.Quiet[idx],
+					Metadata: metaData,
 				}
 				continue outer
 			}
@@ -175,9 +177,11 @@ outer:
 				if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
 					fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
 					dataOut <- common.GetResponse{
-						Miss: true,
-						Key:  key,
-						//opaque
+						Miss:     true,
+						Key:      key,
+						Opaque:   cmd.Opaques[idx],
+						Quiet:    cmd.Quiet[idx],
+						Metadata: metaData,
 					}
 					continue outer
 				}
@@ -191,18 +195,21 @@ outer:
 				fmt.Printf("Expected: %v\n", metaData.Token)
 				fmt.Printf("Got:      %v\n", tokenBuf)
 				dataOut <- common.GetResponse{
-					Miss: true,
-					Key:  key,
-					//opaque
+					Miss:     true,
+					Key:      key,
+					Opaque:   cmd.Opaques[idx],
+					Quiet:    cmd.Quiet[idx],
+					Metadata: metaData,
 				}
 				continue outer
 			}
 		}
 
 		dataOut <- common.GetResponse{
-			Miss: false,
-			Key:  key,
-			// opaque
+			Miss:     false,
+			Key:      key,
+			Opaque:   cmd.Opaques[idx],
+			Quiet:    cmd.Quiet[idx],
 			Metadata: metaData,
 			Data:     dataBuf,
 		}
