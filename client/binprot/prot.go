@@ -44,6 +44,36 @@ func consumeResponse(r io.Reader) error {
 	return err
 }
 
+func consumeBatchResponse(r io.Reader) error {
+	opcode := uint8(0x09)
+	var err error
+	var apperr error
+
+	for opcode != Noop {
+		res, err := readRes(r)
+		if err != nil {
+			return err
+		}
+
+		opcode = res.Opcode
+		apperr = statusToError(res.Status)
+
+		// read body in regardless of the error in the header
+		lr := io.LimitReader(r, int64(res.BodyLen))
+		io.Copy(ioutil.Discard, lr)
+
+		// connection closed
+		if err == io.EOF {
+			return nil
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+	return apperr
+}
+
 func (b BinProt) Set(rw io.ReadWriter, key, value []byte) error {
 	// set packet contains the req header, flags, and expiration
 	// flags are irrelevant, and are thus zero.
@@ -83,8 +113,8 @@ func (b BinProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
 
 	writeReq(rw, Noop, 0, 0, 0)
 
-	// consume all of the response and discard
-	return consumeResponse(rw)
+	// consume all of the responses
+	return consumeBatchResponse(rw)
 }
 
 func (b BinProt) Delete(rw io.ReadWriter, key []byte) error {
