@@ -189,7 +189,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Keys:    [][]byte{key},
 			Opaques: []uint32{reqHeader.OpaqueToken},
 			Quiet:   []bool{false},
-			NoopEnd: false
+			NoopEnd: false,
 		}, common.REQUEST_GET, nil
 
 	case OPCODE_DELETE:
