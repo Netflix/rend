@@ -113,6 +113,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 			Keys:    keys,
 			Opaques: opaques,
 			Quiet:   quiet,
+			NoopEnd: false,
 		}, common.REQUEST_GET, nil
 
 	case "delete":

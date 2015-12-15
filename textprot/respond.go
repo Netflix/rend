@@ -79,7 +79,7 @@ func (t TextResponder) GetMiss(response common.GetResponse) error {
 	return nil
 }
 
-func (t TextResponder) GetEnd() error {
+func (t TextResponder) GetEnd(noopEnd bool) error {
 	_, err := fmt.Fprintf(t.writer, "END\r\n")
 	if err != nil {
 		return err

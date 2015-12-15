@@ -188,6 +188,8 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 		return common.GetRequest{
 			Keys:    [][]byte{key},
 			Opaques: []uint32{reqHeader.OpaqueToken},
+			Quiet:   []bool{false},
+			NoopEnd: false
 		}, common.REQUEST_GET, nil
 
 	case OPCODE_DELETE:
@@ -232,11 +234,11 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	keys := make([][]byte, 0)
 	opaques := make([]uint32, 0)
 	quiet := make([]bool, 0)
+	var noopEnd bool
 
 	// while GETQ
 	// read key, read header
 	for header.Opcode == OPCODE_GETQ {
-		fmt.Println("GETQ")
 		// key
 		key, err := readString(r, header.KeyLength)
 
@@ -257,7 +259,6 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	}
 
 	if header.Opcode == OPCODE_GET {
-		fmt.Println("GET")
 		// key
 		key, err := readString(r, header.KeyLength)
 
@@ -268,9 +269,10 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		keys = append(keys, key)
 		opaques = append(opaques, header.OpaqueToken)
 		quiet = append(quiet, false)
+		noopEnd = false
 	} else if header.Opcode == OPCODE_NOOP {
-		fmt.Println("NOOP")
 		// nothing to do, header is read already
+		noopEnd = true
 	} else {
 		// no idea... this is a problem though.
 		// unexpected patterns shouldn't come over the wire, so maybe it will
@@ -280,6 +282,8 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	return common.GetRequest{
 		Keys:    keys,
 		Opaques: opaques,
+		Quiet:   quiet,
+		NoopEnd: noopEnd,
 	}, nil
 }
 

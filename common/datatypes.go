@@ -70,7 +70,7 @@ type Responder interface {
 	Set() error
 	Get(response GetResponse) error
 	GetMiss(response GetResponse) error
-	GetEnd() error
+	GetEnd(noopEnd bool) error
 	Delete() error
 	Touch() error
 	Error(err error) error
@@ -89,6 +89,7 @@ type GetRequest struct {
 	Keys    [][]byte
 	Opaques []uint32
 	Quiet   []bool
+	NoopEnd bool
 }
 
 type DeleteRequest struct {

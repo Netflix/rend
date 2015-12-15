@@ -26,9 +26,8 @@ import "io"
 import "net"
 import "os"
 import "os/signal"
-
- import "runtime"
- import "strings"
+import "runtime"
+import "strings"
 
 import "./binprot"
 import "./common"
@@ -193,7 +192,8 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			}
 
 		case common.REQUEST_GET:
-			resChan, errChan := local.HandleGet(request.(common.GetRequest), localReader, localWriter)
+			getReq := request.(common.GetRequest)
+			resChan, errChan := local.HandleGet(getReq, localReader, localWriter)
 
 			for {
 				select {
@@ -221,7 +221,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 				}
 			}
 
-			responder.GetEnd()
+			responder.GetEnd(getReq.NoopEnd)
 
 		case common.REQUEST_UNKNOWN:
 			err = common.ERROR_UNKNOWN_CMD
