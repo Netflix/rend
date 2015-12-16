@@ -208,10 +208,10 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			return nil, common.REQUEST_GAT, err
 		}
 
-		return common.GATRequest {
-			Key: key,
+		return common.GATRequest{
+			Key:     key,
 			Exptime: exptime,
-			Opaque: reqHeader.OpaqueToken,
+			Opaque:  reqHeader.OpaqueToken,
 		}, common.REQUEST_GAT, nil
 
 	case OPCODE_DELETE:

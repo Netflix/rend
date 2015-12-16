@@ -37,7 +37,7 @@ func main() {
 	var numCmds int
 	var usedCmds string
 	var protString string
-	
+
 	if f.Binary {
 		var b binprot.BinProt
 		prot = b

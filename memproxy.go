@@ -90,7 +90,7 @@ func identifyPanic() string {
 	var name, file string
 	var line int
 	var pc [16]uintptr
-	
+
 	n := runtime.Callers(3, pc[:])
 	for _, pc := range pc[:n] {
 		fn := runtime.FuncForPC(pc)
@@ -103,7 +103,7 @@ func identifyPanic() string {
 			break
 		}
 	}
-	
+
 	return fmt.Sprintf("%v:%v:%v", file, name, line)
 }
 
