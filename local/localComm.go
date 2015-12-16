@@ -26,22 +26,29 @@ import "io/ioutil"
 import "../binprot"
 import "../common"
 
-func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byte, shouldTouch bool) ([]byte, common.Metadata, error) {
+func getAndTouchMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byte, exptime uint32) ([]byte, common.Metadata, error) {
 	metaKey := metaKey(key)
+	metadata, err := getMetadataCommon(localReader, localWriter, binprot.GATCmd(metaKey, exptime))
+	return metaKey, metadata, err
+}
 
-	// Read in the metadata for number of chunks, chunk size, etc.
-	getCmd := binprot.GetCmd(metaKey, shouldTouch)
+func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byte) ([]byte, common.Metadata, error) {
+	metaKey := metaKey(key)
+	metadata, err := getMetadataCommon(localReader, localWriter, binprot.GetCmd(metaKey))
+	return metaKey, metadata, err
+}
 
+func getMetadataCommon(localReader *bufio.Reader, localWriter *bufio.Writer, getCmd []byte) (common.Metadata, error) {
 	_, err := localWriter.Write(getCmd)
 	if err != nil {
-		return nil, common.Metadata{}, err
+		return common.Metadata{}, err
 	}
 
 	localWriter.Flush()
 
 	resHeader, err := binprot.ReadResponseHeader(localReader)
 	if err != nil {
-		return nil, common.Metadata{}, err
+		return common.Metadata{}, err
 	}
 
 	err = binprot.DecodeError(resHeader)
@@ -52,11 +59,11 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byt
 			_, ioerr := io.Copy(ioutil.Discard, lr)
 
 			if ioerr != nil {
-				return nil, common.Metadata{}, ioerr
+				return common.Metadata{}, ioerr
 			}
 		}
 
-		return nil, common.Metadata{}, err
+		return common.Metadata{}, err
 	}
 
 	serverFlags := make([]byte, 4)
@@ -65,7 +72,7 @@ func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byt
 	var metaData common.Metadata
 	binary.Read(localReader, binary.BigEndian, &metaData)
 
-	return metaKey, metaData, nil
+	return metaData, nil
 }
 
 // TODO: stream data through instead of buffering the entire value
