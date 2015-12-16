@@ -73,6 +73,7 @@ type Responder interface {
 	GetMiss(response GetResponse) error
 	GetEnd(noopEnd bool) error
 	GAT(response GetResponse) error
+	GATMiss(response GetResponse) error
 	Delete() error
 	Touch() error
 	Error(err error) error

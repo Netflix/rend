@@ -144,6 +144,14 @@ func (b BinaryResponder) GAT(response common.GetResponse) error {
 	return getCommon(b.writer, response, OPCODE_GAT)
 }
 
+func (b BinaryResponder) GATMiss(response common.GetResponse) error {
+	if !response.Quiet {
+		header := makeErrorResponseHeader(OPCODE_GAT, int(STATUS_KEY_ENOENT), 0)
+		return writeHeader(header, b.writer)
+	}
+	return nil
+}
+
 func (b BinaryResponder) Delete() error {
 	header := makeSuccessResponseHeader(OPCODE_DELETE, 0, 0, 0, 0)
 	return writeHeader(header, b.writer)

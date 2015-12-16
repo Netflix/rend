@@ -100,6 +100,10 @@ func (t TextResponder) GAT(response common.GetResponse) error {
 	panic("GAT command in text protocol")
 }
 
+func (t TextResponder) GATMiss(response common.GetResponse) error {
+	panic("GAT command in text protocol")
+}
+
 func (t TextResponder) Delete() error {
 	_, err := fmt.Fprintf(t.writer, "DELETED\r\n")
 	if err != nil {

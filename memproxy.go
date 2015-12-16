@@ -226,9 +226,13 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 		case common.REQUEST_GAT:
 			res, err := local.HandleGAT(request.(common.GATRequest), localReader, localWriter)
 
-			if err != nil {
-				responder.GAT(res)
-				responder.GetEnd(false)
+			if err == nil {
+				if res.Miss {
+					responder.GATMiss(res)
+				} else {
+					responder.GAT(res)
+					responder.GetEnd(false)
+				}
 			}
 
 		case common.REQUEST_UNKNOWN:
