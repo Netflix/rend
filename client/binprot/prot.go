@@ -117,6 +117,16 @@ func (b BinProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
 	return consumeBatchResponse(rw)
 }
 
+func (b BinProt) GAT(rw io.ReadWriter, key []byte) error {
+	// Header
+	writeReq(rw, GAT, len(key), 0, len(key))
+	// Body
+	rw.Write(key)
+
+	// consume all of the response and discard
+	return consumeResponse(rw)
+}
+
 func (b BinProt) Delete(rw io.ReadWriter, key []byte) error {
 	// Header
 	writeReq(rw, Delete, len(key), 0, len(key))

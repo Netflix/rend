@@ -175,6 +175,13 @@ func (t TextProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
 	}
 }
 
+
+func (t TextProt) GAT(rw io.ReadWriter, key []byte) error {
+	// Yes, the abstraction is a little bit leaky, but the code
+	// in other places benefits from the consistency.
+	panic("GAT in text protocol")
+}
+
 func (t TextProt) Delete(rw io.ReadWriter, key []byte) error {
 	strKey := string(key)
 	if VERBOSE {

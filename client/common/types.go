@@ -18,8 +18,11 @@ package common
 import "io"
 
 type Prot interface {
+	// Yes, the abstraction is a little bit leaky, but the code
+	// in other places benefits from the consistency.
 	Set(rw io.ReadWriter, key []byte, value []byte) error
 	Get(rw io.ReadWriter, key []byte) error
+	GAT(rw io.ReadWriter, key []byte) error
 	BatchGet(rw io.ReadWriter, keys [][]byte) error
 	Delete(rw io.ReadWriter, key []byte) error
 	Touch(rw io.ReadWriter, key []byte) error
