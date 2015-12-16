@@ -38,15 +38,12 @@ func consumeResponse(r io.Reader) error {
 	if apperr != nil && srsErr(apperr) {
 		return apperr
 	}
-	if err == io.EOF {
-		return nil
-	}
+
 	return err
 }
 
 func consumeBatchResponse(r io.Reader) error {
-	opcode := uint8(0x09)
-	var err error
+	opcode := uint8(Get)
 	var apperr error
 
 	for opcode != Noop {
@@ -61,16 +58,8 @@ func consumeBatchResponse(r io.Reader) error {
 		// read body in regardless of the error in the header
 		lr := io.LimitReader(r, int64(res.BodyLen))
 		io.Copy(ioutil.Discard, lr)
-
-		// connection closed
-		if err == io.EOF {
-			return nil
-		}
 	}
 
-	if err != nil {
-		return err
-	}
 	return apperr
 }
 
