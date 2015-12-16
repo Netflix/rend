@@ -102,27 +102,7 @@ func (b BinaryResponder) Set() error {
 }
 
 func (b BinaryResponder) Get(response common.GetResponse) error {
-	// total body length = extras (flags, 4 bytes) + data length
-	totalBodyLength := len(response.Data) + 4
-	header := makeSuccessResponseHeader(OPCODE_GET, 0, 4, totalBodyLength, 0)
-
-	err := writeHeader(header, b.writer)
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(b.writer, binary.BigEndian, response.Metadata.OrigFlags)
-	if err != nil {
-		return err
-	}
-
-	_, err = b.writer.Write(response.Data)
-	if err != nil {
-		return err
-	}
-
-	b.writer.Flush()
-	return nil
+	return getCommon(b, response, OPCODE_GET)
 }
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
@@ -142,6 +122,10 @@ func (b BinaryResponder) GetEnd(noopEnd bool) error {
 	}
 
 	return nil
+}
+
+func (b BinaryResponder) GAT(response common.GetResponse) error {
+	return getCommon(b, response, OPCODE_GAT)
 }
 
 func (b BinaryResponder) Delete() error {
@@ -175,5 +159,29 @@ func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {
 		return err
 	}
 
+	return nil
+}
+
+func getCommon(b BinaryResponder, response common.GetResponse, opcode int) error {
+	// total body length = extras (flags, 4 bytes) + data length
+	totalBodyLength := len(response.Data) + 4
+	header := makeSuccessResponseHeader(opcode, 0, 4, totalBodyLength, 0)
+
+	err := writeHeader(header, b.writer)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(b.writer, binary.BigEndian, response.Metadata.OrigFlags)
+	if err != nil {
+		return err
+	}
+
+	_, err = b.writer.Write(response.Data)
+	if err != nil {
+		return err
+	}
+
+	b.writer.Flush()
 	return nil
 }

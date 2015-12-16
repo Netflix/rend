@@ -39,9 +39,16 @@ func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
 	//return fmt.Sprintf("set %s 0 %s %d\r\n", key, exptime, size)
 }
 
-func GetCmd(key []byte) []byte {
+func GetCmd(key []byte, shouldTouch bool) []byte {
+	var opcode int
+	if shouldTouch {
+		opcode = OPCODE_GAT
+	} else {
+		opcode = OPCODE_GET
+	}
+
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OPCODE_GET, len(key), 0, len(key))
+	header := MakeRequestHeader(opcode, len(key), 0, len(key))
 
 	reqBuf := new(bytes.Buffer)
 	binary.Write(reqBuf, binary.BigEndian, header)

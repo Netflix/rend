@@ -89,6 +89,17 @@ func (t TextResponder) GetEnd(noopEnd bool) error {
 	return nil
 }
 
+func (t TextResponder) GAT(response common.GetResponse) error {
+	// There's two options here.
+	// 1) panic() because this is never supposed to be called
+	// 2) Respond as a normal get
+	//
+	// I chose to panic, since this means we are in a bad state.
+	// The text parser will never return a GAT command because
+	// it does not exist in the text protocol.
+	panic("GAT command in text protocol")
+}
+
 func (t TextResponder) Delete() error {
 	_, err := fmt.Fprintf(t.writer, "DELETED\r\n")
 	if err != nil {

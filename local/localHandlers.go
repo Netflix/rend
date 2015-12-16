@@ -138,7 +138,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 
 outer:
 	for idx, key := range cmd.Keys {
-		_, metaData, err := getMetadata(localReader, localWriter, key)
+		_, metaData, err := getMetadata(localReader, localWriter, key, false)
 		if err != nil {
 			// TODO: Better error management
 			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
@@ -149,6 +149,7 @@ outer:
 					Opaque:   cmd.Opaques[idx],
 					Quiet:    cmd.Quiet[idx],
 					Metadata: metaData,
+					Data:     nil,
 				}
 				continue outer
 			}
@@ -169,19 +170,20 @@ outer:
 
 			// Get the data directly into our buf
 			chunkBuf := dataBuf[start:end]
-			getCmd := binprot.GetCmd(chunkKey)
+			getCmd := binprot.GetCmd(chunkKey, false)
 			err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
 
 			if err != nil {
 				// TODO: Better error management
 				if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
-					fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
+					//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
 					dataOut <- common.GetResponse{
 						Miss:     true,
 						Key:      key,
 						Opaque:   cmd.Opaques[idx],
 						Quiet:    cmd.Quiet[idx],
 						Metadata: metaData,
+						Data:     nil,
 					}
 					continue outer
 				}
@@ -200,6 +202,7 @@ outer:
 					Opaque:   cmd.Opaques[idx],
 					Quiet:    cmd.Quiet[idx],
 					Metadata: metaData,
+					Data:     nil,
 				}
 				continue outer
 			}
@@ -216,13 +219,90 @@ outer:
 	}
 }
 
+func HandleGAT(cmd common.GATRequest, localReader *bufio.Reader, localWriter *bufio.Writer) (common.GetResponse, error) {
+	_, metaData, err := getMetadata(localReader, localWriter, cmd.Key, true)
+	if err != nil {
+		// TODO: Better error management
+		if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
+			//fmt.Println("Get miss because of missing metadata. Key:", key)
+			return common.GetResponse{
+				Miss:     true,
+				Key:      cmd.Key,
+				Opaque:   cmd.Opaque,
+				Quiet:    false,
+				Metadata: metaData,
+				Data:     nil,
+			}, nil
+		}
+
+		return common.GetResponse{}, err
+	}
+
+	// Retrieve all the data from memcached while touching each segment
+	dataBuf := make([]byte, metaData.Length)
+	tokenBuf := make([]byte, 16)
+
+	for i := 0; i < int(metaData.NumChunks); i++ {
+		chunkKey := chunkKey(cmd.Key, i)
+
+		// indices for slicing, end exclusive
+		start, end := chunkSliceIndices(int(metaData.ChunkSize), i, int(metaData.Length))
+
+		// Get the data directly into our buf
+		chunkBuf := dataBuf[start:end]
+		getCmd := binprot.GetCmd(chunkKey, true)
+		err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
+
+		if err != nil {
+			// TODO: Better error management
+			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
+				fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
+				return common.GetResponse{
+					Miss:     true,
+					Key:      cmd.Key,
+					Opaque:   cmd.Opaque,
+					Quiet:    false,
+					Metadata: metaData,
+					Data:     nil,
+				}, nil
+			}
+
+			return common.GetResponse{}, err
+		}
+
+		if !bytes.Equal(metaData.Token[:], tokenBuf) {
+			fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
+			fmt.Printf("Expected: %v\n", metaData.Token)
+			fmt.Printf("Got:      %v\n", tokenBuf)
+
+			return common.GetResponse{
+				Miss:     true,
+				Key:      cmd.Key,
+				Opaque:   cmd.Opaque,
+				Quiet:    false,
+				Metadata: metaData,
+				Data:     nil,
+			}, nil
+		}
+	}
+
+	return common.GetResponse{
+		Miss:     false,
+		Key:      cmd.Key,
+		Opaque:   cmd.Opaque,
+		Quiet:    false,
+		Metadata: metaData,
+		Data:     dataBuf,
+	}, nil
+}
+
 func HandleDelete(cmd common.DeleteRequest, localReader *bufio.Reader, localWriter *bufio.Writer) error {
 	// read metadata
 	// delete metadata
 	// for 0 to metadata.numChunks
 	//  delete item
 
-	metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
+	metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key, false)
 
 	if err != nil {
 		if err == common.MISS {
@@ -255,7 +335,7 @@ func HandleTouch(cmd common.TouchRequest, localReader *bufio.Reader, localWriter
 	//  touch item
 	// touch metadata
 
-	metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
+	metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key, false)
 
 	if err != nil {
 		if err == common.MISS {

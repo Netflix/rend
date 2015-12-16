@@ -26,11 +26,11 @@ import "io/ioutil"
 import "../binprot"
 import "../common"
 
-func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byte) ([]byte, common.Metadata, error) {
+func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byte, shouldTouch bool) ([]byte, common.Metadata, error) {
 	metaKey := metaKey(key)
 
 	// Read in the metadata for number of chunks, chunk size, etc.
-	getCmd := binprot.GetCmd(metaKey)
+	getCmd := binprot.GetCmd(metaKey, shouldTouch)
 
 	_, err := localWriter.Write(getCmd)
 	if err != nil {
