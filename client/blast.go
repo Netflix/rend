@@ -36,20 +36,23 @@ func main() {
 	var prot common.Prot
 	var numCmds int
 	var usedCmds string
+	var protString string
 	
 	if f.Binary {
 		var b binprot.BinProt
 		prot = b
 		numCmds = 6
 		usedCmds = "get, batch get, get and touch, set, touch, delete"
+		protString = "binary"
 	} else {
 		var t textprot.TextProt
 		prot = t
 		numCmds = 5
 		usedCmds = "get, batch get, set, touch, delete"
+		protString = "text"
 	}
 
-	fmt.Printf("Performing %v operations total\n\twith %v communication goroutines\n\tusing commands %v\n\n", f.NumOps, f.NumWorkers, usedCmds)
+	fmt.Printf("Performing %v operations total with:\n\t%v communication goroutines\n\tcommands %v\n\tover the %v protocol\n\n", f.NumOps, f.NumWorkers, usedCmds, protString)
 
 	tasks := make(chan *common.Task)
 	taskGens := new(sync.WaitGroup)

@@ -40,6 +40,22 @@ import "../common"
 //     Key                 : None
 //     Value        (28-32): The textual string "World"
 
+// Sample GAT response
+// Field        (offset) (value)
+//     Magic        (0)    : 0x81
+//     Opcode       (1)    : 0x1d
+//     Key length   (2,3)  : 0x0000
+//     Extra length (4)    : 0x04
+//     Data type    (5)    : 0x00
+//     Status       (6,7)  : 0x0000
+//     Total body   (8-11) : 0x00000009
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x00000000000001234
+//     Extras              :
+//       Flags      (24-27): 0xdeadbeef
+//     Key                 : None
+//     Value        (28-32): The textual string "World"
+
 // Sample Set response
 // Field        (offset) (value)
 //     Magic        (0)    : 0x81
@@ -102,7 +118,7 @@ func (b BinaryResponder) Set() error {
 }
 
 func (b BinaryResponder) Get(response common.GetResponse) error {
-	return getCommon(b, response, OPCODE_GET)
+	return getCommon(b.writer, response, OPCODE_GET)
 }
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
@@ -125,7 +141,7 @@ func (b BinaryResponder) GetEnd(noopEnd bool) error {
 }
 
 func (b BinaryResponder) GAT(response common.GetResponse) error {
-	return getCommon(b, response, OPCODE_GAT)
+	return getCommon(b.writer, response, OPCODE_GAT)
 }
 
 func (b BinaryResponder) Delete() error {
@@ -162,26 +178,26 @@ func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {
 	return nil
 }
 
-func getCommon(b BinaryResponder, response common.GetResponse, opcode int) error {
+func getCommon(w *bufio.Writer, response common.GetResponse, opcode int) error {
 	// total body length = extras (flags, 4 bytes) + data length
 	totalBodyLength := len(response.Data) + 4
 	header := makeSuccessResponseHeader(opcode, 0, 4, totalBodyLength, 0)
 
-	err := writeHeader(header, b.writer)
+	err := writeHeader(header, w)
 	if err != nil {
 		return err
 	}
 
-	err = binary.Write(b.writer, binary.BigEndian, response.Metadata.OrigFlags)
+	err = binary.Write(w, binary.BigEndian, response.Metadata.OrigFlags)
 	if err != nil {
 		return err
 	}
 
-	_, err = b.writer.Write(response.Data)
+	_, err = w.Write(response.Data)
 	if err != nil {
 		return err
 	}
 
-	b.writer.Flush()
+	w.Flush()
 	return nil
 }

@@ -119,7 +119,7 @@ func (b BinProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
 
 func (b BinProt) GAT(rw io.ReadWriter, key []byte) error {
 	// Header
-	writeReq(rw, GAT, len(key), 0, len(key))
+	writeReq(rw, GAT, len(key), 4, len(key))
 	// Extras
 	binary.Write(rw, binary.BigEndian, common.Exp())
 	// Body
