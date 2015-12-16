@@ -53,14 +53,12 @@ func getMetadataCommon(localReader *bufio.Reader, localWriter *bufio.Writer, get
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		if err == common.ERROR_KEY_NOT_FOUND {
-			// read in the message "Not found" after a miss
-			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-			_, ioerr := io.Copy(ioutil.Discard, lr)
+		// read in the message "Not found" after a miss
+		lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+		_, ioerr := io.Copy(ioutil.Discard, lr)
 
-			if ioerr != nil {
-				return common.Metadata{}, ioerr
-			}
+		if ioerr != nil {
+			return common.Metadata{}, ioerr
 		}
 
 		return common.Metadata{}, err
@@ -118,13 +116,11 @@ func simpleCmdLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		if err == common.ERROR_KEY_NOT_FOUND {
-			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-			_, ioerr := io.Copy(ioutil.Discard, lr)
+		lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+		_, ioerr := io.Copy(ioutil.Discard, lr)
 
-			if ioerr != nil {
-				return ioerr
-			}
+		if ioerr != nil {
+			return ioerr
 		}
 		return err
 	}
@@ -154,13 +150,11 @@ func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer,
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		if err == common.ERROR_KEY_NOT_FOUND {
-			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-			_, ioerr := io.Copy(ioutil.Discard, lr)
+		lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+		_, ioerr := io.Copy(ioutil.Discard, lr)
 
-			if ioerr != nil {
-				return ioerr
-			}
+		if ioerr != nil {
+			return ioerr
 		}
 		return err
 	}

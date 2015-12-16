@@ -22,6 +22,8 @@ import "bufio"
 import "bytes"
 import "encoding/binary"
 import "fmt"
+import "io"
+import "io/ioutil"
 import "math"
 
 import "../binprot"
@@ -34,18 +36,18 @@ import "../stream"
 const CHUNK_SIZE = 1024 - 16
 const FULL_DATA_SIZE = 1024
 
-func consumeResponseHeader(localReader *bufio.Reader) error {
+func readResponseHeader(localReader *bufio.Reader) (binprot.ResponseHeader, error) {
 	resHeader, err := binprot.ReadResponseHeader(localReader)
 	if err != nil {
-		return err
+		return binprot.ResponseHeader{}, err
 	}
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		return err
+		return resHeader, err
 	}
 
-	return nil
+	return resHeader, nil
 }
 
 func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
@@ -82,8 +84,24 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
 	}
 
 	// Read server's response
-	err = consumeResponseHeader(localReader)
+	resHeader, err := readResponseHeader(localReader)
 	if err != nil {
+		// Discard request body
+		lr := io.LimitReader(remoteReader, int64(cmd.Length))
+		_, ioerr := io.Copy(ioutil.Discard, lr)
+
+		if ioerr != nil {
+			return ioerr
+		}
+
+		// Discard response body
+		lr = io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+		_, ioerr = io.Copy(ioutil.Discard, lr)
+
+		if ioerr != nil {
+			return ioerr
+		}
+
 		return err
 	}
 
@@ -104,8 +122,27 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
 		}
 
 		// Read server's response
-		err := consumeResponseHeader(localReader)
+		resHeader, err = readResponseHeader(localReader)
 		if err != nil {
+			// Discard request body
+			for limRemoteReader.More() {
+				_, ioerr := io.Copy(ioutil.Discard, limRemoteReader)
+
+				if ioerr != nil {
+					return ioerr
+				}
+
+				limRemoteReader.NextChunk()
+			}
+
+			// Discard repsonse body
+			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+			_, ioerr := io.Copy(ioutil.Discard, lr)
+
+			if ioerr != nil {
+				return ioerr
+			}
+
 			return err
 		}
 
