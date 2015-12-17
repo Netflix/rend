@@ -28,7 +28,7 @@ So what was the solution? Take the incoming data and split it into fixed-size ch
  * `memcached ^1.4.24`
  * `go ^1.5.1`
 
-In order to use the proxy, it is required to have a memcached running on the local machine. THe recommended version is the latest version, currently 1.4.25. This version has the full set of features used by the proxy as well as a bunch of performance and stability improvements. It is the same one we use at Netflix for production use cases. The version that ships with Mac OSX does not work. You can see installation instructions for memcached 
+In order to use the proxy, it is required to have a memcached running on the local machine. The recommended version is the latest version, currently 1.4.25. This version has the full set of features used by the proxy as well as a bunch of performance and stability improvements. It is the same one we use at Netflix for production use cases. The version that ships with Mac OSX does not work. You can see installation instructions for memcached.
 
 As well, to build Rend a working Go distribution is required. The latest Go version (1.5.1) is used for development. Thanks to the Go 1.0 [compatibility promise](https://golang.org/doc/go1compat), it should be able to be compiled and run on earlier versions, though we do not use or test versions earlier than 1.5.1. The garbage collection improvements in 1.5 help latency numbers, which is why we don't test on older versions.
 
