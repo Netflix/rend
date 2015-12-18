@@ -18,6 +18,7 @@ package main
 import "fmt"
 import "io"
 import "math/rand"
+import "net"
 import "sync"
 import "time"
 
@@ -126,23 +127,23 @@ func taskValue(cmd string) []byte {
 	return nil
 }
 
-func communicator(prot common.Prot, rw io.ReadWriter, tasks <-chan *common.Task, comms *sync.WaitGroup) {
+func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, comms *sync.WaitGroup) {
 	for item := range tasks {
 		var err error
 
 		switch item.Cmd {
 		case "set":
-			err = prot.Set(rw, item.Key, item.Value)
+			err = prot.Set(conn, item.Key, item.Value)
 		case "get":
-			err = prot.Get(rw, item.Key)
+			err = prot.Get(conn, item.Key)
 		case "gat":
-			err = prot.GAT(rw, item.Key)
+			err = prot.GAT(conn, item.Key)
 		case "bget":
-			err = prot.BatchGet(rw, batchkeys(item.Key))
+			err = prot.BatchGet(conn, batchkeys(item.Key))
 		case "delete":
-			err = prot.Delete(rw, item.Key)
+			err = prot.Delete(conn, item.Key)
 		case "touch":
-			err = prot.Touch(rw, item.Key)
+			err = prot.Touch(conn, item.Key)
 		}
 
 		if err != nil {
@@ -156,8 +157,8 @@ func communicator(prot common.Prot, rw io.ReadWriter, tasks <-chan *common.Task,
 		}
 	}
 
+	conn.Close()
 	fmt.Println("comm done")
-
 	comms.Done()
 }
 
