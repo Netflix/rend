@@ -53,6 +53,21 @@ func GetCmd(key []byte) []byte {
 	//return fmt.Sprintf("get %s\r\n", key)
 }
 
+func GATCmd(key []byte, exptime uint32) []byte {
+	// opcode, keyLength, extraLength, totalBodyLength
+	header := MakeRequestHeader(OPCODE_GAT, len(key), 4, len(key))
+
+	reqBuf := new(bytes.Buffer)
+	binary.Write(reqBuf, binary.BigEndian, header)
+
+	binary.Write(reqBuf, binary.BigEndian, exptime)
+	binary.Write(reqBuf, binary.BigEndian, key)
+
+	return reqBuf.Bytes()
+
+	//return fmt.Sprintf("get %s\r\n", key)
+}
+
 func DeleteCmd(key []byte) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OPCODE_DELETE, len(key), 0, len(key))

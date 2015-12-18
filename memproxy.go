@@ -90,7 +90,7 @@ func identifyPanic() string {
 	var name, file string
 	var line int
 	var pc [16]uintptr
-	
+
 	n := runtime.Callers(3, pc[:])
 	for _, pc := range pc[:n] {
 		fn := runtime.FuncForPC(pc)
@@ -103,7 +103,7 @@ func identifyPanic() string {
 			break
 		}
 	}
-	
+
 	return fmt.Sprintf("%v:%v:%v", file, name, line)
 }
 
@@ -222,6 +222,18 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			}
 
 			responder.GetEnd(getReq.NoopEnd)
+
+		case common.REQUEST_GAT:
+			res, err := local.HandleGAT(request.(common.GATRequest), localReader, localWriter)
+
+			if err == nil {
+				if res.Miss {
+					responder.GATMiss(res)
+				} else {
+					responder.GAT(res)
+					responder.GetEnd(false)
+				}
+			}
 
 		case common.REQUEST_UNKNOWN:
 			err = common.ERROR_UNKNOWN_CMD

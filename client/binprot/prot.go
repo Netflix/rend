@@ -38,15 +38,12 @@ func consumeResponse(r io.Reader) error {
 	if apperr != nil && srsErr(apperr) {
 		return apperr
 	}
-	if err == io.EOF {
-		return nil
-	}
+
 	return err
 }
 
 func consumeBatchResponse(r io.Reader) error {
-	opcode := uint8(0x09)
-	var err error
+	opcode := uint8(Get)
 	var apperr error
 
 	for opcode != Noop {
@@ -61,16 +58,8 @@ func consumeBatchResponse(r io.Reader) error {
 		// read body in regardless of the error in the header
 		lr := io.LimitReader(r, int64(res.BodyLen))
 		io.Copy(ioutil.Discard, lr)
-
-		// connection closed
-		if err == io.EOF {
-			return nil
-		}
 	}
 
-	if err != nil {
-		return err
-	}
 	return apperr
 }
 
@@ -115,6 +104,18 @@ func (b BinProt) BatchGet(rw io.ReadWriter, keys [][]byte) error {
 
 	// consume all of the responses
 	return consumeBatchResponse(rw)
+}
+
+func (b BinProt) GAT(rw io.ReadWriter, key []byte) error {
+	// Header
+	writeReq(rw, GAT, len(key), 4, len(key))
+	// Extras
+	binary.Write(rw, binary.BigEndian, common.Exp())
+	// Body
+	rw.Write(key)
+
+	// consume all of the response and discard
+	return consumeResponse(rw)
 }
 
 func (b BinProt) Delete(rw io.ReadWriter, key []byte) error {

@@ -22,6 +22,8 @@ import "bufio"
 import "bytes"
 import "encoding/binary"
 import "fmt"
+import "io"
+import "io/ioutil"
 import "math"
 
 import "../binprot"
@@ -34,18 +36,18 @@ import "../stream"
 const CHUNK_SIZE = 1024 - 16
 const FULL_DATA_SIZE = 1024
 
-func consumeResponseHeader(localReader *bufio.Reader) error {
+func readResponseHeader(localReader *bufio.Reader) (binprot.ResponseHeader, error) {
 	resHeader, err := binprot.ReadResponseHeader(localReader)
 	if err != nil {
-		return err
+		return binprot.ResponseHeader{}, err
 	}
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		return err
+		return resHeader, err
 	}
 
-	return nil
+	return resHeader, nil
 }
 
 func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
@@ -82,8 +84,24 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
 	}
 
 	// Read server's response
-	err = consumeResponseHeader(localReader)
+	resHeader, err := readResponseHeader(localReader)
 	if err != nil {
+		// Discard request body
+		lr := io.LimitReader(remoteReader, int64(cmd.Length))
+		_, ioerr := io.Copy(ioutil.Discard, lr)
+
+		if ioerr != nil {
+			return ioerr
+		}
+
+		// Discard response body
+		lr = io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+		_, ioerr = io.Copy(ioutil.Discard, lr)
+
+		if ioerr != nil {
+			return ioerr
+		}
+
 		return err
 	}
 
@@ -104,8 +122,27 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
 		}
 
 		// Read server's response
-		err := consumeResponseHeader(localReader)
+		resHeader, err = readResponseHeader(localReader)
 		if err != nil {
+			// Discard request body
+			for limRemoteReader.More() {
+				_, ioerr := io.Copy(ioutil.Discard, limRemoteReader)
+
+				if ioerr != nil {
+					return ioerr
+				}
+
+				limRemoteReader.NextChunk()
+			}
+
+			// Discard repsonse body
+			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
+			_, ioerr := io.Copy(ioutil.Discard, lr)
+
+			if ioerr != nil {
+				return ioerr
+			}
+
 			return err
 		}
 
@@ -149,6 +186,7 @@ outer:
 					Opaque:   cmd.Opaques[idx],
 					Quiet:    cmd.Quiet[idx],
 					Metadata: metaData,
+					Data:     nil,
 				}
 				continue outer
 			}
@@ -175,13 +213,14 @@ outer:
 			if err != nil {
 				// TODO: Better error management
 				if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
-					fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
+					//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
 					dataOut <- common.GetResponse{
 						Miss:     true,
 						Key:      key,
 						Opaque:   cmd.Opaques[idx],
 						Quiet:    cmd.Quiet[idx],
 						Metadata: metaData,
+						Data:     nil,
 					}
 					continue outer
 				}
@@ -200,6 +239,7 @@ outer:
 					Opaque:   cmd.Opaques[idx],
 					Quiet:    cmd.Quiet[idx],
 					Metadata: metaData,
+					Data:     nil,
 				}
 				continue outer
 			}
@@ -214,6 +254,83 @@ outer:
 			Data:     dataBuf,
 		}
 	}
+}
+
+func HandleGAT(cmd common.GATRequest, localReader *bufio.Reader, localWriter *bufio.Writer) (common.GetResponse, error) {
+	_, metaData, err := getAndTouchMetadata(localReader, localWriter, cmd.Key, cmd.Exptime)
+	if err != nil {
+		// TODO: Better error management
+		if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
+			//fmt.Println("Get miss because of missing metadata. Key:", key)
+			return common.GetResponse{
+				Miss:     true,
+				Key:      cmd.Key,
+				Opaque:   cmd.Opaque,
+				Quiet:    false,
+				Metadata: metaData,
+				Data:     nil,
+			}, nil
+		}
+
+		return common.GetResponse{}, err
+	}
+
+	// Retrieve all the data from memcached while touching each segment
+	dataBuf := make([]byte, metaData.Length)
+	tokenBuf := make([]byte, 16)
+
+	for i := 0; i < int(metaData.NumChunks); i++ {
+		chunkKey := chunkKey(cmd.Key, i)
+
+		// indices for slicing, end exclusive
+		start, end := chunkSliceIndices(int(metaData.ChunkSize), i, int(metaData.Length))
+
+		// Get the data directly into our buf
+		chunkBuf := dataBuf[start:end]
+		getCmd := binprot.GATCmd(chunkKey, cmd.Exptime)
+		err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
+
+		if err != nil {
+			// TODO: Better error management
+			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
+				//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
+				return common.GetResponse{
+					Miss:     true,
+					Key:      cmd.Key,
+					Opaque:   cmd.Opaque,
+					Quiet:    false,
+					Metadata: metaData,
+					Data:     nil,
+				}, nil
+			}
+
+			return common.GetResponse{}, err
+		}
+
+		if !bytes.Equal(metaData.Token[:], tokenBuf) {
+			fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
+			fmt.Printf("Expected: %v\n", metaData.Token)
+			fmt.Printf("Got:      %v\n", tokenBuf)
+
+			return common.GetResponse{
+				Miss:     true,
+				Key:      cmd.Key,
+				Opaque:   cmd.Opaque,
+				Quiet:    false,
+				Metadata: metaData,
+				Data:     nil,
+			}, nil
+		}
+	}
+
+	return common.GetResponse{
+		Miss:     false,
+		Key:      cmd.Key,
+		Opaque:   cmd.Opaque,
+		Quiet:    false,
+		Metadata: metaData,
+		Data:     dataBuf,
+	}, nil
 }
 
 func HandleDelete(cmd common.DeleteRequest, localReader *bufio.Reader, localWriter *bufio.Writer) error {

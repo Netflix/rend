@@ -57,6 +57,7 @@ const (
 	REQUEST_UNKNOWN = iota
 	REQUEST_GET
 	REQUEST_GETQ
+	REQUEST_GAT
 	REQUEST_SET
 	REQUEST_DELETE
 	REQUEST_TOUCH
@@ -71,6 +72,8 @@ type Responder interface {
 	Get(response GetResponse) error
 	GetMiss(response GetResponse) error
 	GetEnd(noopEnd bool) error
+	GAT(response GetResponse) error
+	GATMiss(response GetResponse) error
 	Delete() error
 	Touch() error
 	Error(err error) error
@@ -98,6 +101,12 @@ type DeleteRequest struct {
 }
 
 type TouchRequest struct {
+	Key     []byte
+	Exptime uint32
+	Opaque  uint32
+}
+
+type GATRequest struct {
 	Key     []byte
 	Exptime uint32
 	Opaque  uint32

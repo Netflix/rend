@@ -34,31 +34,45 @@ func init() {
 
 func main() {
 	var prot common.Prot
+	var numCmds int
+	var usedCmds string
+	var protString string
+
 	if f.Binary {
 		var b binprot.BinProt
 		prot = b
+		numCmds = 6
+		usedCmds = "get, batch get, get and touch, set, touch, delete"
+		protString = "binary"
 	} else {
 		var t textprot.TextProt
 		prot = t
+		numCmds = 5
+		usedCmds = "get, batch get, set, touch, delete"
+		protString = "text"
 	}
 
-	fmt.Printf("Performing %v operations total, with %v communication goroutines\n", f.NumOps, f.NumWorkers)
+	fmt.Printf("Performing %v operations total with:\n\t%v communication goroutines\n\tcommands %v\n\tover the %v protocol\n\n", f.NumOps, f.NumWorkers, usedCmds, protString)
 
 	tasks := make(chan *common.Task)
 	taskGens := new(sync.WaitGroup)
 	comms := new(sync.WaitGroup)
 
 	// TODO: Better math
-	opsPerTask := f.NumOps / 5 / f.NumWorkers
+	opsPerTask := f.NumOps / numCmds / f.NumWorkers
 
 	// spawn task generators
 	for i := 0; i < f.NumWorkers; i++ {
-		taskGens.Add(5)
+		taskGens.Add(numCmds)
 		go cmdGenerator(tasks, taskGens, opsPerTask, "set")
 		go cmdGenerator(tasks, taskGens, opsPerTask, "get")
 		go cmdGenerator(tasks, taskGens, opsPerTask, "bget")
 		go cmdGenerator(tasks, taskGens, opsPerTask, "delete")
 		go cmdGenerator(tasks, taskGens, opsPerTask, "touch")
+
+		if f.Binary {
+			go cmdGenerator(tasks, taskGens, opsPerTask, "gat")
+		}
 	}
 
 	// spawn communicators
@@ -121,6 +135,8 @@ func communicator(prot common.Prot, rw io.ReadWriter, tasks <-chan *common.Task,
 			err = prot.Set(rw, item.Key, item.Value)
 		case "get":
 			err = prot.Get(rw, item.Key)
+		case "gat":
+			err = prot.GAT(rw, item.Key)
 		case "bget":
 			err = prot.BatchGet(rw, batchkeys(item.Key))
 		case "delete":

@@ -192,6 +192,28 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			NoopEnd: false,
 		}, common.REQUEST_GET, nil
 
+	case OPCODE_GAT:
+		// exptime, key
+		exptime, err := readUInt32(b.reader)
+
+		if err != nil {
+			fmt.Println("Error reading exptime")
+			return nil, common.REQUEST_GAT, err
+		}
+
+		key, err := readString(b.reader, reqHeader.KeyLength)
+
+		if err != nil {
+			fmt.Println("Error reading key")
+			return nil, common.REQUEST_GAT, err
+		}
+
+		return common.GATRequest{
+			Key:     key,
+			Exptime: exptime,
+			Opaque:  reqHeader.OpaqueToken,
+		}, common.REQUEST_GAT, nil
+
 	case OPCODE_DELETE:
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
