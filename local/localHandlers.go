@@ -36,8 +36,8 @@ import "../stream"
 const CHUNK_SIZE = 1024 - 16
 const FULL_DATA_SIZE = 1024
 
-func readResponseHeader(localReader *bufio.Reader) (binprot.ResponseHeader, error) {
-	resHeader, err := binprot.ReadResponseHeader(localReader)
+func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
+	resHeader, err := binprot.ReadResponseHeader(r)
 	if err != nil {
 		return binprot.ResponseHeader{}, err
 	}
@@ -50,16 +50,12 @@ func readResponseHeader(localReader *bufio.Reader) (binprot.ResponseHeader, erro
 	return resHeader, nil
 }
 
-func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *bufio.Reader, localWriter *bufio.Writer) error {
-	// Read in the data from the remote connection
-	//buf := make([]byte, cmd.Length)
-	//_, err := io.ReadFull(remoteReader, buf)
-
+func HandleSet(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) error {
 	// For writing chunks, the specialized chunked reader is appropriate.
 	// for unchunked, a limited reader will be needed since the text protocol
-	// includes a /r/n at the end and there's no EOF to be had with a long-lived
+	// includes a /r/n at the end and there's no EOF to be had with a long-l`ived
 	// connection.
-	limRemoteReader := stream.ChunkLimitReader(remoteReader, int64(CHUNK_SIZE), int64(cmd.Length))
+	limChunkReader := stream.NewChunkLimitedReader(src, int64(CHUNK_SIZE), int64(cmd.Length))
 	numChunks := int(math.Ceil(float64(cmd.Length) / float64(CHUNK_SIZE)))
 	token := <-tokens
 
@@ -78,27 +74,21 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
 	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, common.METADATA_SIZE)
-	err := setLocal(localWriter, localCmd, nil, metaDataBuf)
+	err := setLocal(rw.Writer, localCmd, nil, metaDataBuf)
 	if err != nil {
 		return err
 	}
 
 	// Read server's response
-	resHeader, err := readResponseHeader(localReader)
+	resHeader, err := readResponseHeader(rw.Reader)
 	if err != nil {
 		// Discard request body
-		lr := io.LimitReader(remoteReader, int64(cmd.Length))
-		_, ioerr := io.Copy(ioutil.Discard, lr)
-
-		if ioerr != nil {
+		if _, ioerr := src.Discard(int(cmd.Length)); ioerr != nil {
 			return ioerr
 		}
 
 		// Discard response body
-		lr = io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-		_, ioerr = io.Copy(ioutil.Discard, lr)
-
-		if ioerr != nil {
+		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 			return ioerr
 		}
 
@@ -110,36 +100,33 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
 	// Failure can mean the write failing at the I/O level
 	// or at the memcached level, e.g. response == ERROR
 	chunkNum := 0
-	for limRemoteReader.More() {
+	for limChunkReader.More() {
 		// Build this chunk's key
 		key := chunkKey(cmd.Key, chunkNum)
 
 		// Write the key
 		localCmd = binprot.SetCmd(key, cmd.Flags, cmd.Exptime, FULL_DATA_SIZE)
-		err = setLocal(localWriter, localCmd, token, limRemoteReader)
+		err = setLocal(rw.Writer, localCmd, token, limChunkReader)
 		if err != nil {
 			return err
 		}
 
 		// Read server's response
-		resHeader, err = readResponseHeader(localReader)
+		resHeader, err = readResponseHeader(rw.Reader)
 		if err != nil {
 			// Discard request body
-			for limRemoteReader.More() {
-				_, ioerr := io.Copy(ioutil.Discard, limRemoteReader)
+			for limChunkReader.More() {
+				_, ioerr := io.Copy(ioutil.Discard, limChunkReader)
 
 				if ioerr != nil {
 					return ioerr
 				}
 
-				limRemoteReader.NextChunk()
+				limChunkReader.NextChunk()
 			}
 
 			// Discard repsonse body
-			lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-			_, ioerr := io.Copy(ioutil.Discard, lr)
-
-			if ioerr != nil {
+			if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 				return ioerr
 			}
 
@@ -147,23 +134,22 @@ func HandleSet(cmd common.SetRequest, remoteReader *bufio.Reader, localReader *b
 		}
 
 		// Reset for next iteration
-		limRemoteReader.NextChunk()
+		limChunkReader.NextChunk()
 		chunkNum++
 	}
 
 	return nil
 }
 
-func HandleGet(cmd common.GetRequest, localReader *bufio.Reader, localWriter *bufio.Writer) (chan common.GetResponse, chan error) {
+func HandleGet(cmd common.GetRequest, rw *bufio.ReadWriter) (chan common.GetResponse, chan error) {
 	// No buffering here so there's not multiple gets in memory
 	dataOut := make(chan common.GetResponse)
 	errorOut := make(chan error)
-	go realHandleGet(cmd, dataOut, errorOut, localReader, localWriter)
+	go realHandleGet(cmd, dataOut, errorOut, rw)
 	return dataOut, errorOut
 }
 
-func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error,
-	localReader *bufio.Reader, localWriter *bufio.Writer) {
+func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error, rw *bufio.ReadWriter) {
 	// read index
 	// make buf
 	// for numChunks do
@@ -175,7 +161,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 
 outer:
 	for idx, key := range cmd.Keys {
-		_, metaData, err := getMetadata(localReader, localWriter, key)
+		_, metaData, err := getMetadata(rw, key)
 		if err != nil {
 			// TODO: Better error management
 			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
@@ -208,7 +194,7 @@ outer:
 			// Get the data directly into our buf
 			chunkBuf := dataBuf[start:end]
 			getCmd := binprot.GetCmd(chunkKey)
-			err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
+			err = getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
 
 			if err != nil {
 				// TODO: Better error management
@@ -256,8 +242,8 @@ outer:
 	}
 }
 
-func HandleGAT(cmd common.GATRequest, localReader *bufio.Reader, localWriter *bufio.Writer) (common.GetResponse, error) {
-	_, metaData, err := getAndTouchMetadata(localReader, localWriter, cmd.Key, cmd.Exptime)
+func HandleGAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse, error) {
+	_, metaData, err := getAndTouchMetadata(rw, cmd.Key, cmd.Exptime)
 	if err != nil {
 		// TODO: Better error management
 		if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
@@ -288,7 +274,7 @@ func HandleGAT(cmd common.GATRequest, localReader *bufio.Reader, localWriter *bu
 		// Get the data directly into our buf
 		chunkBuf := dataBuf[start:end]
 		getCmd := binprot.GATCmd(chunkKey, cmd.Exptime)
-		err = getLocalIntoBuf(localReader, localWriter, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
+		err = getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
 
 		if err != nil {
 			// TODO: Better error management
@@ -333,13 +319,13 @@ func HandleGAT(cmd common.GATRequest, localReader *bufio.Reader, localWriter *bu
 	}, nil
 }
 
-func HandleDelete(cmd common.DeleteRequest, localReader *bufio.Reader, localWriter *bufio.Writer) error {
+func HandleDelete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
 	// read metadata
 	// delete metadata
 	// for 0 to metadata.numChunks
 	//  delete item
 
-	metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
+	metaKey, metaData, err := getMetadata(rw, cmd.Key)
 
 	if err != nil {
 		if err == common.MISS {
@@ -349,7 +335,7 @@ func HandleDelete(cmd common.DeleteRequest, localReader *bufio.Reader, localWrit
 	}
 
 	deleteCmd := binprot.DeleteCmd(metaKey)
-	err = simpleCmdLocal(localReader, localWriter, deleteCmd)
+	err = simpleCmdLocal(rw, deleteCmd)
 	if err != nil {
 		return err
 	}
@@ -357,7 +343,7 @@ func HandleDelete(cmd common.DeleteRequest, localReader *bufio.Reader, localWrit
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
 		deleteCmd = binprot.DeleteCmd(chunkKey)
-		err := simpleCmdLocal(localReader, localWriter, deleteCmd)
+		err := simpleCmdLocal(rw, deleteCmd)
 		if err != nil {
 			return err
 		}
@@ -366,13 +352,13 @@ func HandleDelete(cmd common.DeleteRequest, localReader *bufio.Reader, localWrit
 	return nil
 }
 
-func HandleTouch(cmd common.TouchRequest, localReader *bufio.Reader, localWriter *bufio.Writer) error {
+func HandleTouch(cmd common.TouchRequest, rw *bufio.ReadWriter) error {
 	// read metadata
 	// for 0 to metadata.numChunks
 	//  touch item
 	// touch metadata
 
-	metaKey, metaData, err := getMetadata(localReader, localWriter, cmd.Key)
+	metaKey, metaData, err := getMetadata(rw, cmd.Key)
 
 	if err != nil {
 		if err == common.MISS {
@@ -386,14 +372,14 @@ func HandleTouch(cmd common.TouchRequest, localReader *bufio.Reader, localWriter
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
 		touchCmd := binprot.TouchCmd(chunkKey, cmd.Exptime)
-		err := simpleCmdLocal(localReader, localWriter, touchCmd)
+		err := simpleCmdLocal(rw, touchCmd)
 		if err != nil {
 			return err
 		}
 	}
 
 	touchCmd := binprot.TouchCmd(metaKey, cmd.Exptime)
-	err = simpleCmdLocal(localReader, localWriter, touchCmd)
+	err = simpleCmdLocal(rw, touchCmd)
 	if err != nil {
 		return err
 	}

@@ -21,32 +21,31 @@ package local
 import "bufio"
 import "encoding/binary"
 import "io"
-import "io/ioutil"
 
 import "../binprot"
 import "../common"
 
-func getAndTouchMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byte, exptime uint32) ([]byte, common.Metadata, error) {
+func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, common.Metadata, error) {
 	metaKey := metaKey(key)
-	metadata, err := getMetadataCommon(localReader, localWriter, binprot.GATCmd(metaKey, exptime))
+	metadata, err := getMetadataCommon(rw, binprot.GATCmd(metaKey, exptime))
 	return metaKey, metadata, err
 }
 
-func getMetadata(localReader *bufio.Reader, localWriter *bufio.Writer, key []byte) ([]byte, common.Metadata, error) {
+func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, common.Metadata, error) {
 	metaKey := metaKey(key)
-	metadata, err := getMetadataCommon(localReader, localWriter, binprot.GetCmd(metaKey))
+	metadata, err := getMetadataCommon(rw, binprot.GetCmd(metaKey))
 	return metaKey, metadata, err
 }
 
-func getMetadataCommon(localReader *bufio.Reader, localWriter *bufio.Writer, getCmd []byte) (common.Metadata, error) {
-	_, err := localWriter.Write(getCmd)
+func getMetadataCommon(rw *bufio.ReadWriter, getCmd []byte) (common.Metadata, error) {
+	_, err := rw.Write(getCmd)
 	if err != nil {
 		return common.Metadata{}, err
 	}
 
-	localWriter.Flush()
+	rw.Flush()
 
-	resHeader, err := binprot.ReadResponseHeader(localReader)
+	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
 		return common.Metadata{}, err
 	}
@@ -54,79 +53,71 @@ func getMetadataCommon(localReader *bufio.Reader, localWriter *bufio.Writer, get
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
 		// read in the message "Not found" after a miss
-		lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-		_, ioerr := io.Copy(ioutil.Discard, lr)
-
-		if ioerr != nil {
+		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 			return common.Metadata{}, ioerr
 		}
-
 		return common.Metadata{}, err
 	}
 
 	serverFlags := make([]byte, 4)
-	binary.Read(localReader, binary.BigEndian, &serverFlags)
+	binary.Read(rw, binary.BigEndian, &serverFlags)
 
 	var metaData common.Metadata
-	binary.Read(localReader, binary.BigEndian, &metaData)
+	binary.Read(rw, binary.BigEndian, &metaData)
 
 	return metaData, nil
 }
 
-// TODO: stream data through instead of buffering the entire value
-func setLocal(localWriter *bufio.Writer, cmd []byte, token *[16]byte, data io.Reader) error {
-	_, err := localWriter.Write(cmd)
+func setLocal(w *bufio.Writer, cmd []byte, token *[16]byte, data io.Reader) error {
+	_, err := w.Write(cmd)
 	if err != nil {
 		return err
 	}
 
 	// Write a token if there is one
 	if token != nil {
-		_, err = localWriter.Write(token[:])
+		_, err = w.Write(token[:])
 		if err != nil {
 			return err
 		}
 	}
 
 	// Write value
-	_, err = io.Copy(localWriter, data)
+	_, err = io.Copy(w, data)
 	if err != nil {
 		return err
 	}
 
-	localWriter.Flush()
+	w.Flush()
 	return nil
 }
 
-func simpleCmdLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []byte) error {
-	_, err := localWriter.Write(cmd)
+func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
+	_, err := rw.Write(cmd)
 	if err != nil {
 		return err
 	}
 
-	err = localWriter.Flush()
+	err = rw.Flush()
 	if err != nil {
 		return err
 	}
 
-	resHeader, err := binprot.ReadResponseHeader(localReader)
+	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
 		return err
 	}
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-		_, ioerr := io.Copy(ioutil.Discard, lr)
-
-		if ioerr != nil {
+		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 			return ioerr
 		}
 		return err
 	}
 
 	// Read in the message bytes from the body
-	localReader.Discard(int(resHeader.TotalBodyLength))
+	rw.Discard(int(resHeader.TotalBodyLength))
 	if err != nil {
 		return err
 	}
@@ -134,54 +125,47 @@ func simpleCmdLocal(localReader *bufio.Reader, localWriter *bufio.Writer, cmd []
 	return nil
 }
 
-func getLocalIntoBuf(localReader *bufio.Reader, localWriter *bufio.Writer,
-	cmd []byte, tokenBuf []byte, buf []byte, totalDataLength int) error {
-	_, err := localWriter.Write(cmd)
+func getLocalIntoBuf(rw *bufio.ReadWriter, cmd []byte, tokenBuf []byte, buf []byte, totalDataLength int) error {
+	_, err := rw.Write(cmd)
 	if err != nil {
 		return err
 	}
 
-	localWriter.Flush()
+	rw.Flush()
 
-	resHeader, err := binprot.ReadResponseHeader(localReader)
+	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
 		return err
 	}
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		lr := io.LimitReader(localReader, int64(resHeader.TotalBodyLength))
-		_, ioerr := io.Copy(ioutil.Discard, lr)
-
-		if ioerr != nil {
+		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 			return ioerr
 		}
 		return err
 	}
 
 	serverFlags := make([]byte, 4)
-	binary.Read(localReader, binary.BigEndian, &serverFlags)
+	binary.Read(rw, binary.BigEndian, &serverFlags)
 
 	// Read in token if requested
 	if tokenBuf != nil {
-		_, err := io.ReadFull(localReader, tokenBuf)
+		_, err := io.ReadFull(rw, tokenBuf)
 		if err != nil {
 			return err
 		}
 	}
 
 	// Read in value
-	if _, err := io.ReadFull(localReader, buf); err != nil {
+	if _, err := io.ReadFull(rw, buf); err != nil {
 		return err
 	}
 
 	// consume padding at end of chunk if needed
 	if len(buf) < totalDataLength {
-		lr := io.LimitReader(localReader, int64(totalDataLength-len(buf)))
-		_, err = io.Copy(ioutil.Discard, lr)
-
-		if err != nil {
-			return err
+		if _, ioerr := rw.Discard(totalDataLength-len(buf)); ioerr != nil {
+			return ioerr
 		}
 	}
 
