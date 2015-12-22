@@ -18,7 +18,7 @@ package stream
 import "io"
 import "math"
 
-func ChunkLimitReader(reader io.Reader, chunkSize, totalSize int64) ChunkedLimitedReader {
+func NewChunkLimitedReader(reader io.Reader, chunkSize, totalSize int64) ChunkedLimitedReader {
 	numChunks := int64(math.Ceil(float64(totalSize) / float64(chunkSize)))
 	return ChunkedLimitedReader{
 		d: &clrData{

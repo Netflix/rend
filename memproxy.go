@@ -123,8 +123,7 @@ func handleConnection(remoteConn, localConn net.Conn) {
 func handleConnectionReal(remoteConn, localConn net.Conn) {
 	remoteReader := bufio.NewReader(remoteConn)
 	remoteWriter := bufio.NewWriter(remoteConn)
-	localReader := bufio.NewReader(localConn)
-	localWriter := bufio.NewWriter(localConn)
+	localRW := bufio.NewReadWriter(bufio.NewReader(localConn), bufio.NewWriter(localConn))
 
 	var reqParser common.RequestParser
 	var responder common.Responder
@@ -162,7 +161,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 		// TODO: handle nil
 		switch reqType {
 		case common.REQUEST_SET:
-			err = local.HandleSet(request.(common.SetRequest), remoteReader, localReader, localWriter)
+			err = local.HandleSet(request.(common.SetRequest), remoteReader, localRW)
 
 			if err == nil {
 				// For text protocol, read in \r\n at end of data.
@@ -178,14 +177,14 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			}
 
 		case common.REQUEST_DELETE:
-			err = local.HandleDelete(request.(common.DeleteRequest), localReader, localWriter)
+			err = local.HandleDelete(request.(common.DeleteRequest), localRW)
 
 			if err == nil {
 				responder.Delete()
 			}
 
 		case common.REQUEST_TOUCH:
-			err = local.HandleTouch(request.(common.TouchRequest), localReader, localWriter)
+			err = local.HandleTouch(request.(common.TouchRequest), localRW)
 
 			if err == nil {
 				responder.Touch()
@@ -193,7 +192,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 
 		case common.REQUEST_GET:
 			getReq := request.(common.GetRequest)
-			resChan, errChan := local.HandleGet(getReq, localReader, localWriter)
+			resChan, errChan := local.HandleGet(getReq, localRW)
 
 			for {
 				select {
@@ -224,7 +223,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			responder.GetEnd(getReq.NoopEnd)
 
 		case common.REQUEST_GAT:
-			res, err := local.HandleGAT(request.(common.GATRequest), localReader, localWriter)
+			res, err := local.HandleGAT(request.(common.GATRequest), localRW)
 
 			if err == nil {
 				if res.Miss {
