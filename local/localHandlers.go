@@ -42,8 +42,7 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 		return binprot.ResponseHeader{}, err
 	}
 
-	err = binprot.DecodeError(resHeader)
-	if err != nil {
+	if err := binprot.DecodeError(resHeader); err != nil {
 		return resHeader, err
 	}
 
@@ -65,7 +64,7 @@ func HandleSet(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) e
 		OrigFlags: cmd.Flags,
 		NumChunks: uint32(numChunks),
 		ChunkSize: CHUNK_SIZE,
-		Token:     *token,
+		Token:     token,
 	}
 
 	metaDataBuf := new(bytes.Buffer)
@@ -74,8 +73,7 @@ func HandleSet(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) e
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
 	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, common.METADATA_SIZE)
-	err := setLocal(rw.Writer, localCmd, nil, metaDataBuf)
-	if err != nil {
+	if err := setLocal(rw.Writer, localCmd, metaDataBuf); err != nil {
 		return err
 	}
 
@@ -106,8 +104,7 @@ func HandleSet(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) e
 
 		// Write the key
 		localCmd = binprot.SetCmd(key, cmd.Flags, cmd.Exptime, FULL_DATA_SIZE)
-		err = setLocal(rw.Writer, localCmd, token, limChunkReader)
-		if err != nil {
+		if err = setLocalWithToken(rw.Writer, localCmd, token, limChunkReader); err != nil {
 			return err
 		}
 
@@ -116,9 +113,7 @@ func HandleSet(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) e
 		if err != nil {
 			// Discard request body
 			for limChunkReader.More() {
-				_, ioerr := io.Copy(ioutil.Discard, limChunkReader)
-
-				if ioerr != nil {
+				if _, ioerr := io.Copy(ioutil.Discard, limChunkReader); ioerr != nil {
 					return ioerr
 				}
 
@@ -163,8 +158,7 @@ outer:
 	for idx, key := range cmd.Keys {
 		_, metaData, err := getMetadata(rw, key)
 		if err != nil {
-			// TODO: Better error management
-			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
+			if err == common.ERROR_KEY_NOT_FOUND {
 				//fmt.Println("Get miss because of missing metadata. Key:", key)
 				dataOut <- common.GetResponse{
 					Miss:     true,
@@ -183,7 +177,7 @@ outer:
 
 		// Retrieve all the data from memcached
 		dataBuf := make([]byte, metaData.Length)
-		tokenBuf := make([]byte, 16)
+		tokenBuf := make([]byte, TOKEN_SIZE)
 
 		for i := 0; i < int(metaData.NumChunks); i++ {
 			chunkKey := chunkKey(key, i)
@@ -194,11 +188,8 @@ outer:
 			// Get the data directly into our buf
 			chunkBuf := dataBuf[start:end]
 			getCmd := binprot.GetCmd(chunkKey)
-			err = getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
-
-			if err != nil {
-				// TODO: Better error management
-				if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
+			if err := getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
+				if err == common.ERROR_KEY_NOT_FOUND {
 					//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
 					dataOut <- common.GetResponse{
 						Miss:     true,
@@ -245,9 +236,8 @@ outer:
 func HandleGAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse, error) {
 	_, metaData, err := getAndTouchMetadata(rw, cmd.Key, cmd.Exptime)
 	if err != nil {
-		// TODO: Better error management
-		if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
-			//fmt.Println("Get miss because of missing metadata. Key:", key)
+		if err == common.ERROR_KEY_NOT_FOUND {
+			//fmt.Println("GAT miss because of missing metadata. Key:", key)
 			return common.GetResponse{
 				Miss:     true,
 				Key:      cmd.Key,
@@ -274,12 +264,9 @@ func HandleGAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse,
 		// Get the data directly into our buf
 		chunkBuf := dataBuf[start:end]
 		getCmd := binprot.GATCmd(chunkKey, cmd.Exptime)
-		err = getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize))
-
-		if err != nil {
-			// TODO: Better error management
-			if err == common.MISS || err == common.ERROR_KEY_NOT_FOUND {
-				//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
+		if err := getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
+			if err == common.ERROR_KEY_NOT_FOUND {
+				//fmt.Println("GAT miss because of missing chunk. Cmd:", getCmd)
 				return common.GetResponse{
 					Miss:     true,
 					Key:      cmd.Key,
@@ -328,23 +315,22 @@ func HandleDelete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
 	metaKey, metaData, err := getMetadata(rw, cmd.Key)
 
 	if err != nil {
-		if err == common.MISS {
-			fmt.Println("Delete miss because of missing metadata. Key:", cmd.Key)
+		if err == common.ERROR_KEY_NOT_FOUND {
+			//fmt.Println("Delete miss because of missing metadata. Key:", cmd.Key)
 		}
 		return err
 	}
 
 	deleteCmd := binprot.DeleteCmd(metaKey)
-	err = simpleCmdLocal(rw, deleteCmd)
-	if err != nil {
+	if err := simpleCmdLocal(rw, deleteCmd); err != nil {
 		return err
 	}
 
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
 		deleteCmd = binprot.DeleteCmd(chunkKey)
-		err := simpleCmdLocal(rw, deleteCmd)
-		if err != nil {
+
+		if err := simpleCmdLocal(rw, deleteCmd); err != nil {
 			return err
 		}
 	}
@@ -361,8 +347,8 @@ func HandleTouch(cmd common.TouchRequest, rw *bufio.ReadWriter) error {
 	metaKey, metaData, err := getMetadata(rw, cmd.Key)
 
 	if err != nil {
-		if err == common.MISS {
-			fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key)
+		if err == common.ERROR_KEY_NOT_FOUND {
+			//fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key)
 			return err
 		}
 
@@ -372,15 +358,13 @@ func HandleTouch(cmd common.TouchRequest, rw *bufio.ReadWriter) error {
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
 		touchCmd := binprot.TouchCmd(chunkKey, cmd.Exptime)
-		err := simpleCmdLocal(rw, touchCmd)
-		if err != nil {
+		if err := simpleCmdLocal(rw, touchCmd); err != nil {
 			return err
 		}
 	}
 
 	touchCmd := binprot.TouchCmd(metaKey, cmd.Exptime)
-	err = simpleCmdLocal(rw, touchCmd)
-	if err != nil {
+	if err := simpleCmdLocal(rw, touchCmd); err != nil {
 		return err
 	}
 

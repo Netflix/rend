@@ -38,12 +38,13 @@ func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, common.Metadata, err
 }
 
 func getMetadataCommon(rw *bufio.ReadWriter, getCmd []byte) (common.Metadata, error) {
-	_, err := rw.Write(getCmd)
-	if err != nil {
+	if _, err := rw.Write(getCmd); err != nil {
 		return common.Metadata{}, err
 	}
 
-	rw.Flush()
+	if err := rw.Flush(); err != nil {
+		return common.Metadata{}, err
+	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
@@ -68,38 +69,31 @@ func getMetadataCommon(rw *bufio.ReadWriter, getCmd []byte) (common.Metadata, er
 	return metaData, nil
 }
 
-func setLocal(w *bufio.Writer, cmd []byte, token *[16]byte, data io.Reader) error {
-	_, err := w.Write(cmd)
-	if err != nil {
-		return err
-	}
+func setLocalWithToken(w *bufio.Writer, cmd []byte, token [16]byte, data io.Reader) error {
+	cmd = append(cmd, token[:]...)
+	return setLocal(w, cmd, data)
+}
 
-	// Write a token if there is one
-	if token != nil {
-		_, err = w.Write(token[:])
-		if err != nil {
-			return err
-		}
+func setLocal(w *bufio.Writer, cmd []byte, data io.Reader) error {
+	// Write header
+	if _, err := w.Write(cmd); err != nil {
+		return err
 	}
 
 	// Write value
-	_, err = io.Copy(w, data)
-	if err != nil {
+	if _, err := io.Copy(w, data); err != nil {
 		return err
 	}
 
-	w.Flush()
-	return nil
+	return w.Flush()
 }
 
 func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
-	_, err := rw.Write(cmd)
-	if err != nil {
+	if _, err := rw.Write(cmd); err != nil {
 		return err
 	}
 
-	err = rw.Flush()
-	if err != nil {
+	if err := rw.Flush(); err != nil {
 		return err
 	}
 
@@ -117,8 +111,7 @@ func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
 	}
 
 	// Read in the message bytes from the body
-	rw.Discard(int(resHeader.TotalBodyLength))
-	if err != nil {
+	if _, err := rw.Discard(int(resHeader.TotalBodyLength)); err != nil {
 		return err
 	}
 
@@ -126,12 +119,13 @@ func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
 }
 
 func getLocalIntoBuf(rw *bufio.ReadWriter, cmd []byte, tokenBuf []byte, buf []byte, totalDataLength int) error {
-	_, err := rw.Write(cmd)
-	if err != nil {
+	if _, err := rw.Write(cmd); err != nil {
 		return err
 	}
 
-	rw.Flush()
+	if err := rw.Flush(); err != nil {
+		return err
+	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
@@ -151,8 +145,7 @@ func getLocalIntoBuf(rw *bufio.ReadWriter, cmd []byte, tokenBuf []byte, buf []by
 
 	// Read in token if requested
 	if tokenBuf != nil {
-		_, err := io.ReadFull(rw, tokenBuf)
-		if err != nil {
+		if _, err := io.ReadFull(rw, tokenBuf); err != nil {
 			return err
 		}
 	}

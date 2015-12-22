@@ -21,7 +21,6 @@ package common
 import "errors"
 
 var (
-	MISS       error
 	BAD_LENGTH error
 	BAD_FLAGS  error
 
@@ -128,14 +127,11 @@ type Metadata struct {
 	OrigFlags uint32
 	NumChunks uint32
 	ChunkSize uint32
+	// This size should stay the same as local.TOKEN_SIZE
 	Token     [16]byte
 }
 
 func init() {
-	// Internal errors
-	MISS = errors.New("Cache miss")
-
-	// External errors
 	BAD_LENGTH = errors.New("CLIENT_ERROR length is not a valid integer")
 	BAD_FLAGS = errors.New("CLIENT_ERROR flags is not a valid integer")
 
