@@ -56,8 +56,12 @@ func avg(data []int) float64 {
 }
 
 func p(data []int, p float64) float64 {
-	idx := int(math.Ceil(float64(len(data)) * p))
+	idx := pIdx(data, p)
 	return float64(data[idx])
+}
+
+func pIdx(data []int, p float64) int {
+	return int(math.Ceil(float64(len(data)) * p))
 }
 
 const numBuckets = 100
@@ -65,16 +69,20 @@ const maxHeight = 50
 
 // Accepts a sorted slice of durations in nanoseconds
 // Prints a histogram to stdout
-func PrintHist(data []int) error {
-	// bucketize
+func PrintHist(data []int) {
+	// Cut the data at the 99th percentile
+	p99Idx := pIdx(data, 0.99)
+	data = data[:p99Idx]
+
 	buckets := make([]int, numBuckets)
-	min, max := minmax(data)
-	step := (max - min) / numBuckets
+	min := data[0]
+	max := data[len(data)-1]
+	step := float64(max-min) / numBuckets
 	prevCutIdx := 0
 	maxBucket := 0
 
 	for i := 0; i < numBuckets; i++ {
-		cut := min + step*float64(i+1)
+		cut := float64(min) + step*float64(i+1)
 		count := 0
 		j := prevCutIdx
 
@@ -97,22 +105,37 @@ func PrintHist(data []int) error {
 	}
 
 	// Scan downward over the histogram printing line by line
-	hist := make([]byte, 0)
+	hist := make([]rune, 0)
 	for i := maxHeight; i >= 0; i-- {
 		for j := 0; j < numBuckets; j++ {
 			if i == 0 {
-				hist = append(hist, byte('-'))
+				hist = append(hist, '=')
 			} else if buckets[j] == i {
-				hist = append(hist, byte('|'))
+				hist = append(hist, '|')
 				buckets[j]--
 			} else {
-				hist = append(hist, byte(' '))
+				hist = append(hist, ' ')
 			}
 		}
 
-		hist = append(hist, byte('\n'))
+		hist = append(hist, '\n')
 	}
 
-	_, err := fmt.Print(string(hist))
-	return err
+	gmin := float64(min) / msFactor
+	gmax := float64(max) / msFactor
+	gmid := gmin + (gmax-gmin)/2
+
+	pointerRow := make([]rune, numBuckets)
+
+	for i := 1; i < numBuckets-1; i++ {
+		pointerRow[i] = ' '
+	}
+
+	pointerRow[0] = '^'
+	pointerRow[len(pointerRow)/2] = '^'
+	pointerRow[len(pointerRow)-1] = '^'
+
+	fmt.Print(string(hist))
+	fmt.Println(string(pointerRow))
+	fmt.Printf("%.4fms                                       %.4fms                                     %.4fms\n", gmin, gmid, gmax)
 }
