@@ -1,17 +1,17 @@
 // Copyright 2015 Netflix, Inc.
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
- 
+
 package main
 
 import "bufio"
@@ -21,14 +21,21 @@ import "math/rand"
 import "net"
 import "os"
 import "runtime/pprof"
+import "sort"
 import "sync"
 import "time"
 
 import "./common"
 import "./f"
 import _ "./sigs"
+import "./stats"
 import "./binprot"
 import "./textprot"
+
+type metric struct {
+	d  time.Duration
+	op common.Op
+}
 
 func main() {
 	if f.Pprof != "" {
@@ -68,17 +75,20 @@ func main() {
 	// TODO: Better math
 	opsPerTask := f.NumOps / numCmds / f.NumWorkers
 
+	// HUGE channel so the comm threads never block
+	metrics := make(chan metric, f.NumOps)
+
 	// spawn task generators
 	for i := 0; i < f.NumWorkers; i++ {
 		taskGens.Add(numCmds)
-		go cmdGenerator(tasks, taskGens, opsPerTask, "set")
-		go cmdGenerator(tasks, taskGens, opsPerTask, "get")
-		go cmdGenerator(tasks, taskGens, opsPerTask, "bget")
-		go cmdGenerator(tasks, taskGens, opsPerTask, "delete")
-		go cmdGenerator(tasks, taskGens, opsPerTask, "touch")
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Set)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Get)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Bget)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Delete)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Touch)
 
 		if f.Binary {
-			go cmdGenerator(tasks, taskGens, opsPerTask, "gat")
+			go cmdGenerator(tasks, taskGens, opsPerTask, common.Gat)
 		}
 	}
 
@@ -93,7 +103,7 @@ func main() {
 			continue
 		}
 
-		go communicator(prot, conn, tasks, comms)
+		go communicator(prot, conn, tasks, metrics, comms)
 	}
 
 	// First wait for all the tasks to be generated,
@@ -108,9 +118,42 @@ func main() {
 	comms.Wait()
 
 	fmt.Println("Comms done.")
+	close(metrics)
+
+	// consolidate some metrics
+	// bucketize the timings based on operation
+	// print min, max, average, 50%, 90%
+	cons := make(map[common.Op][]int)
+	for m := range metrics {
+		if _, ok := cons[m.op]; ok {
+			cons[m.op] = append(cons[m.op], int(m.d.Nanoseconds()))
+		} else {
+			cons[m.op] = []int{int(m.d.Nanoseconds())}
+		}
+	}
+
+	for _, op := range common.AllOps {
+		times := cons[op]
+		sort.Ints(times)
+		s := stats.Get(times)
+
+		fmt.Println()
+		fmt.Println(op.String())
+		fmt.Printf("Min: %fms\n", s.Min)
+		fmt.Printf("Max: %fms\n", s.Max)
+		fmt.Printf("Avg: %fms\n", s.Avg)
+		fmt.Printf("p50: %fms\n", s.P50)
+		fmt.Printf("p75: %fms\n", s.P75)
+		fmt.Printf("p90: %fms\n", s.P90)
+		fmt.Printf("p95: %fms\n", s.P95)
+		fmt.Printf("p99: %fms\n", s.P99)
+		fmt.Println()
+
+		stats.PrintHist(times)
+	}
 }
 
-func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks int, cmd string) {
+func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks int, cmd common.Op) {
 	r := rand.New(rand.NewSource(time.Now().Unix()))
 
 	for i := 0; i < numTasks; i++ {
@@ -121,12 +164,11 @@ func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks 
 		}
 	}
 
-	fmt.Println(cmd, "gen done")
 	taskGens.Done()
 }
 
-func taskValue(r *rand.Rand, cmd string) []byte {
-	if cmd == "set" {
+func taskValue(r *rand.Rand, cmd common.Op) []byte {
+	if cmd == common.Set {
 		// Random length between 1k and 10k
 		valLen := r.Intn(9*1024) + 1024
 		return common.RandData(r, valLen)
@@ -135,25 +177,26 @@ func taskValue(r *rand.Rand, cmd string) []byte {
 	return nil
 }
 
-func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, comms *sync.WaitGroup) {
+func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, metrics chan<- metric, comms *sync.WaitGroup) {
 	r := rand.New(rand.NewSource(time.Now().Unix()))
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 
 	for item := range tasks {
 		var err error
+		start := time.Now()
 
 		switch item.Cmd {
-		case "set":
+		case common.Set:
 			err = prot.Set(rw, item.Key, item.Value)
-		case "get":
+		case common.Get:
 			err = prot.Get(rw, item.Key)
-		case "gat":
+		case common.Gat:
 			err = prot.GAT(rw, item.Key)
-		case "bget":
+		case common.Bget:
 			err = prot.BatchGet(rw, batchkeys(r, item.Key))
-		case "delete":
+		case common.Delete:
 			err = prot.Delete(rw, item.Key)
-		case "touch":
+		case common.Touch:
 			err = prot.Touch(rw, item.Key)
 		}
 
@@ -166,10 +209,14 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, co
 				break
 			}
 		}
+
+		metrics <- metric{
+			d:  time.Since(start),
+			op: item.Cmd,
+		}
 	}
 
 	conn.Close()
-	fmt.Println("comm done")
 	comms.Done()
 }
 

@@ -25,10 +25,12 @@ import "time"
 var letters = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 const PREDATA_LENGTH = 20 * 1024
+
 var predata []byte
+
 func init() {
 	r := rand.New(rand.NewSource(time.Now().Unix()))
-	predata = RandData(r, PREDATA_LENGTH + 1)
+	predata = RandData(r, PREDATA_LENGTH+1)
 }
 
 func RandData(r *rand.Rand, n int) []byte {

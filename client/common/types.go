@@ -27,8 +27,44 @@ type Prot interface {
 	Touch(rw *bufio.ReadWriter, key []byte) error
 }
 
+type Op int
+
+const (
+	Get = iota
+	Bget
+	Gat
+	Set
+	Touch
+	Delete
+)
+
+var AllOps []Op
+
+func init() {
+	AllOps = []Op{Get, Bget, Gat, Set, Touch, Delete}
+}
+
+func (o Op) String() string {
+	switch o {
+	case Set:
+		return "Set"
+	case Get:
+		return "Get"
+	case Gat:
+		return "Get and Touch"
+	case Bget:
+		return "Batch Get"
+	case Delete:
+		return "Delete"
+	case Touch:
+		return "Touch"
+	default:
+		return ""
+	}
+}
+
 type Task struct {
-	Cmd   string
+	Cmd   Op
 	Key   []byte
 	Value []byte
 }
