@@ -133,6 +133,10 @@ func main() {
 	}
 
 	for _, op := range common.AllOps {
+		if f.Text &&  op == common.Gat {
+			continue
+		}
+
 		times := cons[op]
 		sort.Ints(times)
 		s := stats.Get(times)
