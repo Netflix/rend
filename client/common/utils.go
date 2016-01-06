@@ -24,11 +24,24 @@ import "time"
 // No constant arrays :(
 var letters = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-func RandData(n int) []byte {
+const PREDATA_LENGTH = 20 * 1024
+
+var predata []byte
+
+func init() {
+	r := rand.New(rand.NewSource(time.Now().Unix()))
+	predata = RandData(r, PREDATA_LENGTH+1)
+}
+
+func RandData(r *rand.Rand, n int) []byte {
+	if n <= PREDATA_LENGTH {
+		return predata[:n]
+	}
+
 	b := make([]byte, n)
 
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[r.Intn(len(letters))]
 	}
 
 	return b
