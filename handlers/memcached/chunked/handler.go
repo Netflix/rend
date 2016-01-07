@@ -48,6 +48,12 @@ type Handler struct {
 	rw *bufio.ReadWriter
 }
 
+func NewHandler(rw *bufio.ReadWriter) Handler {
+	return Handler{
+		rw: rw,
+	}
+}
+
 func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// For writing chunks, the specialized chunked reader is appropriate.
 	// for unchunked, a limited reader will be needed since the text protocol

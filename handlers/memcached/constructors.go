@@ -20,13 +20,9 @@ import "github.com/netflix/rend/handlers/memcached/std"
 import "github.com/netflix/rend/handlers/memcached/chunked"
 
 func NewHandler(rw *bufio.ReadWriter) std.Handler {
-	return std.Handler{
-		rw: rw
-	}
+	return std.NewHandler(rw)
 }
 
 func NewChunkedHandler(rw *bufio.ReadWriter) chunked.Handler {
-	return chunked.Handler{
-		rw: rw
-	}
+	return chunked.NewHandler(rw)
 }
