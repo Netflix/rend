@@ -1,24 +1,23 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-package stream
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package chunked
 
 import "io"
 import "math"
 
-func NewChunkLimitedReader(reader io.Reader, chunkSize, totalSize int64) ChunkedLimitedReader {
+func newChunkLimitedReader(reader io.Reader, chunkSize, totalSize int64) chunkedLimitedReader {
 	numChunks := int64(math.Ceil(float64(totalSize) / float64(chunkSize)))
 	return ChunkedLimitedReader{
 		d: &clrData{
@@ -35,7 +34,7 @@ func NewChunkLimitedReader(reader io.Reader, chunkSize, totalSize int64) Chunked
 // This reader is ***NOT THREAD SAFE***
 // It will read *past* the end of the total size to fill in the remainder of a chunk
 // effectively acts as a chunk iterator over the input stream
-type ChunkedLimitedReader struct {
+type chunkedLimitedReader struct {
 	d *clrData
 }
 
@@ -51,7 +50,7 @@ type clrData struct {
 }
 
 // io.Reader's interface implements this as a value method, not a pointer method.
-func (c ChunkedLimitedReader) Read(p []byte) (n int, err error) {
+func (c chunkedLimitedReader) Read(p []byte) (n int, err error) {
 	// If we've already read all our chunks and the remainders are <= 0, we're done
 	if c.d.doneChunks >= c.d.numChunks || (c.d.remaining <= 0 && c.d.chunkRem <= 0) {
 		return 0, io.EOF
@@ -89,13 +88,13 @@ func (c ChunkedLimitedReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func (c *ChunkedLimitedReader) NextChunk() {
+func (c chunkedLimitedReader) NextChunk() {
 	if c.d.doneChunks < c.d.numChunks {
 		c.d.doneChunks++
 		c.d.chunkRem = c.d.chunkSize
 	}
 }
 
-func (c *ChunkedLimitedReader) More() bool {
+func (c chunkedLimitedReader) More() bool {
 	return c.d.doneChunks < c.d.numChunks
 }

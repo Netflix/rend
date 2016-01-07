@@ -1,22 +1,18 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/**
- * Local request handlers that perform higher level logic.
- */
-package local
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package chunked
 
 import "bufio"
 import "bytes"
@@ -26,9 +22,8 @@ import "io"
 import "io/ioutil"
 import "math"
 
-import "../binprot"
-import "../common"
-import "../stream"
+import "github.com/netflix/rend/binprot"
+import "github.com/netflix/rend/common"
 
 // Chunk size, leaving room for the token
 // Make sure the value subtracted from chunk size stays in sync
@@ -49,12 +44,16 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	return resHeader, nil
 }
 
-func HandleSet(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) error {
+type Handler struct {
+	rw *bufio.ReadWriter
+}
+
+func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) error {
 	// For writing chunks, the specialized chunked reader is appropriate.
 	// for unchunked, a limited reader will be needed since the text protocol
 	// includes a /r/n at the end and there's no EOF to be had with a long-l`ived
 	// connection.
-	limChunkReader := stream.NewChunkLimitedReader(src, int64(CHUNK_SIZE), int64(cmd.Length))
+	limChunkReader := newChunkLimitedReader(src, int64(CHUNK_SIZE), int64(cmd.Length))
 	numChunks := int(math.Ceil(float64(cmd.Length) / float64(CHUNK_SIZE)))
 	token := <-tokens
 
@@ -136,7 +135,7 @@ func HandleSet(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) e
 	return nil
 }
 
-func HandleGet(cmd common.GetRequest, rw *bufio.ReadWriter) (chan common.GetResponse, chan error) {
+func (h Handler) Get(cmd common.GetRequest, rw *bufio.ReadWriter) (chan common.GetResponse, chan error) {
 	// No buffering here so there's not multiple gets in memory
 	dataOut := make(chan common.GetResponse)
 	errorOut := make(chan error)
@@ -144,11 +143,11 @@ func HandleGet(cmd common.GetRequest, rw *bufio.ReadWriter) (chan common.GetResp
 	return dataOut, errorOut
 }
 
-func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error, rw *bufio.ReadWriter) {
+func (h Handler) realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error, rw *bufio.ReadWriter) {
 	// read index
 	// make buf
 	// for numChunks do
-	//   read chunk, append to buffer
+	//   read chunk directly into buffer
 	// send response
 
 	defer close(errorOut)
@@ -207,9 +206,9 @@ outer:
 			}
 
 			if !bytes.Equal(metaData.Token[:], tokenBuf) {
-				fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
-				fmt.Printf("Expected: %v\n", metaData.Token)
-				fmt.Printf("Got:      %v\n", tokenBuf)
+				//fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
+				//fmt.Printf("Expected: %v\n", metaData.Token)
+				//fmt.Printf("Got:      %v\n", tokenBuf)
 				dataOut <- common.GetResponse{
 					Miss:     true,
 					Key:      key,
@@ -233,7 +232,7 @@ outer:
 	}
 }
 
-func HandleGAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse, error) {
+func (h Handler) GAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse, error) {
 	_, metaData, err := getAndTouchMetadata(rw, cmd.Key, cmd.Exptime)
 	if err != nil {
 		if err == common.ERROR_KEY_NOT_FOUND {
@@ -306,7 +305,7 @@ func HandleGAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse,
 	}, nil
 }
 
-func HandleDelete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
+func (h Handler) Delete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
 	// read metadata
 	// delete metadata
 	// for 0 to metadata.numChunks
@@ -338,7 +337,7 @@ func HandleDelete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
 	return nil
 }
 
-func HandleTouch(cmd common.TouchRequest, rw *bufio.ReadWriter) error {
+func (h Handler) Touch(cmd common.TouchRequest, rw *bufio.ReadWriter) error {
 	// read metadata
 	// for 0 to metadata.numChunks
 	//  touch item
