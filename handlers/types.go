@@ -20,7 +20,7 @@ import "github.com/netflix/rend/common"
 
 type Handler interface {
 	Set(cmd common.SetRequest, src *bufio.Reader) error
-	Get(cmd common.GetRequest) (chan common.GetResponse, chan error)
+	Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error)
 	GAT(cmd common.GATRequest) (common.GetResponse, error)
 	Delete(cmd common.DeleteRequest) error
 	Touch(cmd common.TouchRequest) error

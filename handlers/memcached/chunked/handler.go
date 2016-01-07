@@ -135,7 +135,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	return nil
 }
 
-func (h Handler) Get(cmd common.GetRequest) (chan common.GetResponse, chan error) {
+func (h Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {
 	// No buffering here so there's not multiple gets in memory
 	dataOut := make(chan common.GetResponse)
 	errorOut := make(chan error)
