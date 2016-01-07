@@ -19,7 +19,7 @@ import "math"
 
 func newChunkLimitedReader(reader io.Reader, chunkSize, totalSize int64) chunkedLimitedReader {
 	numChunks := int64(math.Ceil(float64(totalSize) / float64(chunkSize)))
-	return ChunkedLimitedReader{
+	return chunkedLimitedReader{
 		d: &clrData{
 			reader:     reader,
 			remaining:  totalSize,

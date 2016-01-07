@@ -14,10 +14,14 @@
 
 package handlers
 
+import "bufio"
+
+import "github.com/netflix/rend/common"
+
 type Handler interface {
-	Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) error
-	Get(cmd common.GetRequest, rw *bufio.ReadWriter) (chan common.GetResponse, chan error)
-	GAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse, error)
-	Delete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error
-	Touch(cmd common.TouchRequest, rw *bufio.ReadWriter) error
+	Set(cmd common.SetRequest, src *bufio.Reader) error
+	Get(cmd common.GetRequest) (chan common.GetResponse, chan error)
+	GAT(cmd common.GATRequest) (common.GetResponse, error)
+	Delete(cmd common.DeleteRequest) error
+	Touch(cmd common.TouchRequest) error
 }

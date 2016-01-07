@@ -14,6 +14,8 @@
 
 package memcached
 
+import "bufio"
+
 import "github.com/netflix/rend/handlers/memcached/std"
 import "github.com/netflix/rend/handlers/memcached/chunked"
 

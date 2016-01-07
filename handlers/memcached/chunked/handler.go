@@ -48,7 +48,7 @@ type Handler struct {
 	rw *bufio.ReadWriter
 }
 
-func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWriter) error {
+func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// For writing chunks, the specialized chunked reader is appropriate.
 	// for unchunked, a limited reader will be needed since the text protocol
 	// includes a /r/n at the end and there's no EOF to be had with a long-l`ived
@@ -72,12 +72,12 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWri
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
 	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, common.METADATA_SIZE)
-	if err := setLocal(rw.Writer, localCmd, metaDataBuf); err != nil {
+	if err := setLocal(h.rw.Writer, localCmd, metaDataBuf); err != nil {
 		return err
 	}
 
 	// Read server's response
-	resHeader, err := readResponseHeader(rw.Reader)
+	resHeader, err := readResponseHeader(h.rw.Reader)
 	if err != nil {
 		// Discard request body
 		if _, ioerr := src.Discard(int(cmd.Length)); ioerr != nil {
@@ -85,7 +85,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWri
 		}
 
 		// Discard response body
-		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+		if _, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 			return ioerr
 		}
 
@@ -103,12 +103,12 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWri
 
 		// Write the key
 		localCmd = binprot.SetCmd(key, cmd.Flags, cmd.Exptime, FULL_DATA_SIZE)
-		if err = setLocalWithToken(rw.Writer, localCmd, token, limChunkReader); err != nil {
+		if err = setLocalWithToken(h.rw.Writer, localCmd, token, limChunkReader); err != nil {
 			return err
 		}
 
 		// Read server's response
-		resHeader, err = readResponseHeader(rw.Reader)
+		resHeader, err = readResponseHeader(h.rw.Reader)
 		if err != nil {
 			// Discard request body
 			for limChunkReader.More() {
@@ -120,7 +120,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWri
 			}
 
 			// Discard repsonse body
-			if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+			if _, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 				return ioerr
 			}
 
@@ -135,15 +135,15 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader, rw *bufio.ReadWri
 	return nil
 }
 
-func (h Handler) Get(cmd common.GetRequest, rw *bufio.ReadWriter) (chan common.GetResponse, chan error) {
+func (h Handler) Get(cmd common.GetRequest) (chan common.GetResponse, chan error) {
 	// No buffering here so there's not multiple gets in memory
 	dataOut := make(chan common.GetResponse)
 	errorOut := make(chan error)
-	go realHandleGet(cmd, dataOut, errorOut, rw)
+	go realHandleGet(cmd, dataOut, errorOut, h.rw)
 	return dataOut, errorOut
 }
 
-func (h Handler) realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error, rw *bufio.ReadWriter) {
+func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error, rw *bufio.ReadWriter) {
 	// read index
 	// make buf
 	// for numChunks do
@@ -232,8 +232,8 @@ outer:
 	}
 }
 
-func (h Handler) GAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetResponse, error) {
-	_, metaData, err := getAndTouchMetadata(rw, cmd.Key, cmd.Exptime)
+func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
+	_, metaData, err := getAndTouchMetadata(h.rw, cmd.Key, cmd.Exptime)
 	if err != nil {
 		if err == common.ERROR_KEY_NOT_FOUND {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
@@ -263,7 +263,7 @@ func (h Handler) GAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetRes
 		// Get the data directly into our buf
 		chunkBuf := dataBuf[start:end]
 		getCmd := binprot.GATCmd(chunkKey, cmd.Exptime)
-		if err := getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
+		if err := getLocalIntoBuf(h.rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
 			if err == common.ERROR_KEY_NOT_FOUND {
 				//fmt.Println("GAT miss because of missing chunk. Cmd:", getCmd)
 				return common.GetResponse{
@@ -305,13 +305,13 @@ func (h Handler) GAT(cmd common.GATRequest, rw *bufio.ReadWriter) (common.GetRes
 	}, nil
 }
 
-func (h Handler) Delete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
+func (h Handler) Delete(cmd common.DeleteRequest) error {
 	// read metadata
 	// delete metadata
 	// for 0 to metadata.numChunks
 	//  delete item
 
-	metaKey, metaData, err := getMetadata(rw, cmd.Key)
+	metaKey, metaData, err := getMetadata(h.rw, cmd.Key)
 
 	if err != nil {
 		if err == common.ERROR_KEY_NOT_FOUND {
@@ -321,7 +321,7 @@ func (h Handler) Delete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
 	}
 
 	deleteCmd := binprot.DeleteCmd(metaKey)
-	if err := simpleCmdLocal(rw, deleteCmd); err != nil {
+	if err := simpleCmdLocal(h.rw, deleteCmd); err != nil {
 		return err
 	}
 
@@ -329,7 +329,7 @@ func (h Handler) Delete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
 		chunkKey := chunkKey(cmd.Key, i)
 		deleteCmd = binprot.DeleteCmd(chunkKey)
 
-		if err := simpleCmdLocal(rw, deleteCmd); err != nil {
+		if err := simpleCmdLocal(h.rw, deleteCmd); err != nil {
 			return err
 		}
 	}
@@ -337,13 +337,13 @@ func (h Handler) Delete(cmd common.DeleteRequest, rw *bufio.ReadWriter) error {
 	return nil
 }
 
-func (h Handler) Touch(cmd common.TouchRequest, rw *bufio.ReadWriter) error {
+func (h Handler) Touch(cmd common.TouchRequest) error {
 	// read metadata
 	// for 0 to metadata.numChunks
 	//  touch item
 	// touch metadata
 
-	metaKey, metaData, err := getMetadata(rw, cmd.Key)
+	metaKey, metaData, err := getMetadata(h.rw, cmd.Key)
 
 	if err != nil {
 		if err == common.ERROR_KEY_NOT_FOUND {
@@ -357,13 +357,13 @@ func (h Handler) Touch(cmd common.TouchRequest, rw *bufio.ReadWriter) error {
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
 		touchCmd := binprot.TouchCmd(chunkKey, cmd.Exptime)
-		if err := simpleCmdLocal(rw, touchCmd); err != nil {
+		if err := simpleCmdLocal(h.rw, touchCmd); err != nil {
 			return err
 		}
 	}
 
 	touchCmd := binprot.TouchCmd(metaKey, cmd.Exptime)
-	if err := simpleCmdLocal(rw, touchCmd); err != nil {
+	if err := simpleCmdLocal(h.rw, touchCmd); err != nil {
 		return err
 	}
 
