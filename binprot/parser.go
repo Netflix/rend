@@ -20,7 +20,7 @@ import "encoding/binary"
 import "fmt"
 import "io"
 
-import "../common"
+import "github.com/netflix/rend/common"
 
 // Example Set Request
 // Field        (offset) (value)

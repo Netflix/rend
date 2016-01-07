@@ -21,7 +21,7 @@ package textprot
 import "bufio"
 import "fmt"
 
-import "../common"
+import "github.com/netflix/rend/common"
 
 type TextResponder struct {
 	writer *bufio.Writer

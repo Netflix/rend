@@ -22,7 +22,7 @@ import "bytes"
 import "encoding/binary"
 import "io"
 
-import "../common"
+import "github.com/netflix/rend/common"
 
 var MAGIC_REQUEST = 0x80
 

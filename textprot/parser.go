@@ -26,7 +26,7 @@ import "io"
 import "strconv"
 import "strings"
 
-import "../common"
+import "github.com/netflix/rend/common"
 
 type TextParser struct {
 	reader *bufio.Reader
