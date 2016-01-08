@@ -46,12 +46,21 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 
 type Handler struct {
 	rw *bufio.ReadWriter
+	conn io.Closer
 }
 
-func NewHandler(rw *bufio.ReadWriter) Handler {
+func NewHandler(conn io.ReadWriteCloser) Handler {
+	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	return Handler{
 		rw: rw,
+		conn: conn,
 	}
+}
+
+// Closes the Handler's underlying io.ReadWriteCloser.
+// Any calls to the handler after a Close() are invalid.
+func (h Handler) Close() error {
+	return h.conn.Close()
 }
 
 func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {

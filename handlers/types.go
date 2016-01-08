@@ -24,4 +24,5 @@ type Handler interface {
 	GAT(cmd common.GATRequest) (common.GetResponse, error)
 	Delete(cmd common.DeleteRequest) error
 	Touch(cmd common.TouchRequest) error
+	Close() error
 }

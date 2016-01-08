@@ -14,15 +14,15 @@
 
 package memcached
 
-import "bufio"
+import "io"
 
 import "github.com/netflix/rend/handlers/memcached/std"
 import "github.com/netflix/rend/handlers/memcached/chunked"
 
-func NewHandler(rw *bufio.ReadWriter) std.Handler {
-	return std.NewHandler(rw)
+func NewHandler(conn io.ReadWriteCloser) std.Handler {
+	return std.NewHandler(conn)
 }
 
-func NewChunkedHandler(rw *bufio.ReadWriter) chunked.Handler {
-	return chunked.NewHandler(rw)
+func NewChunkedHandler(conn io.ReadWriteCloser) chunked.Handler {
+	return chunked.NewHandler(conn)
 }
