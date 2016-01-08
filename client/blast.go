@@ -158,7 +158,7 @@ func main() {
 }
 
 func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks int, cmd common.Op) {
-	r := rand.New(rand.NewSource(time.Now().Unix()))
+	r := rand.New(rand.NewSource(common.RandSeed()))
 
 	for i := 0; i < numTasks; i++ {
 		tasks <- &common.Task{
@@ -182,7 +182,7 @@ func taskValue(r *rand.Rand, cmd common.Op) []byte {
 }
 
 func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, metrics chan<- metric, comms *sync.WaitGroup) {
-	r := rand.New(rand.NewSource(time.Now().Unix()))
+	r := rand.New(rand.NewSource(common.RandSeed()))
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 
 	for item := range tasks {
