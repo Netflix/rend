@@ -45,14 +45,14 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 }
 
 type Handler struct {
-	rw *bufio.ReadWriter
+	rw   *bufio.ReadWriter
 	conn io.Closer
 }
 
 func NewHandler(conn io.ReadWriteCloser) Handler {
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	return Handler{
-		rw: rw,
+		rw:   rw,
 		conn: conn,
 	}
 }

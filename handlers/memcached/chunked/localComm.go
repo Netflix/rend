@@ -153,7 +153,7 @@ func getLocalIntoBuf(rw *bufio.ReadWriter, cmd []byte, tokenBuf []byte, buf []by
 
 	// consume padding at end of chunk if needed
 	if len(buf) < totalDataLength {
-		if _, ioerr := rw.Discard(totalDataLength-len(buf)); ioerr != nil {
+		if _, ioerr := rw.Discard(totalDataLength - len(buf)); ioerr != nil {
 			return ioerr
 		}
 	}

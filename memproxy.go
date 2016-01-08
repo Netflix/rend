@@ -143,7 +143,7 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		binary, err := isBinaryRequest(remoteReader)
 
 		if err != nil {
-			abort([]io.Closer {remoteConn, l1, l2}, err, binary)
+			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 			return
 		}
 
@@ -158,7 +158,7 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		request, reqType, err = reqParser.Parse()
 
 		if err != nil {
-			abort([]io.Closer {remoteConn, l1, l2}, err, binary)
+			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 			return
 		}
 
@@ -247,7 +247,7 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			if common.IsAppError(err) {
 				responder.Error(err)
 			} else {
-				abort([]io.Closer {remoteConn, l1, l2}, err, binary)
+				abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 				return
 			}
 		}
