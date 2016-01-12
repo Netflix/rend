@@ -25,12 +25,12 @@ import "sort"
 import "sync"
 import "time"
 
-import "./common"
-import "./f"
-import _ "./sigs"
-import "./stats"
-import "./binprot"
-import "./textprot"
+import "github.com/netflix/rend/client/common"
+import "github.com/netflix/rend/client/f"
+import _ "github.com/netflix/rend/client/sigs"
+import "github.com/netflix/rend/client/stats"
+import "github.com/netflix/rend/client/binprot"
+import "github.com/netflix/rend/client/textprot"
 
 type metric struct {
 	d  time.Duration

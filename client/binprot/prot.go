@@ -17,7 +17,7 @@ package binprot
 import "bufio"
 import "encoding/binary"
 
-import "../common"
+import "github.com/netflix/rend/client/common"
 
 type BinProt struct{}
 
