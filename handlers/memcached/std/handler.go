@@ -54,7 +54,7 @@ func (h Handler) Close() error {
 
 func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// TODO: should there be a unique flags value for regular data?
-	setCmd := binprot.SetCmd(cmd.Key, cmd.Flags, cmd.Exptime, common.METADATA_SIZE)
+	setCmd := binprot.SetCmd(cmd.Key, cmd.Flags, cmd.Exptime, cmd.Length)
 
 	// Write command header
 	h.rw.Write(setCmd)
