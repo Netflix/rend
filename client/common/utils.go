@@ -32,7 +32,7 @@ var predata []byte
 
 func init() {
 	r := rand.New(rand.NewSource(RandSeed()))
-	predata = RandData(r, PREDATA_LENGTH+1)
+	predata = RandData(r, PREDATA_LENGTH, false)
 }
 
 func RandSeed() int64 {
@@ -46,8 +46,8 @@ func RandSeed() int64 {
 	return ret
 }
 
-func RandData(r *rand.Rand, n int) []byte {
-	if n <= PREDATA_LENGTH {
+func RandData(r *rand.Rand, n int, useCached bool) []byte {
+	if useCached && n <= PREDATA_LENGTH {
 		return predata[:n]
 	}
 

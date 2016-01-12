@@ -163,7 +163,7 @@ func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks 
 	for i := 0; i < numTasks; i++ {
 		tasks <- &common.Task{
 			Cmd:   cmd,
-			Key:   common.RandData(r, f.KeyLength),
+			Key:   common.RandData(r, f.KeyLength, false),
 			Value: taskValue(r, cmd),
 		}
 	}
@@ -175,7 +175,7 @@ func taskValue(r *rand.Rand, cmd common.Op) []byte {
 	if cmd == common.Set {
 		// Random length between 1k and 10k
 		valLen := r.Intn(9*1024) + 1024
-		return common.RandData(r, valLen)
+		return common.RandData(r, valLen, true)
 	}
 
 	return nil
