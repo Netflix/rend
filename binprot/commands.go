@@ -16,6 +16,7 @@ package binprot
 
 import "bytes"
 import "encoding/binary"
+
 //import "fmt"
 
 func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {

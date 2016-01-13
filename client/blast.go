@@ -133,7 +133,7 @@ func main() {
 	}
 
 	for _, op := range common.AllOps {
-		if f.Text &&  op == common.Gat {
+		if f.Text && op == common.Gat {
 			continue
 		}
 
