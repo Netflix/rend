@@ -1,25 +1,23 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/**
- * Utility functions to create commands
- */
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package binprot
 
 import "bytes"
 import "encoding/binary"
+
+//import "fmt"
 
 func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
@@ -34,9 +32,8 @@ func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
 	binary.Write(reqBuf, binary.BigEndian, exptime)
 	binary.Write(reqBuf, binary.BigEndian, key)
 
+	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | totalBodyLength: %v\n", string(key), flags, exptime, totalBodyLength)
 	return reqBuf.Bytes()
-
-	//return fmt.Sprintf("set %s 0 %s %d\r\n", key, exptime, size)
 }
 
 func GetCmd(key []byte) []byte {
@@ -48,9 +45,8 @@ func GetCmd(key []byte) []byte {
 
 	binary.Write(reqBuf, binary.BigEndian, key)
 
+	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
 	return reqBuf.Bytes()
-
-	//return fmt.Sprintf("get %s\r\n", key)
 }
 
 func GATCmd(key []byte, exptime uint32) []byte {
@@ -63,9 +59,8 @@ func GATCmd(key []byte, exptime uint32) []byte {
 	binary.Write(reqBuf, binary.BigEndian, exptime)
 	binary.Write(reqBuf, binary.BigEndian, key)
 
+	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key), exptime, len(key))
 	return reqBuf.Bytes()
-
-	//return fmt.Sprintf("get %s\r\n", key)
 }
 
 func DeleteCmd(key []byte) []byte {
@@ -77,9 +72,8 @@ func DeleteCmd(key []byte) []byte {
 
 	binary.Write(reqBuf, binary.BigEndian, key)
 
+	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
 	return reqBuf.Bytes()
-
-	//return fmt.Sprintf("delete %s\r\n", key)
 }
 
 func TouchCmd(key []byte, exptime uint32) []byte {
@@ -94,7 +88,6 @@ func TouchCmd(key []byte, exptime uint32) []byte {
 	binary.Write(reqBuf, binary.BigEndian, exptime)
 	binary.Write(reqBuf, binary.BigEndian, key)
 
+	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key), exptime, totalBodyLength)
 	return reqBuf.Bytes()
-
-	//return fmt.Sprintf("touch %s %s\r\n", key, exptime)
 }

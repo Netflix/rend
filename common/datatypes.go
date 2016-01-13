@@ -128,7 +128,7 @@ type Metadata struct {
 	NumChunks uint32
 	ChunkSize uint32
 	// This size should stay the same as local.TOKEN_SIZE
-	Token     [16]byte
+	Token [16]byte
 }
 
 func init() {

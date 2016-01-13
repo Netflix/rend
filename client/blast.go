@@ -25,12 +25,12 @@ import "sort"
 import "sync"
 import "time"
 
-import "./common"
-import "./f"
-import _ "./sigs"
-import "./stats"
-import "./binprot"
-import "./textprot"
+import "github.com/netflix/rend/client/common"
+import "github.com/netflix/rend/client/f"
+import _ "github.com/netflix/rend/client/sigs"
+import "github.com/netflix/rend/client/stats"
+import "github.com/netflix/rend/client/binprot"
+import "github.com/netflix/rend/client/textprot"
 
 type metric struct {
 	d  time.Duration
@@ -133,7 +133,7 @@ func main() {
 	}
 
 	for _, op := range common.AllOps {
-		if f.Text &&  op == common.Gat {
+		if f.Text && op == common.Gat {
 			continue
 		}
 
@@ -158,12 +158,12 @@ func main() {
 }
 
 func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks int, cmd common.Op) {
-	r := rand.New(rand.NewSource(time.Now().Unix()))
+	r := rand.New(rand.NewSource(common.RandSeed()))
 
 	for i := 0; i < numTasks; i++ {
 		tasks <- &common.Task{
 			Cmd:   cmd,
-			Key:   common.RandData(r, f.KeyLength),
+			Key:   common.RandData(r, f.KeyLength, false),
 			Value: taskValue(r, cmd),
 		}
 	}
@@ -175,14 +175,14 @@ func taskValue(r *rand.Rand, cmd common.Op) []byte {
 	if cmd == common.Set {
 		// Random length between 1k and 10k
 		valLen := r.Intn(9*1024) + 1024
-		return common.RandData(r, valLen)
+		return common.RandData(r, valLen, true)
 	}
 
 	return nil
 }
 
 func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, metrics chan<- metric, comms *sync.WaitGroup) {
-	r := rand.New(rand.NewSource(time.Now().Unix()))
+	r := rand.New(rand.NewSource(common.RandSeed()))
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 
 	for item := range tasks {

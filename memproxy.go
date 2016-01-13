@@ -1,23 +1,20 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/**
- * Memproxy is a proxy for memcached that will split the data input
- * into fixed-size chunks for storage. It will reassemble the data
- * on retrieval with set.
- */
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Memproxy is a proxy for memcached that will split the data input
+// into fixed-size chunks for storage. It will reassemble the data
+// on retrieval with set.
 package main
 
 import "bufio"
@@ -29,15 +26,16 @@ import "os/signal"
 import "runtime"
 import "strings"
 
-import "./binprot"
-import "./common"
-import "./local"
-import "./textprot"
+import "github.com/netflix/rend/binprot"
+import "github.com/netflix/rend/common"
+import "github.com/netflix/rend/handlers"
+import "github.com/netflix/rend/handlers/memcached"
+import "github.com/netflix/rend/textprot"
 
 const verbose = false
 
-func main() {
-
+// Setting up signal handlers
+func init() {
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, os.Interrupt)
 
@@ -45,8 +43,10 @@ func main() {
 		<-sigs
 		panic("Keyboard Interrupt")
 	}()
+}
 
-	server, err := net.Listen("tcp", ":11212")
+func main() {
+	server, err := net.Listen("tcp", ":11211")
 
 	if err != nil {
 		print(err.Error())
@@ -61,28 +61,33 @@ func main() {
 			continue
 		}
 
-		local, err := net.Dial("tcp", ":11211")
+		l1conn, err := net.Dial("unix", "/tmp/memcached.sock")
 
 		if err != nil {
 			fmt.Println(err.Error())
-			if local != nil {
-				local.Close()
+			if l1conn != nil {
+				l1conn.Close()
 			}
 			remote.Close()
 			continue
 		}
 
-		go handleConnection(remote, local)
+		l1 := memcached.NewChunkedHandler(l1conn)
+
+		go handleConnection(remote, l1, nil)
 	}
 }
 
-func abort(remote, local net.Conn, err error, binary bool) {
+func abort(toClose []io.Closer, err error, binary bool) {
 	if err != io.EOF {
 		fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
 	}
 	// use proper serializer to respond here
-	remote.Close()
-	local.Close()
+	for _, c := range toClose {
+		if c != nil {
+			c.Close()
+		}
+	}
 	panic(err)
 }
 
@@ -104,10 +109,10 @@ func identifyPanic() string {
 		}
 	}
 
-	return fmt.Sprintf("%v:%v:%v", file, name, line)
+	return fmt.Sprintf("Panic occured at: %v:%v (line %v)", file, name, line)
 }
 
-func handleConnection(remoteConn, localConn net.Conn) {
+func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
 			if r != io.EOF {
@@ -117,13 +122,12 @@ func handleConnection(remoteConn, localConn net.Conn) {
 		}
 	}()
 
-	handleConnectionReal(remoteConn, localConn)
+	handleConnectionReal(remoteConn, l1, l2)
 }
 
-func handleConnectionReal(remoteConn, localConn net.Conn) {
+func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	remoteReader := bufio.NewReader(remoteConn)
 	remoteWriter := bufio.NewWriter(remoteConn)
-	localRW := bufio.NewReadWriter(bufio.NewReader(localConn), bufio.NewWriter(localConn))
 
 	var reqParser common.RequestParser
 	var responder common.Responder
@@ -139,7 +143,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 		binary, err := isBinaryRequest(remoteReader)
 
 		if err != nil {
-			abort(remoteConn, localConn, err, binary)
+			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 			return
 		}
 
@@ -154,14 +158,14 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 		request, reqType, err = reqParser.Parse()
 
 		if err != nil {
-			abort(remoteConn, localConn, err, binary)
+			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 			return
 		}
 
 		// TODO: handle nil
 		switch reqType {
 		case common.REQUEST_SET:
-			err = local.HandleSet(request.(common.SetRequest), remoteReader, localRW)
+			err = l1.Set(request.(common.SetRequest), remoteReader)
 
 			if err == nil {
 				// For text protocol, read in \r\n at end of data.
@@ -177,14 +181,14 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			}
 
 		case common.REQUEST_DELETE:
-			err = local.HandleDelete(request.(common.DeleteRequest), localRW)
+			err = l1.Delete(request.(common.DeleteRequest))
 
 			if err == nil {
 				responder.Delete()
 			}
 
 		case common.REQUEST_TOUCH:
-			err = local.HandleTouch(request.(common.TouchRequest), localRW)
+			err = l1.Touch(request.(common.TouchRequest))
 
 			if err == nil {
 				responder.Touch()
@@ -192,7 +196,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 
 		case common.REQUEST_GET:
 			getReq := request.(common.GetRequest)
-			resChan, errChan := local.HandleGet(getReq, localRW)
+			resChan, errChan := l1.Get(getReq)
 
 			for {
 				select {
@@ -223,7 +227,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			responder.GetEnd(getReq.NoopEnd)
 
 		case common.REQUEST_GAT:
-			res, err := local.HandleGAT(request.(common.GATRequest), localRW)
+			res, err := l1.GAT(request.(common.GATRequest))
 
 			if err == nil {
 				if res.Miss {
@@ -243,7 +247,7 @@ func handleConnectionReal(remoteConn, localConn net.Conn) {
 			if common.IsAppError(err) {
 				responder.Error(err)
 			} else {
-				abort(remoteConn, localConn, err, binary)
+				abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 				return
 			}
 		}

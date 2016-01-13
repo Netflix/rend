@@ -18,7 +18,7 @@ import "bufio"
 import "fmt"
 import "strings"
 
-import "../common"
+import "github.com/netflix/rend/client/common"
 
 const VERBOSE = false
 

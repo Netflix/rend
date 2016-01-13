@@ -22,7 +22,7 @@ import "bufio"
 import "bytes"
 import "encoding/binary"
 
-import "../common"
+import "github.com/netflix/rend/common"
 
 // Sample Get response
 // Field        (offset) (value)
