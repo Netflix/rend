@@ -71,7 +71,7 @@ func getLocal(rw *bufio.ReadWriter, cmd []byte) ([]byte, error) {
 
 	// total body - key - extra
 	dataLen := resHeader.TotalBodyLength - uint32(resHeader.KeyLength) - uint32(resHeader.ExtraLength)
-	buf := make([]byte, 0, dataLen)
+	buf := make([]byte, dataLen)
 
 	// Read in value
 	if _, err := io.ReadFull(rw, buf); err != nil {
