@@ -46,7 +46,7 @@ func init() {
 }
 
 func main() {
-	server, err := net.Listen("tcp", ":11212")
+	server, err := net.Listen("tcp", ":11211")
 
 	if err != nil {
 		print(err.Error())
