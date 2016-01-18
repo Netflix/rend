@@ -80,6 +80,7 @@ func PrintHist(data []int) {
 	step := float64(max-min) / numBuckets
 	prevCutIdx := 0
 	maxBucket := 0
+	maxBucketIdx := 0
 
 	for i := 0; i < numBuckets; i++ {
 		cut := float64(min) + step*float64(i+1)
@@ -95,13 +96,23 @@ func PrintHist(data []int) {
 
 		if count > maxBucket {
 			maxBucket = count
+			maxBucketIdx = i
 		}
 	}
+
+	topBucketFmt := fmt.Sprintf("%%%vd\n", maxBucketIdx + 3)
+	topPointerRow := make([]rune, numBuckets)
+
+	for i := 1; i < numBuckets-1; i++ {
+		topPointerRow[i] = ' '
+	}
+
+	topPointerRow[maxBucketIdx+1] = 'v'
 
 	// Scale the graph to a reasonable maximum height
 	heightRatio := float64(maxHeight) / float64(maxBucket)
 	for i := 0; i < len(buckets); i++ {
-		buckets[i] = int(math.Ceil(float64(buckets[i]) * heightRatio))
+		buckets[i] = int(math.Min(float64(maxHeight), math.Ceil(float64(buckets[i]) * heightRatio)))
 	}
 
 	// Scan downward over the histogram printing line by line
@@ -135,6 +146,8 @@ func PrintHist(data []int) {
 	pointerRow[len(pointerRow)/2] = '^'
 	pointerRow[len(pointerRow)-1] = '^'
 
+	fmt.Printf(topBucketFmt, maxBucket)
+	fmt.Println(string(topPointerRow))
 	fmt.Print(string(hist))
 	fmt.Println(string(pointerRow))
 	fmt.Printf("%.4fms                                       %.4fms                                     %.4fms\n", gmin, gmid, gmax)
