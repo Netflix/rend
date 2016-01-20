@@ -32,8 +32,6 @@ import "github.com/netflix/rend/handlers"
 import "github.com/netflix/rend/handlers/memcached"
 import "github.com/netflix/rend/textprot"
 
-const verbose = false
-
 // Setting up signal handlers
 func init() {
 	sigs := make(chan os.Signal)
@@ -73,6 +71,7 @@ func main() {
 		}
 
 		l1 := memcached.NewChunkedHandler(l1conn)
+		//l1 := memcached.NewHandler(l1conn)
 
 		go handleConnection(remote, l1, nil)
 	}
@@ -259,5 +258,5 @@ func isBinaryRequest(reader *bufio.Reader) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return int(headerByte[0]) == binprot.MAGIC_REQUEST, nil
+	return int(headerByte[0]) == binprot.MagicRequest, nil
 }

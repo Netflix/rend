@@ -23,7 +23,7 @@ func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
 	totalBodyLength := len(key) + 8 + int(dataSize)
-	header := MakeRequestHeader(OPCODE_SET, len(key), 8, totalBodyLength)
+	header := MakeRequestHeader(OpcodeSet, len(key), 8, totalBodyLength)
 
 	reqBuf := new(bytes.Buffer)
 	binary.Write(reqBuf, binary.BigEndian, header)
@@ -38,7 +38,7 @@ func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
 
 func GetCmd(key []byte) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OPCODE_GET, len(key), 0, len(key))
+	header := MakeRequestHeader(OpcodeGet, len(key), 0, len(key))
 
 	reqBuf := new(bytes.Buffer)
 	binary.Write(reqBuf, binary.BigEndian, header)
@@ -51,7 +51,7 @@ func GetCmd(key []byte) []byte {
 
 func GATCmd(key []byte, exptime uint32) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OPCODE_GAT, len(key), 4, len(key))
+	header := MakeRequestHeader(OpcodeGat, len(key), 4, len(key))
 
 	reqBuf := new(bytes.Buffer)
 	binary.Write(reqBuf, binary.BigEndian, header)
@@ -65,7 +65,7 @@ func GATCmd(key []byte, exptime uint32) []byte {
 
 func DeleteCmd(key []byte) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OPCODE_DELETE, len(key), 0, len(key))
+	header := MakeRequestHeader(OpcodeDelete, len(key), 0, len(key))
 
 	reqBuf := new(bytes.Buffer)
 	binary.Write(reqBuf, binary.BigEndian, header)
@@ -80,7 +80,7 @@ func TouchCmd(key []byte, exptime uint32) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
 	totalBodyLength := len(key) + 4
-	header := MakeRequestHeader(OPCODE_TOUCH, len(key), 4, totalBodyLength)
+	header := MakeRequestHeader(OpcodeTouch, len(key), 4, totalBodyLength)
 
 	reqBuf := new(bytes.Buffer)
 	binary.Write(reqBuf, binary.BigEndian, header)

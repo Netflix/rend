@@ -1,21 +1,17 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/**
- * Functions to respond in kind to binary-based requests
- */
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package binprot
 
 import "bufio"
@@ -113,17 +109,17 @@ func NewBinaryResponder(writer *bufio.Writer) BinaryResponder {
 
 // TODO: CAS?
 func (b BinaryResponder) Set() error {
-	header := makeSuccessResponseHeader(OPCODE_SET, 0, 0, 0, 0)
+	header := makeSuccessResponseHeader(OpcodeSet, 0, 0, 0, 0)
 	return writeHeader(header, b.writer)
 }
 
 func (b BinaryResponder) Get(response common.GetResponse) error {
-	return getCommon(b.writer, response, OPCODE_GET)
+	return getCommon(b.writer, response, OpcodeGet)
 }
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
 	if !response.Quiet {
-		header := makeErrorResponseHeader(OPCODE_GET, int(STATUS_KEY_ENOENT), 0)
+		header := makeErrorResponseHeader(OpcodeGet, int(StatusKeyEnoent), 0)
 		return writeHeader(header, b.writer)
 	}
 	return nil
@@ -133,7 +129,7 @@ func (b BinaryResponder) GetEnd(noopEnd bool) error {
 	// if Noop was the end of the pipelined batch gets, respond with a Noop header
 	// otherwise, stay quiet as the last get would be a GET and not a GETQ
 	if noopEnd {
-		header := makeSuccessResponseHeader(OPCODE_NOOP, 0, 0, 0, 0)
+		header := makeSuccessResponseHeader(OpcodeNoop, 0, 0, 0, 0)
 		return writeHeader(header, b.writer)
 	}
 
@@ -141,30 +137,30 @@ func (b BinaryResponder) GetEnd(noopEnd bool) error {
 }
 
 func (b BinaryResponder) GAT(response common.GetResponse) error {
-	return getCommon(b.writer, response, OPCODE_GAT)
+	return getCommon(b.writer, response, OpcodeGat)
 }
 
 func (b BinaryResponder) GATMiss(response common.GetResponse) error {
 	if !response.Quiet {
-		header := makeErrorResponseHeader(OPCODE_GAT, int(STATUS_KEY_ENOENT), 0)
+		header := makeErrorResponseHeader(OpcodeGat, int(StatusKeyEnoent), 0)
 		return writeHeader(header, b.writer)
 	}
 	return nil
 }
 
 func (b BinaryResponder) Delete() error {
-	header := makeSuccessResponseHeader(OPCODE_DELETE, 0, 0, 0, 0)
+	header := makeSuccessResponseHeader(OpcodeDelete, 0, 0, 0, 0)
 	return writeHeader(header, b.writer)
 }
 
 func (b BinaryResponder) Touch() error {
-	header := makeSuccessResponseHeader(OPCODE_TOUCH, 0, 0, 0, 0)
+	header := makeSuccessResponseHeader(OpcodeTouch, 0, 0, 0, 0)
 	return writeHeader(header, b.writer)
 }
 
 func (b BinaryResponder) Error(err error) error {
 	// TODO: proper opcode
-	header := makeErrorResponseHeader(OPCODE_GET, int(errorToCode(err)), 0)
+	header := makeErrorResponseHeader(OpcodeGet, int(errorToCode(err)), 0)
 	return writeHeader(header, b.writer)
 }
 

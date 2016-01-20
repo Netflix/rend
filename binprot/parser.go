@@ -1,18 +1,17 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package binprot
 
 import "bufio"
@@ -132,7 +131,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	}
 
 	switch reqHeader.Opcode {
-	case OPCODE_SET:
+	case OpcodeSet:
 		// flags, exptime, key, value
 		flags, err := readUInt32(b.reader)
 
@@ -166,7 +165,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Length:  realLength,
 		}, common.REQUEST_SET, nil
 
-	case OPCODE_GETQ:
+	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
 
 		if err != nil {
@@ -176,7 +175,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 		return req, common.REQUEST_GET, nil
 
-	case OPCODE_GET:
+	case OpcodeGet:
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 
@@ -192,7 +191,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			NoopEnd: false,
 		}, common.REQUEST_GET, nil
 
-	case OPCODE_GAT:
+	case OpcodeGat:
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
 
@@ -214,7 +213,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Opaque:  reqHeader.OpaqueToken,
 		}, common.REQUEST_GAT, nil
 
-	case OPCODE_DELETE:
+	case OpcodeDelete:
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 
@@ -227,7 +226,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Key: key,
 		}, common.REQUEST_DELETE, nil
 
-	case OPCODE_TOUCH:
+	case OpcodeTouch:
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
 
@@ -260,7 +259,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 
 	// while GETQ
 	// read key, read header
-	for header.Opcode == OPCODE_GETQ {
+	for header.Opcode == OpcodeGetQ {
 		// key
 		key, err := readString(r, header.KeyLength)
 
@@ -280,7 +279,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		}
 	}
 
-	if header.Opcode == OPCODE_GET {
+	if header.Opcode == OpcodeGet {
 		// key
 		key, err := readString(r, header.KeyLength)
 
@@ -292,7 +291,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		opaques = append(opaques, header.OpaqueToken)
 		quiet = append(quiet, false)
 		noopEnd = false
-	} else if header.Opcode == OPCODE_NOOP {
+	} else if header.Opcode == OpcodeNoop {
 		// nothing to do, header is read already
 		noopEnd = true
 	} else {
