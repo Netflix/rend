@@ -21,101 +21,100 @@ import "io"
 import "github.com/netflix/rend/common"
 
 const (
-	MagicRequest = 0x80
+	MagicRequest  = 0x80
 	MagicResponse = 0x81
 
 	// All opcodes as defined in memcached
 	// Minus SASL and range ops
-	OpcodeGet = 0x00
-	OpcodeSet = 0x01
-	OpcodeAdd = 0x02
-	OpcodeReplace = 0x03
-	OpcodeDelete = 0x04
-	OpcodeIncrement = 0x05
-	OpcodeDecrement = 0x06
-	OpcodeQuit = 0x07
-	OpcodeFlush = 0x08
-	OpcodeGetQ = 0x09
-	OpcodeNoop = 0x0a
-	OpcodeVersion = 0x0b
-	OpcodeGetK = 0x0c
-	OpcodeGetKQ = 0x0d
-	OpcodeAppend = 0x0e
-	OpcodePrepend = 0x0f
-	OpcodeStat = 0x10
-	OpcodeSetQ = 0x11
-	OpcodeAddQ = 0x12
-	OpcodeReplaceQ = 0x13
-	OpcodeDeleteQ = 0x14
+	OpcodeGet        = 0x00
+	OpcodeSet        = 0x01
+	OpcodeAdd        = 0x02
+	OpcodeReplace    = 0x03
+	OpcodeDelete     = 0x04
+	OpcodeIncrement  = 0x05
+	OpcodeDecrement  = 0x06
+	OpcodeQuit       = 0x07
+	OpcodeFlush      = 0x08
+	OpcodeGetQ       = 0x09
+	OpcodeNoop       = 0x0a
+	OpcodeVersion    = 0x0b
+	OpcodeGetK       = 0x0c
+	OpcodeGetKQ      = 0x0d
+	OpcodeAppend     = 0x0e
+	OpcodePrepend    = 0x0f
+	OpcodeStat       = 0x10
+	OpcodeSetQ       = 0x11
+	OpcodeAddQ       = 0x12
+	OpcodeReplaceQ   = 0x13
+	OpcodeDeleteQ    = 0x14
 	OpcodeIncrementQ = 0x15
 	OpcodeDecrementQ = 0x16
-	OpcodeQuitQ = 0x17
-	OpcodeFlushQ = 0x18
-	OpcodeAppendQ = 0x19
-	OpcodePrependQ = 0x1a
-	OpcodeTouch = 0x1c
-	OpcodeGat = 0x1d
-	OpcodeGatQ = 0x1e
-	OpcodeGatK = 0x23
-	OpcodeGatKQ = 0x24
+	OpcodeQuitQ      = 0x17
+	OpcodeFlushQ     = 0x18
+	OpcodeAppendQ    = 0x19
+	OpcodePrependQ   = 0x1a
+	OpcodeTouch      = 0x1c
+	OpcodeGat        = 0x1d
+	OpcodeGatQ       = 0x1e
+	OpcodeGatK       = 0x23
+	OpcodeGatKQ      = 0x24
 
-
-	StatusSuccess = uint16(0x00)
-	StatusKeyEnoent = uint16(0x01)
-	StatusKeyEexists = uint16(0x02)
-	StatusE2big = uint16(0x03)
-	StatusEinval = uint16(0x04)
-	StatusNotStored = uint16(0x05)
-	StatusDeltaBadval = uint16(0x06)
-	StatusAuthError = uint16(0x20)
-	StatusAuthContinue = uint16(0x21)
+	StatusSuccess        = uint16(0x00)
+	StatusKeyEnoent      = uint16(0x01)
+	StatusKeyEexists     = uint16(0x02)
+	StatusE2big          = uint16(0x03)
+	StatusEinval         = uint16(0x04)
+	StatusNotStored      = uint16(0x05)
+	StatusDeltaBadval    = uint16(0x06)
+	StatusAuthError      = uint16(0x20)
+	StatusAuthContinue   = uint16(0x21)
 	StatusUnknownCommand = uint16(0x81)
-	StatusEnomem = uint16(0x82)
+	StatusEnomem         = uint16(0x82)
 )
 
 func DecodeError(header ResponseHeader) error {
 	switch header.Status {
 	case StatusKeyEnoent:
-		return common.ERROR_KEY_NOT_FOUND
+		return common.ErrKeyNotFound
 	case StatusKeyEexists:
-		return common.ERROR_KEY_EXISTS
+		return common.ErrKeyExists
 	case StatusE2big:
-		return common.ERROR_VALUE_TOO_BIG
+		return common.ErrValueTooBig
 	case StatusEinval:
-		return common.ERROR_INVALID_ARGS
+		return common.ErrInvalidArgs
 	case StatusNotStored:
-		return common.ERROR_ITEM_NOT_STORED
+		return common.ErrItemNotStored
 	case StatusDeltaBadval:
-		return common.ERROR_BAD_INC_DEC_VALUE
+		return common.ErrBadIncDecValue
 	case StatusAuthError:
-		return common.ERROR_AUTH_ERROR
+		return common.ErrAuth
 	case StatusUnknownCommand:
-		return common.ERROR_UNKNOWN_CMD
+		return common.ErrUnknownCmd
 	case StatusEnomem:
-		return common.ERROR_NO_MEM
+		return common.ErrNoMem
 	}
 	return nil
 }
 
 func errorToCode(err error) uint16 {
 	switch err {
-	case common.ERROR_KEY_NOT_FOUND:
+	case common.ErrKeyNotFound:
 		return StatusKeyEnoent
-	case common.ERROR_KEY_EXISTS:
+	case common.ErrKeyExists:
 		return StatusKeyEexists
-	case common.ERROR_VALUE_TOO_BIG:
+	case common.ErrValueTooBig:
 		return StatusE2big
-	case common.ERROR_INVALID_ARGS:
+	case common.ErrInvalidArgs:
 		return StatusEinval
-	case common.ERROR_ITEM_NOT_STORED:
+	case common.ErrItemNotStored:
 		return StatusNotStored
-	case common.ERROR_BAD_INC_DEC_VALUE:
+	case common.ErrBadIncDecValue:
 		return StatusDeltaBadval
-	case common.ERROR_AUTH_ERROR:
+	case common.ErrAuth:
 		return StatusAuthError
-	case common.ERROR_UNKNOWN_CMD:
+	case common.ErrUnknownCmd:
 		return StatusUnknownCommand
-	case common.ERROR_NO_MEM:
+	case common.ErrNoMem:
 		return StatusEnomem
 	}
 	return 0xFFFF

@@ -127,7 +127,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	err := binary.Read(b.reader, binary.BigEndian, &reqHeader)
 
 	if err != nil {
-		return nil, common.REQUEST_UNKNOWN, err
+		return nil, common.RequestUnknown, err
 	}
 
 	switch reqHeader.Opcode {
@@ -137,21 +137,21 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 		if err != nil {
 			fmt.Println("Error reading flags")
-			return nil, common.REQUEST_SET, err
+			return nil, common.RequestSet, err
 		}
 
 		exptime, err := readUInt32(b.reader)
 
 		if err != nil {
 			fmt.Println("Error reading exptime")
-			return nil, common.REQUEST_SET, err
+			return nil, common.RequestSet, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
 
 		if err != nil {
 			fmt.Println("Error reading key")
-			return nil, common.REQUEST_SET, err
+			return nil, common.RequestSet, err
 		}
 
 		realLength := reqHeader.TotalBodyLength -
@@ -163,17 +163,17 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Flags:   flags,
 			Exptime: exptime,
 			Length:  realLength,
-		}, common.REQUEST_SET, nil
+		}, common.RequestSet, nil
 
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
 
 		if err != nil {
 			fmt.Println("Error reading batch get")
-			return nil, common.REQUEST_GET, err
+			return nil, common.RequestGet, err
 		}
 
-		return req, common.REQUEST_GET, nil
+		return req, common.RequestGet, nil
 
 	case OpcodeGet:
 		// key
@@ -181,7 +181,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 		if err != nil {
 			fmt.Println("Error reading key")
-			return nil, common.REQUEST_GET, err
+			return nil, common.RequestGet, err
 		}
 
 		return common.GetRequest{
@@ -189,7 +189,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Opaques: []uint32{reqHeader.OpaqueToken},
 			Quiet:   []bool{false},
 			NoopEnd: false,
-		}, common.REQUEST_GET, nil
+		}, common.RequestGet, nil
 
 	case OpcodeGat:
 		// exptime, key
@@ -197,21 +197,21 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 		if err != nil {
 			fmt.Println("Error reading exptime")
-			return nil, common.REQUEST_GAT, err
+			return nil, common.RequestGat, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
 
 		if err != nil {
 			fmt.Println("Error reading key")
-			return nil, common.REQUEST_GAT, err
+			return nil, common.RequestGat, err
 		}
 
 		return common.GATRequest{
 			Key:     key,
 			Exptime: exptime,
 			Opaque:  reqHeader.OpaqueToken,
-		}, common.REQUEST_GAT, nil
+		}, common.RequestGat, nil
 
 	case OpcodeDelete:
 		// key
@@ -219,12 +219,12 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 		if err != nil {
 			fmt.Println("Error reading key")
-			return nil, common.REQUEST_DELETE, err
+			return nil, common.RequestDelete, err
 		}
 
 		return common.DeleteRequest{
 			Key: key,
-		}, common.REQUEST_DELETE, nil
+		}, common.RequestDelete, nil
 
 	case OpcodeTouch:
 		// exptime, key
@@ -232,23 +232,23 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 		if err != nil {
 			fmt.Println("Error reading exptime")
-			return nil, common.REQUEST_TOUCH, err
+			return nil, common.RequestTouch, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
 
 		if err != nil {
 			fmt.Println("Error reading key")
-			return nil, common.REQUEST_TOUCH, err
+			return nil, common.RequestTouch, err
 		}
 
 		return common.TouchRequest{
 			Key:     key,
 			Exptime: exptime,
-		}, common.REQUEST_TOUCH, nil
+		}, common.RequestTouch, nil
 	}
 
-	return nil, common.REQUEST_GET, nil
+	return nil, common.RequestGet, nil
 }
 
 func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {

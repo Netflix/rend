@@ -1,18 +1,17 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package binprot
 
 import "encoding/binary"
@@ -100,72 +99,72 @@ func readRes(r io.Reader) (*res, error) {
 	return res, nil
 }
 
-var ERR_KEY_NOT_FOUND error
-var ERR_KEY_EXISTS error
-var ERR_VAL_TOO_LARGE error
-var ERR_INVALID_ARGS error
-var ERR_ITEM_NOT_STORED error
-var ERR_INC_DEC_INVAL error
-var ERR_VBUCKET error
-var ERR_AUTH error
-var ERR_AUTH_CONT error
-var ERR_UNKNOWN_CMD error
-var ERR_NO_MEM error
-var ERR_NOT_SUPPORTED error
-var ERR_INTERNAL error
-var ERR_BUSY error
-var ERR_TEMP error
+var ErrKeyNotFound error
+var ErrKeyExists error
+var ErrValTooLarge error
+var ErrInvalidArgs error
+var ErrItemNotStored error
+var ErrIncDecInval error
+var ErrVBucket error
+var ErrAuth error
+var ErrAuthCont error
+var ErrUnknownCmd error
+var ErrNoMem error
+var ErrNotSupported error
+var ErrInternal error
+var ErrBusy error
+var ErrTemp error
 
 func init() {
-	ERR_KEY_NOT_FOUND = errors.New("Key not found")
-	ERR_KEY_EXISTS = errors.New("Key exists")
-	ERR_VAL_TOO_LARGE = errors.New("Value too large")
-	ERR_INVALID_ARGS = errors.New("Invalid arguments")
-	ERR_ITEM_NOT_STORED = errors.New("Item not stored")
-	ERR_INC_DEC_INVAL = errors.New("Incr/Decr on non-numeric value.")
-	ERR_VBUCKET = errors.New("The vbucket belongs to another server")
-	ERR_AUTH = errors.New("Authentication error")
-	ERR_AUTH_CONT = errors.New("Authentication continue")
-	ERR_UNKNOWN_CMD = errors.New("Unknown command")
-	ERR_NO_MEM = errors.New("Out of memory")
-	ERR_NOT_SUPPORTED = errors.New("Not supported")
-	ERR_INTERNAL = errors.New("Internal error")
-	ERR_BUSY = errors.New("Busy")
-	ERR_TEMP = errors.New("Temporary failure")
+	ErrKeyNotFound = errors.New("Key not found")
+	ErrKeyExists = errors.New("Key exists")
+	ErrValTooLarge = errors.New("Value too large")
+	ErrInvalidArgs = errors.New("Invalid arguments")
+	ErrItemNotStored = errors.New("Item not stored")
+	ErrIncDecInval = errors.New("Incr/Decr on non-numeric value.")
+	ErrVBucket = errors.New("The vbucket belongs to another server")
+	ErrAuth = errors.New("Authentication error")
+	ErrAuthCont = errors.New("Authentication continue")
+	ErrUnknownCmd = errors.New("Unknown command")
+	ErrNoMem = errors.New("Out of memory")
+	ErrNotSupported = errors.New("Not supported")
+	ErrInternal = errors.New("Internal error")
+	ErrBusy = errors.New("Busy")
+	ErrTemp = errors.New("Temporary failure")
 }
 
 func statusToError(status uint16) error {
 	switch status {
 	case uint16(0x01):
-		return ERR_KEY_NOT_FOUND
+		return ErrKeyNotFound
 	case uint16(0x02):
-		return ERR_KEY_EXISTS
+		return ErrKeyExists
 	case uint16(0x03):
-		return ERR_VAL_TOO_LARGE
+		return ErrValTooLarge
 	case uint16(0x04):
-		return ERR_INVALID_ARGS
+		return ErrInvalidArgs
 	case uint16(0x05):
-		return ERR_ITEM_NOT_STORED
+		return ErrItemNotStored
 	case uint16(0x06):
-		return ERR_INC_DEC_INVAL
+		return ErrIncDecInval
 	case uint16(0x07):
-		return ERR_VBUCKET
+		return ErrVBucket
 	case uint16(0x08):
-		return ERR_AUTH
+		return ErrAuth
 	case uint16(0x09):
-		return ERR_AUTH_CONT
+		return ErrAuthCont
 	case uint16(0x81):
-		return ERR_UNKNOWN_CMD
+		return ErrUnknownCmd
 	case uint16(0x82):
-		return ERR_NO_MEM
+		return ErrNoMem
 	case uint16(0x83):
-		return ERR_NOT_SUPPORTED
+		return ErrNotSupported
 	case uint16(0x84):
-		return ERR_INTERNAL
+		return ErrInternal
 	case uint16(0x85):
-		return ERR_BUSY
+		return ErrBusy
 	case uint16(0x86):
-		return ERR_TEMP
+		return ErrTemp
 	}
 
 	return nil
@@ -173,9 +172,9 @@ func statusToError(status uint16) error {
 
 func srsErr(err error) bool {
 	switch err {
-	case ERR_KEY_NOT_FOUND:
-	case ERR_KEY_EXISTS:
-	case ERR_ITEM_NOT_STORED:
+	case ErrKeyNotFound:
+	case ErrKeyExists:
+	case ErrItemNotStored:
 		return false
 	}
 

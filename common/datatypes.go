@@ -17,45 +17,45 @@ package common
 import "errors"
 
 var (
-	BAD_LENGTH = errors.New("CLIENT_ERROR length is not a valid integer")
-	BAD_FLAGS = errors.New("CLIENT_ERROR flags is not a valid integer")
+	ErrBadLength = errors.New("CLIENT_ERROR length is not a valid integer")
+	ErrBadFlags  = errors.New("CLIENT_ERROR flags is not a valid integer")
 
-	ERROR_KEY_NOT_FOUND = errors.New("ERROR Key not found")
-	ERROR_KEY_EXISTS = errors.New("ERROR Key already exists")
-	ERROR_VALUE_TOO_BIG = errors.New("ERROR Value too big")
-	ERROR_INVALID_ARGS = errors.New("ERROR Invalid arguments")
-	ERROR_ITEM_NOT_STORED = errors.New("ERROR Item not stored (CAS didn't match)")
-	ERROR_BAD_INC_DEC_VALUE = errors.New("ERROR Bad increment/decrement value")
-	ERROR_AUTH_ERROR = errors.New("ERROR Authentication error")
-	ERROR_UNKNOWN_CMD = errors.New("ERROR Unknown command")
-	ERROR_NO_MEM = errors.New("ERROR Out of memory")
+	ErrKeyNotFound    = errors.New("ERROR Key not found")
+	ErrKeyExists      = errors.New("ERROR Key already exists")
+	ErrValueTooBig    = errors.New("ERROR Value too big")
+	ErrInvalidArgs    = errors.New("ERROR Invalid arguments")
+	ErrItemNotStored  = errors.New("ERROR Item not stored (CAS didn't match)")
+	ErrBadIncDecValue = errors.New("ERROR Bad increment/decrement value")
+	ErrAuth           = errors.New("ERROR Authentication error")
+	ErrUnknownCmd     = errors.New("ERROR Unknown command")
+	ErrNoMem          = errors.New("ERROR Out of memory")
 )
 
 // Make sure to keep this list in sync with the one above
-// It should contain all ERROR_* that could come back from
+// It should contain all Err* that could come back from
 // memcached itself
 func IsAppError(err error) bool {
-	return err == ERROR_KEY_NOT_FOUND ||
-		err == ERROR_KEY_EXISTS ||
-		err == ERROR_VALUE_TOO_BIG ||
-		err == ERROR_INVALID_ARGS ||
-		err == ERROR_ITEM_NOT_STORED ||
-		err == ERROR_BAD_INC_DEC_VALUE ||
-		err == ERROR_AUTH_ERROR ||
-		err == ERROR_UNKNOWN_CMD ||
-		err == ERROR_NO_MEM
+	return err == ErrKeyNotFound ||
+		err == ErrKeyExists ||
+		err == ErrValueTooBig ||
+		err == ErrInvalidArgs ||
+		err == ErrItemNotStored ||
+		err == ErrBadIncDecValue ||
+		err == ErrAuth ||
+		err == ErrUnknownCmd ||
+		err == ErrNoMem
 }
 
 type RequestType int
 
 const (
-	REQUEST_UNKNOWN = iota
-	REQUEST_GET
-	REQUEST_GETQ
-	REQUEST_GAT
-	REQUEST_SET
-	REQUEST_DELETE
-	REQUEST_TOUCH
+	RequestUnknown = iota
+	RequestGet
+	RequestGetQ
+	RequestGat
+	RequestSet
+	RequestDelete
+	RequestTouch
 )
 
 type RequestParser interface {
@@ -116,13 +116,12 @@ type GetResponse struct {
 	Quiet    bool
 }
 
-const METADATA_SIZE = 32
+const MetadataSize = 32
 
 type Metadata struct {
 	Length    uint32
 	OrigFlags uint32
 	NumChunks uint32
 	ChunkSize uint32
-	// This size should stay the same as local.TOKEN_SIZE
-	Token [16]byte
+	Token     [16]byte
 }

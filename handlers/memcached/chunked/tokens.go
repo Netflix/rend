@@ -16,22 +16,22 @@ package chunked
 
 import "crypto/rand"
 
-const TOKEN_SIZE = 16
+const tokenSize = 16
 
 // Tokens are used during set handling to uniquely identify
 // a specific set
-var tokens chan [TOKEN_SIZE]byte
+var tokens chan [tokenSize]byte
 
 func init() {
 	// keep 1000 unique tokens around for write-heavy loads
 	// otherwise we have to wait on a read from /dev/urandom
-	tokens = make(chan [TOKEN_SIZE]byte, 1000)
+	tokens = make(chan [tokenSize]byte, 1000)
 	go genTokens()
 }
 
 func genTokens() {
 	for {
-		var retval [TOKEN_SIZE]byte
+		var retval [tokenSize]byte
 		rand.Read(retval[:])
 		tokens <- retval
 	}

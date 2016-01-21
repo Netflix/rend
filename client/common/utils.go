@@ -26,13 +26,13 @@ import "time"
 // No constant arrays :(
 var letters = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-const PREDATA_LENGTH = 20 * 1024
+const predataLength = 20 * 1024
 
 var predata []byte
 
 func init() {
 	r := rand.New(rand.NewSource(RandSeed()))
-	predata = RandData(r, PREDATA_LENGTH, false)
+	predata = RandData(r, predataLength, false)
 }
 
 func RandSeed() int64 {
@@ -47,7 +47,7 @@ func RandSeed() int64 {
 }
 
 func RandData(r *rand.Rand, n int, useCached bool) []byte {
-	if useCached && n <= PREDATA_LENGTH {
+	if useCached && n <= predataLength {
 		return predata[:n]
 	}
 
@@ -71,7 +71,7 @@ func Connect(host string, port int) (net.Conn, error) {
 	return conn, nil
 }
 
-const MAX_TTL = 3600
+const maxTTL = 3600
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -79,5 +79,5 @@ func init() {
 
 // get a random expiration
 func Exp() uint32 {
-	return uint32(rand.Intn(MAX_TTL))
+	return uint32(rand.Intn(maxTTL))
 }

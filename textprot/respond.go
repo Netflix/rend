@@ -1,21 +1,17 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/**
- * Functions to respond in kind to text-based requests
- */
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package textprot
 
 import "bufio"
@@ -127,21 +123,21 @@ func (t TextResponder) Touch() error {
 func (t TextResponder) Error(err error) error {
 
 	switch err {
-	case common.ERROR_KEY_NOT_FOUND:
+	case common.ErrKeyNotFound:
 		_, err = fmt.Fprintf(t.writer, "NOT_FOUND\r\n")
-	case common.ERROR_KEY_EXISTS:
+	case common.ErrKeyExists:
 		_, err = fmt.Fprintf(t.writer, "EXISTS\r\n")
-	case common.ERROR_ITEM_NOT_STORED:
+	case common.ErrItemNotStored:
 		_, err = fmt.Fprintf(t.writer, "NOT_STORED\r\n")
-	case common.ERROR_VALUE_TOO_BIG:
-	case common.ERROR_INVALID_ARGS:
+	case common.ErrValueTooBig:
+	case common.ErrInvalidArgs:
 		_, err = fmt.Fprintf(t.writer, "CLIENT_ERROR bad command line\r\n")
-	case common.ERROR_BAD_INC_DEC_VALUE:
+	case common.ErrBadIncDecValue:
 		_, err = fmt.Fprintf(t.writer, "CLIENT_ERROR invalid numeric delta argument\r\n")
-	case common.ERROR_AUTH_ERROR:
+	case common.ErrAuth:
 		_, err = fmt.Fprintf(t.writer, "CLIENT_ERROR\r\n")
-	case common.ERROR_UNKNOWN_CMD:
-	case common.ERROR_NO_MEM:
+	case common.ErrUnknownCmd:
+	case common.ErrNoMem:
 	default:
 		_, err = fmt.Fprintf(t.writer, "ERROR\r\n")
 	}

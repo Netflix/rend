@@ -1,3 +1,17 @@
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package stats
 
 import "fmt"
@@ -100,7 +114,7 @@ func PrintHist(data []int) {
 		}
 	}
 
-	topBucketFmt := fmt.Sprintf("%%%vd\n", maxBucketIdx + 3)
+	topBucketFmt := fmt.Sprintf("%%%vd\n", maxBucketIdx+3)
 	topPointerRow := make([]rune, numBuckets)
 
 	for i := 1; i < numBuckets-1; i++ {
@@ -112,7 +126,7 @@ func PrintHist(data []int) {
 	// Scale the graph to a reasonable maximum height
 	heightRatio := float64(maxHeight) / float64(maxBucket)
 	for i := 0; i < len(buckets); i++ {
-		buckets[i] = int(math.Min(float64(maxHeight), math.Ceil(float64(buckets[i]) * heightRatio)))
+		buckets[i] = int(math.Min(float64(maxHeight), math.Ceil(float64(buckets[i])*heightRatio)))
 	}
 
 	// Scan downward over the histogram printing line by line

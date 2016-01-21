@@ -205,7 +205,7 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		}
 
 		if err != nil {
-			if err != binprot.ERR_KEY_NOT_FOUND {
+			if err != binprot.ErrKeyNotFound {
 				fmt.Printf("Error performing operation %s on key %s: %s\n", item.Cmd, item.Key, err.Error())
 			}
 			// if the socket was closed, stop. Otherwise keep on hammering.

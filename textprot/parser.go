@@ -1,22 +1,17 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/**
- * Parses the text-based protocol and returns a command line
- * struct representing the work to be done
- */
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package textprot
 
 import "bufio"
@@ -48,7 +43,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		}
 
 		fmt.Println(err.Error())
-		return nil, common.REQUEST_UNKNOWN, err
+		return nil, common.RequestUnknown, err
 	}
 
 	clParts := strings.Split(strings.TrimSpace(data), " ")
@@ -58,7 +53,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		// sanity check
 		if len(clParts) != 5 {
 			// TODO: standardize errors
-			return nil, common.REQUEST_SET, errors.New("Bad request")
+			return nil, common.RequestSet, errors.New("Bad request")
 		}
 
 		key := []byte(clParts[1])
@@ -68,7 +63,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		if err != nil {
 			fmt.Println(err.Error())
 			// TODO: standardize errors
-			return nil, common.REQUEST_SET, common.BAD_FLAGS
+			return nil, common.RequestSet, common.ErrBadFlags
 		}
 
 		exptime, err := strconv.ParseUint(strings.TrimSpace(clParts[3]), 10, 32)
@@ -76,7 +71,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		if err != nil {
 			fmt.Println(err.Error())
 			// TODO: standardize errors
-			return nil, common.REQUEST_SET, errors.New("Bad exptime")
+			return nil, common.RequestSet, errors.New("Bad exptime")
 		}
 
 		length, err := strconv.ParseUint(strings.TrimSpace(clParts[4]), 10, 32)
@@ -84,7 +79,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		if err != nil {
 			fmt.Println(err.Error())
 			// TODO: standardize errors
-			return nil, common.REQUEST_SET, common.BAD_LENGTH
+			return nil, common.RequestSet, common.ErrBadLength
 		}
 
 		return common.SetRequest{
@@ -93,12 +88,12 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 			Exptime: uint32(exptime),
 			Length:  uint32(length),
 			Opaque:  uint32(0),
-		}, common.REQUEST_SET, nil
+		}, common.RequestSet, nil
 
 	case "get":
 		if len(clParts) < 2 {
 			// TODO: standardize errors
-			return nil, common.REQUEST_GET, errors.New("Bad get")
+			return nil, common.RequestGet, errors.New("Bad get")
 		}
 
 		keys := make([][]byte, 0)
@@ -114,24 +109,24 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 			Opaques: opaques,
 			Quiet:   quiet,
 			NoopEnd: false,
-		}, common.REQUEST_GET, nil
+		}, common.RequestGet, nil
 
 	case "delete":
 		if len(clParts) != 2 {
 			// TODO: standardize errors
-			return nil, common.REQUEST_DELETE, errors.New("Bad delete")
+			return nil, common.RequestDelete, errors.New("Bad delete")
 		}
 
 		return common.DeleteRequest{
 			Key:    []byte(clParts[1]),
 			Opaque: uint32(0),
-		}, common.REQUEST_DELETE, nil
+		}, common.RequestDelete, nil
 
 	// TODO: Error handling for invalid cmd line
 	case "touch":
 		if len(clParts) != 3 {
 			// TODO: standardize errors
-			return nil, common.REQUEST_TOUCH, errors.New("Bad touch")
+			return nil, common.RequestTouch, errors.New("Bad touch")
 		}
 
 		key := []byte(clParts[1])
@@ -141,16 +136,16 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		if err != nil {
 			fmt.Println(err.Error())
 			// TODO: standardize errors
-			return nil, common.REQUEST_SET, errors.New("Bad exptime")
+			return nil, common.RequestSet, errors.New("Bad exptime")
 		}
 
 		return common.TouchRequest{
 			Key:     key,
 			Exptime: uint32(exptime),
 			Opaque:  uint32(0),
-		}, common.REQUEST_TOUCH, nil
+		}, common.RequestTouch, nil
 
 	default:
-		return nil, common.REQUEST_UNKNOWN, nil
+		return nil, common.RequestUnknown, nil
 	}
 }

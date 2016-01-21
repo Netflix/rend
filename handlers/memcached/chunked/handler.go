@@ -28,8 +28,8 @@ import "github.com/netflix/rend/common"
 // Chunk size, leaving room for the token
 // Make sure the value subtracted from chunk size stays in sync
 // with the size of the Metadata struct
-const CHUNK_SIZE = 1024 - 16
-const FULL_DATA_SIZE = 1024
+const chunkSize = 1024 - 16
+const fullDataSize = 1024
 
 func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	resHeader, err := binprot.ReadResponseHeader(r)
@@ -68,8 +68,8 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// for unchunked, a limited reader will be needed since the text protocol
 	// includes a /r/n at the end and there's no EOF to be had with a long-l`ived
 	// connection.
-	limChunkReader := newChunkLimitedReader(src, int64(CHUNK_SIZE), int64(cmd.Length))
-	numChunks := int(math.Ceil(float64(cmd.Length) / float64(CHUNK_SIZE)))
+	limChunkReader := newChunkLimitedReader(src, int64(chunkSize), int64(cmd.Length))
+	numChunks := int(math.Ceil(float64(cmd.Length) / float64(chunkSize)))
 	token := <-tokens
 
 	metaKey := metaKey(cmd.Key)
@@ -77,7 +77,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 		Length:    cmd.Length,
 		OrigFlags: cmd.Flags,
 		NumChunks: uint32(numChunks),
-		ChunkSize: CHUNK_SIZE,
+		ChunkSize: chunkSize,
 		Token:     token,
 	}
 
@@ -86,7 +86,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
-	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, common.METADATA_SIZE)
+	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, common.MetadataSize)
 	if err := setLocal(h.rw.Writer, localCmd, metaDataBuf); err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 		key := chunkKey(cmd.Key, chunkNum)
 
 		// Write the key
-		localCmd = binprot.SetCmd(key, cmd.Flags, cmd.Exptime, FULL_DATA_SIZE)
+		localCmd = binprot.SetCmd(key, cmd.Flags, cmd.Exptime, fullDataSize)
 		if err = setLocalWithToken(h.rw.Writer, localCmd, token, limChunkReader); err != nil {
 			return err
 		}
@@ -172,7 +172,7 @@ outer:
 	for idx, key := range cmd.Keys {
 		_, metaData, err := getMetadata(rw, key)
 		if err != nil {
-			if err == common.ERROR_KEY_NOT_FOUND {
+			if err == common.ErrKeyNotFound {
 				//fmt.Println("Get miss because of missing metadata. Key:", key)
 				dataOut <- common.GetResponse{
 					Miss:     true,
@@ -191,7 +191,7 @@ outer:
 
 		// Retrieve all the data from memcached
 		dataBuf := make([]byte, metaData.Length)
-		tokenBuf := make([]byte, TOKEN_SIZE)
+		tokenBuf := make([]byte, tokenSize)
 
 		for i := 0; i < int(metaData.NumChunks); i++ {
 			chunkKey := chunkKey(key, i)
@@ -203,7 +203,7 @@ outer:
 			chunkBuf := dataBuf[start:end]
 			getCmd := binprot.GetCmd(chunkKey)
 			if err := getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
-				if err == common.ERROR_KEY_NOT_FOUND {
+				if err == common.ErrKeyNotFound {
 					//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
 					dataOut <- common.GetResponse{
 						Miss:     true,
@@ -250,7 +250,7 @@ outer:
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	_, metaData, err := getAndTouchMetadata(h.rw, cmd.Key, cmd.Exptime)
 	if err != nil {
-		if err == common.ERROR_KEY_NOT_FOUND {
+		if err == common.ErrKeyNotFound {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
 			return common.GetResponse{
 				Miss:     true,
@@ -279,7 +279,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 		chunkBuf := dataBuf[start:end]
 		getCmd := binprot.GATCmd(chunkKey, cmd.Exptime)
 		if err := getLocalIntoBuf(h.rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
-			if err == common.ERROR_KEY_NOT_FOUND {
+			if err == common.ErrKeyNotFound {
 				//fmt.Println("GAT miss because of missing chunk. Cmd:", getCmd)
 				return common.GetResponse{
 					Miss:     true,
@@ -329,7 +329,7 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 	metaKey, metaData, err := getMetadata(h.rw, cmd.Key)
 
 	if err != nil {
-		if err == common.ERROR_KEY_NOT_FOUND {
+		if err == common.ErrKeyNotFound {
 			//fmt.Println("Delete miss because of missing metadata. Key:", cmd.Key)
 		}
 		return err
@@ -361,7 +361,7 @@ func (h Handler) Touch(cmd common.TouchRequest) error {
 	metaKey, metaData, err := getMetadata(h.rw, cmd.Key)
 
 	if err != nil {
-		if err == common.ERROR_KEY_NOT_FOUND {
+		if err == common.ErrKeyNotFound {
 			//fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key)
 			return err
 		}

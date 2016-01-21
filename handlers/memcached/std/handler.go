@@ -101,7 +101,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 		data, err := getLocal(rw, getCmd)
 
 		if err != nil {
-			if err == common.ERROR_KEY_NOT_FOUND {
+			if err == common.ErrKeyNotFound {
 				dataOut <- common.GetResponse{
 					Miss:     true,
 					Key:      key,
@@ -134,7 +134,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	data, err := getLocal(h.rw, getCmd)
 
 	if err != nil {
-		if err == common.ERROR_KEY_NOT_FOUND {
+		if err == common.ErrKeyNotFound {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
 			return common.GetResponse{
 				Miss:     true,

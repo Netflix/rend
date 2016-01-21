@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Memproxy is a proxy for memcached that will split the data input
-// into fixed-size chunks for storage. It will reassemble the data
-// on retrieval with set.
 package main
 
 import "bufio"
@@ -163,7 +160,7 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 
 		// TODO: handle nil
 		switch reqType {
-		case common.REQUEST_SET:
+		case common.RequestSet:
 			err = l1.Set(request.(common.SetRequest), remoteReader)
 
 			if err == nil {
@@ -179,21 +176,21 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				}
 			}
 
-		case common.REQUEST_DELETE:
+		case common.RequestDelete:
 			err = l1.Delete(request.(common.DeleteRequest))
 
 			if err == nil {
 				responder.Delete()
 			}
 
-		case common.REQUEST_TOUCH:
+		case common.RequestTouch:
 			err = l1.Touch(request.(common.TouchRequest))
 
 			if err == nil {
 				responder.Touch()
 			}
 
-		case common.REQUEST_GET:
+		case common.RequestGet:
 			getReq := request.(common.GetRequest)
 			resChan, errChan := l1.Get(getReq)
 
@@ -225,7 +222,7 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 
 			responder.GetEnd(getReq.NoopEnd)
 
-		case common.REQUEST_GAT:
+		case common.RequestGat:
 			res, err := l1.GAT(request.(common.GATRequest))
 
 			if err == nil {
@@ -237,8 +234,8 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				}
 			}
 
-		case common.REQUEST_UNKNOWN:
-			err = common.ERROR_UNKNOWN_CMD
+		case common.RequestUnknown:
+			err = common.ErrUnknownCmd
 		}
 
 		// TODO: distinguish fatal errors from non-fatal
