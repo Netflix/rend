@@ -23,6 +23,9 @@ import "os/signal"
 import "runtime"
 import "strings"
 
+import "net/http"
+import _ "net/http/pprof"
+
 import "github.com/netflix/rend/binprot"
 import "github.com/netflix/rend/common"
 import "github.com/netflix/rend/handlers"
@@ -37,6 +40,13 @@ func init() {
 	go func() {
 		<-sigs
 		panic("Keyboard Interrupt")
+	}()
+}
+
+// Set up profiling endpoint
+func init() {
+	go func() {
+		http.ListenAndServe("localhost:11299", nil)
 	}()
 }
 
