@@ -47,26 +47,26 @@ func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
 	return nil
 }
 
-func getLocal(rw *bufio.ReadWriter, cmd []byte) ([]byte, error) {
+func getLocal(rw *bufio.ReadWriter, cmd []byte) (data []byte, flags uint32, err error) {
 	rw.Write(cmd)
 	if err := rw.Flush(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
 		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
-			return nil, ioerr
+			return nil, 0, ioerr
 		}
-		return nil, err
+		return nil, 0, err
 	}
 
-	serverFlags := make([]byte, 4)
+	var serverFlags uint32
 	binary.Read(rw, binary.BigEndian, &serverFlags)
 
 	// total body - key - extra
@@ -75,8 +75,8 @@ func getLocal(rw *bufio.ReadWriter, cmd []byte) ([]byte, error) {
 
 	// Read in value
 	if _, err := io.ReadFull(rw, buf); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return buf, nil
+	return buf, serverFlags, nil
 }

@@ -51,7 +51,7 @@ func (t TextResponder) Get(response common.GetResponse) error {
 	// <data block>\r\n]*
 	// END\r\n
 	_, err := fmt.Fprintf(t.writer, "VALUE %s %d %d\r\n",
-		response.Key, response.Metadata.OrigFlags, response.Metadata.Length)
+		response.Key, response.Flags, len(response.Data))
 	if err != nil {
 		return err
 	}

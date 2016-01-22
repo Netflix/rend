@@ -192,7 +192,7 @@ func getCommon(w *bufio.Writer, response common.GetResponse, opcode int) error {
 		return err
 	}
 
-	err = binary.Write(w, binary.BigEndian, response.Metadata.OrigFlags)
+	err = binary.Write(w, binary.BigEndian, response.Flags)
 	if err != nil {
 		return err
 	}

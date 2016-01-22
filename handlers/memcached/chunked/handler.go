@@ -73,7 +73,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	token := <-tokens
 
 	metaKey := metaKey(cmd.Key)
-	metaData := common.Metadata{
+	metaData := metadata{
 		Length:    cmd.Length,
 		OrigFlags: cmd.Flags,
 		NumChunks: uint32(numChunks),
@@ -86,7 +86,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
-	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, common.MetadataSize)
+	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, metadataSize)
 	if err := setLocal(h.rw.Writer, localCmd, metaDataBuf); err != nil {
 		return err
 	}
@@ -175,12 +175,12 @@ outer:
 			if err == common.ErrKeyNotFound {
 				//fmt.Println("Get miss because of missing metadata. Key:", key)
 				dataOut <- common.GetResponse{
-					Miss:     true,
-					Key:      key,
-					Opaque:   cmd.Opaques[idx],
-					Quiet:    cmd.Quiet[idx],
-					Metadata: metaData,
-					Data:     nil,
+					Miss:   true,
+					Quiet:  cmd.Quiet[idx],
+					Opaque: cmd.Opaques[idx],
+					Flags:  metaData.OrigFlags,
+					Key:    key,
+					Data:   nil,
 				}
 				continue outer
 			}
@@ -206,12 +206,12 @@ outer:
 				if err == common.ErrKeyNotFound {
 					//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
 					dataOut <- common.GetResponse{
-						Miss:     true,
-						Key:      key,
-						Opaque:   cmd.Opaques[idx],
-						Quiet:    cmd.Quiet[idx],
-						Metadata: metaData,
-						Data:     nil,
+						Miss:   true,
+						Quiet:  cmd.Quiet[idx],
+						Opaque: cmd.Opaques[idx],
+						Flags:  metaData.OrigFlags,
+						Key:    key,
+						Data:   nil,
 					}
 					continue outer
 				}
@@ -225,24 +225,25 @@ outer:
 				//fmt.Printf("Expected: %v\n", metaData.Token)
 				//fmt.Printf("Got:      %v\n", tokenBuf)
 				dataOut <- common.GetResponse{
-					Miss:     true,
-					Key:      key,
-					Opaque:   cmd.Opaques[idx],
-					Quiet:    cmd.Quiet[idx],
-					Metadata: metaData,
-					Data:     nil,
+					Miss:   true,
+					Quiet:  cmd.Quiet[idx],
+					Opaque: cmd.Opaques[idx],
+					Flags:  metaData.OrigFlags,
+					Key:    key,
+					Data:   nil,
 				}
+
 				continue outer
 			}
 		}
 
 		dataOut <- common.GetResponse{
-			Miss:     false,
-			Key:      key,
-			Opaque:   cmd.Opaques[idx],
-			Quiet:    cmd.Quiet[idx],
-			Metadata: metaData,
-			Data:     dataBuf,
+			Miss:   false,
+			Quiet:  cmd.Quiet[idx],
+			Opaque: cmd.Opaques[idx],
+			Flags:  metaData.OrigFlags,
+			Key:    key,
+			Data:   dataBuf,
 		}
 	}
 }
@@ -253,12 +254,12 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 		if err == common.ErrKeyNotFound {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
 			return common.GetResponse{
-				Miss:     true,
-				Key:      cmd.Key,
-				Opaque:   cmd.Opaque,
-				Quiet:    false,
-				Metadata: metaData,
-				Data:     nil,
+				Miss:   true,
+				Quiet:  false,
+				Opaque: cmd.Opaque,
+				Flags:  metaData.OrigFlags,
+				Key:    cmd.Key,
+				Data:   nil,
 			}, nil
 		}
 
@@ -282,12 +283,12 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 			if err == common.ErrKeyNotFound {
 				//fmt.Println("GAT miss because of missing chunk. Cmd:", getCmd)
 				return common.GetResponse{
-					Miss:     true,
-					Key:      cmd.Key,
-					Opaque:   cmd.Opaque,
-					Quiet:    false,
-					Metadata: metaData,
-					Data:     nil,
+					Miss:   true,
+					Quiet:  false,
+					Opaque: cmd.Opaque,
+					Flags:  metaData.OrigFlags,
+					Key:    cmd.Key,
+					Data:   nil,
 				}, nil
 			}
 
@@ -300,23 +301,23 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 			fmt.Printf("Got:      %v\n", tokenBuf)
 
 			return common.GetResponse{
-				Miss:     true,
-				Key:      cmd.Key,
-				Opaque:   cmd.Opaque,
-				Quiet:    false,
-				Metadata: metaData,
-				Data:     nil,
+				Miss:   true,
+				Quiet:  false,
+				Opaque: cmd.Opaque,
+				Flags:  metaData.OrigFlags,
+				Key:    cmd.Key,
+				Data:   nil,
 			}, nil
 		}
 	}
 
 	return common.GetResponse{
-		Miss:     false,
-		Key:      cmd.Key,
-		Opaque:   cmd.Opaque,
-		Quiet:    false,
-		Metadata: metaData,
-		Data:     dataBuf,
+		Miss:   false,
+		Quiet:  false,
+		Opaque: cmd.Opaque,
+		Flags:  metaData.OrigFlags,
+		Key:    cmd.Key,
+		Data:   nil,
 	}, nil
 }
 

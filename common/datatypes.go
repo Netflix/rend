@@ -108,20 +108,10 @@ type GATRequest struct {
 }
 
 type GetResponse struct {
-	Miss     bool
-	Key      []byte
-	Opaque   uint32
-	Metadata Metadata
-	Data     []byte
-	Quiet    bool
-}
-
-const MetadataSize = 32
-
-type Metadata struct {
-	Length    uint32
-	OrigFlags uint32
-	NumChunks uint32
-	ChunkSize uint32
-	Token     [16]byte
+	Miss   bool
+	Quiet  bool
+	Opaque uint32
+	Flags  uint32
+	Key    []byte
+	Data   []byte
 }

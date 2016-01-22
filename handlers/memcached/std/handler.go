@@ -98,17 +98,17 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 
 	for idx, key := range cmd.Keys {
 		getCmd := binprot.GetCmd(key)
-		data, err := getLocal(rw, getCmd)
+		data, flags, err := getLocal(rw, getCmd)
 
 		if err != nil {
 			if err == common.ErrKeyNotFound {
 				dataOut <- common.GetResponse{
-					Miss:     true,
-					Key:      key,
-					Opaque:   cmd.Opaques[idx],
-					Quiet:    cmd.Quiet[idx],
-					Metadata: common.Metadata{},
-					Data:     nil,
+					Miss:   true,
+					Quiet:  cmd.Quiet[idx],
+					Opaque: cmd.Opaques[idx],
+					Flags:  flags,
+					Key:    key,
+					Data:   nil,
 				}
 
 				continue
@@ -119,30 +119,30 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 		}
 
 		dataOut <- common.GetResponse{
-			Miss:     false,
-			Key:      key,
-			Opaque:   cmd.Opaques[idx],
-			Quiet:    cmd.Quiet[idx],
-			Metadata: common.Metadata{},
-			Data:     data,
+			Miss:   false,
+			Quiet:  cmd.Quiet[idx],
+			Opaque: cmd.Opaques[idx],
+			Flags:  flags,
+			Key:    key,
+			Data:   data,
 		}
 	}
 }
 
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	getCmd := binprot.GATCmd(cmd.Key, cmd.Exptime)
-	data, err := getLocal(h.rw, getCmd)
+	data, flags, err := getLocal(h.rw, getCmd)
 
 	if err != nil {
 		if err == common.ErrKeyNotFound {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
 			return common.GetResponse{
-				Miss:     true,
-				Key:      cmd.Key,
-				Opaque:   cmd.Opaque,
-				Quiet:    false,
-				Metadata: common.Metadata{},
-				Data:     nil,
+				Miss:   true,
+				Quiet:  false,
+				Opaque: cmd.Opaque,
+				Flags:  flags,
+				Key:    cmd.Key,
+				Data:   nil,
 			}, nil
 		}
 
@@ -150,12 +150,12 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	}
 
 	return common.GetResponse{
-		Miss:     false,
-		Key:      cmd.Key,
-		Opaque:   cmd.Opaque,
-		Quiet:    false,
-		Metadata: common.Metadata{},
-		Data:     data,
+		Miss:   false,
+		Quiet:  false,
+		Opaque: cmd.Opaque,
+		Flags:  flags,
+		Key:    cmd.Key,
+		Data:   data,
 	}, nil
 }
 

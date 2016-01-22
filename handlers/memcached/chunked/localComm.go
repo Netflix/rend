@@ -19,47 +19,46 @@ import "encoding/binary"
 import "io"
 
 import "github.com/netflix/rend/binprot"
-import "github.com/netflix/rend/common"
 
-func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, common.Metadata, error) {
+func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
 	metadata, err := getMetadataCommon(rw, binprot.GATCmd(metaKey, exptime))
 	return metaKey, metadata, err
 }
 
-func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, common.Metadata, error) {
+func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
 	metadata, err := getMetadataCommon(rw, binprot.GetCmd(metaKey))
 	return metaKey, metadata, err
 }
 
-func getMetadataCommon(rw *bufio.ReadWriter, getCmd []byte) (common.Metadata, error) {
+func getMetadataCommon(rw *bufio.ReadWriter, getCmd []byte) (metadata, error) {
 	if _, err := rw.Write(getCmd); err != nil {
-		return common.Metadata{}, err
+		return metadata{}, err
 	}
 
 	if err := rw.Flush(); err != nil {
-		return common.Metadata{}, err
+		return metadata{}, err
 	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
-		return common.Metadata{}, err
+		return metadata{}, err
 	}
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
 		// read in the message "Not found" after a miss
 		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
-			return common.Metadata{}, ioerr
+			return metadata{}, ioerr
 		}
-		return common.Metadata{}, err
+		return metadata{}, err
 	}
 
 	serverFlags := make([]byte, 4)
 	binary.Read(rw, binary.BigEndian, &serverFlags)
 
-	var metaData common.Metadata
+	var metaData metadata
 	binary.Read(rw, binary.BigEndian, &metaData)
 
 	return metaData, nil
