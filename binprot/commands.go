@@ -51,7 +51,9 @@ func GetCmd(key []byte) []byte {
 
 func GATCmd(key []byte, exptime uint32) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OpcodeGat, len(key), 4, len(key))
+	extrasLen := 4
+	totalBodyLength := len(key) + extrasLen
+	header := MakeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
 
 	reqBuf := new(bytes.Buffer)
 	binary.Write(reqBuf, binary.BigEndian, header)
