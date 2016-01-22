@@ -22,10 +22,11 @@ import "encoding/binary"
 func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
-	totalBodyLength := len(key) + 8 + int(dataSize)
-	header := MakeRequestHeader(OpcodeSet, len(key), 8, totalBodyLength)
+	extrasLen := 8
+	totalBodyLength := len(key) + extrasLen + int(dataSize)
+	header := MakeRequestHeader(OpcodeSet, len(key), extrasLen, totalBodyLength)
 
-	reqBuf := new(bytes.Buffer)
+	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+extrasLen+len(key)))
 	binary.Write(reqBuf, binary.BigEndian, header)
 
 	binary.Write(reqBuf, binary.BigEndian, flags)
@@ -40,7 +41,7 @@ func GetCmd(key []byte) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeGet, len(key), 0, len(key))
 
-	reqBuf := new(bytes.Buffer)
+	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+len(key)))
 	binary.Write(reqBuf, binary.BigEndian, header)
 
 	binary.Write(reqBuf, binary.BigEndian, key)
@@ -55,7 +56,7 @@ func GATCmd(key []byte, exptime uint32) []byte {
 	totalBodyLength := len(key) + extrasLen
 	header := MakeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
 
-	reqBuf := new(bytes.Buffer)
+	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+extrasLen+len(key)))
 	binary.Write(reqBuf, binary.BigEndian, header)
 
 	binary.Write(reqBuf, binary.BigEndian, exptime)
@@ -69,7 +70,7 @@ func DeleteCmd(key []byte) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeDelete, len(key), 0, len(key))
 
-	reqBuf := new(bytes.Buffer)
+	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+len(key)))
 	binary.Write(reqBuf, binary.BigEndian, header)
 
 	binary.Write(reqBuf, binary.BigEndian, key)
@@ -81,10 +82,11 @@ func DeleteCmd(key []byte) []byte {
 func TouchCmd(key []byte, exptime uint32) []byte {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
-	totalBodyLength := len(key) + 4
-	header := MakeRequestHeader(OpcodeTouch, len(key), 4, totalBodyLength)
+	extrasLen := 4
+	totalBodyLength := len(key) + extrasLen
+	header := MakeRequestHeader(OpcodeTouch, len(key), extrasLen, totalBodyLength)
 
-	reqBuf := new(bytes.Buffer)
+	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+extrasLen+len(key)))
 	binary.Write(reqBuf, binary.BigEndian, header)
 
 	binary.Write(reqBuf, binary.BigEndian, exptime)
