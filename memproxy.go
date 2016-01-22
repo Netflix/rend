@@ -45,9 +45,7 @@ func init() {
 
 // Set up profiling endpoint
 func init() {
-	go func() {
-		http.ListenAndServe("localhost:11299", nil)
-	}()
+	go http.ListenAndServe("localhost:11299", nil)
 }
 
 func main() {
