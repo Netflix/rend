@@ -22,21 +22,23 @@ import "github.com/netflix/rend/binprot"
 
 func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
-	metadata, err := getMetadataCommon(rw, binprot.GATCmd(metaKey, exptime))
+	if err := binprot.WriteGATCmd(metaKey, exptime); err != nil {
+		return nil, metadata{}, err
+	}
+	metadata, err := getMetadataCommon(rw)
 	return metaKey, metadata, err
 }
 
 func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
-	metadata, err := getMetadataCommon(rw, binprot.GetCmd(metaKey))
+	if err := binprot.WriteGetCmd(metaKey); err != nil {
+		return nil, metadata{}, err
+	}
+	metadata, err := getMetadataCommon(rw)
 	return metaKey, metadata, err
 }
 
-func getMetadataCommon(rw *bufio.ReadWriter, getCmd []byte) (metadata, error) {
-	if _, err := rw.Write(getCmd); err != nil {
-		return metadata{}, err
-	}
-
+func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	if err := rw.Flush(); err != nil {
 		return metadata{}, err
 	}
@@ -69,20 +71,6 @@ func setLocalWithToken(w *bufio.Writer, cmd []byte, token [16]byte, data io.Read
 	return setLocal(w, cmd, data)
 }
 
-func setLocal(w *bufio.Writer, cmd []byte, data io.Reader) error {
-	// Write header
-	if _, err := w.Write(cmd); err != nil {
-		return err
-	}
-
-	// Write value
-	if _, err := io.Copy(w, data); err != nil {
-		return err
-	}
-
-	return w.Flush()
-}
-
 func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
 	if _, err := rw.Write(cmd); err != nil {
 		return err
@@ -113,26 +101,25 @@ func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
 	return nil
 }
 
-func getLocalIntoBuf(rw *bufio.ReadWriter, cmd []byte, tokenBuf []byte, buf []byte, totalDataLength int) error {
-	if _, err := rw.Write(cmd); err != nil {
-		return err
-	}
-
-	if err := rw.Flush(); err != nil {
-		return err
-	}
-
+func getLocalIntoBuf(rw *bufio.ReadWriter, tokenBuf []byte, buf []byte, totalDataLength int) (opcodeNoop bool, err error) {
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
 		return err
 	}
 
+	// it feels a bit dirty knowing about batch gets here, but it's the most logical place to put
+	// a check for an opcode that signals the end of a batch get or GAT. This code is a bit too big
+	// to copy-paste in multiple places.
+	if resHeader.Opcode == binprot.OpcodeNoop {
+		return true, nil
+	}
+
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
 		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
-			return ioerr
+			return false, ioerr
 		}
-		return err
+		return false, err
 	}
 
 	serverFlags := make([]byte, 4)
@@ -141,21 +128,21 @@ func getLocalIntoBuf(rw *bufio.ReadWriter, cmd []byte, tokenBuf []byte, buf []by
 	// Read in token if requested
 	if tokenBuf != nil {
 		if _, err := io.ReadFull(rw, tokenBuf); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	// Read in value
 	if _, err := io.ReadFull(rw, buf); err != nil {
-		return err
+		return false, err
 	}
 
 	// consume padding at end of chunk if needed
 	if len(buf) < totalDataLength {
 		if _, ioerr := rw.Discard(totalDataLength - len(buf)); ioerr != nil {
-			return ioerr
+			return false, ioerr
 		}
 	}
 
-	return nil
+	return false, nil
 }

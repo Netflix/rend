@@ -58,6 +58,7 @@ const (
 	OpcodeGatQ       = 0x1e
 	OpcodeGatK       = 0x23
 	OpcodeGatKQ      = 0x24
+	OpcodeInvalid    = 0xFF
 
 	StatusSuccess        = uint16(0x00)
 	StatusKeyEnoent      = uint16(0x01)
@@ -120,7 +121,7 @@ func errorToCode(err error) uint16 {
 	return 0xFFFF
 }
 
-const reqHeaderLen = 24
+const ReqHeaderLen = 24
 
 type RequestHeader struct {
 	Magic           uint8 // Already known, since we're here
@@ -150,7 +151,7 @@ func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) Requ
 
 func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
 	// read in the full header before any variable length fields
-	headerBuf := make([]byte, reqHeaderLen)
+	headerBuf := make([]byte, ReqHeaderLen)
 	_, err := io.ReadFull(reader, headerBuf)
 
 	if err != nil {

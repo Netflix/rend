@@ -14,84 +14,113 @@
 
 package binprot
 
-import "bytes"
+import "io"
 import "encoding/binary"
 
 //import "fmt"
 
-func SetCmd(key []byte, flags, exptime, dataSize uint32) []byte {
+func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
 	header := MakeRequestHeader(OpcodeSet, len(key), extrasLen, totalBodyLength)
 
-	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+extrasLen+len(key)))
-	binary.Write(reqBuf, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, flags)
+	binary.Write(w, binary.BigEndian, exptime)
+	_, err := binary.Write(w, binary.BigEndian, key)
 
-	binary.Write(reqBuf, binary.BigEndian, flags)
-	binary.Write(reqBuf, binary.BigEndian, exptime)
-	binary.Write(reqBuf, binary.BigEndian, key)
-
-	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | totalBodyLength: %v\n", string(key), flags, exptime, totalBodyLength)
-	return reqBuf.Bytes()
+	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, totalBodyLength)
+	return err
 }
 
-func GetCmd(key []byte) []byte {
+func WriteGetCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeGet, len(key), 0, len(key))
 
-	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+len(key)))
-	binary.Write(reqBuf, binary.BigEndian, header)
-
-	binary.Write(reqBuf, binary.BigEndian, key)
+	binary.Write(w, binary.BigEndian, header)
+	_, err := binary.Write(w, binary.BigEndian, key)
 
 	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return reqBuf.Bytes()
+	return err
 }
 
-func GATCmd(key []byte, exptime uint32) []byte {
+func WriteGetQCmd(w io.Writer, key []byte) error {
+	// opcode, keyLength, extraLength, totalBodyLength
+	header := MakeRequestHeader(OpcodeGetQ, len(key), 0, len(key))
+
+	binary.Write(w, binary.BigEndian, header)
+	_, err := binary.Write(w, binary.BigEndian, key)
+
+	//fmt.Printf("GetQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
+	return err
+}
+
+func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
 	header := MakeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
 
-	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+extrasLen+len(key)))
-	binary.Write(reqBuf, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, exptime)
+	_, err := binary.Write(w, binary.BigEndian, key)
 
-	binary.Write(reqBuf, binary.BigEndian, exptime)
-	binary.Write(reqBuf, binary.BigEndian, key)
-
-	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key), exptime, len(key))
-	return reqBuf.Bytes()
+	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
+	//exptime, len(key))
+	return err
 }
 
-func DeleteCmd(key []byte) []byte {
+func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
+	// opcode, keyLength, extraLength, totalBodyLength
+	extrasLen := 4
+	totalBodyLength := len(key) + extrasLen
+	header := MakeRequestHeader(OpcodeGatQ, len(key), extrasLen, totalBodyLength)
+
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, exptime)
+	_, err := binary.Write(w, binary.BigEndian, key)
+
+	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
+	//exptime, len(key))
+	return err
+}
+
+func WriteDeleteCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeDelete, len(key), 0, len(key))
 
-	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+len(key)))
-	binary.Write(reqBuf, binary.BigEndian, header)
-
-	binary.Write(reqBuf, binary.BigEndian, key)
+	binary.Write(w, binary.BigEndian, header)
+	_, err := binary.Write(w, binary.BigEndian, key)
 
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return reqBuf.Bytes()
+	return err
 }
 
-func TouchCmd(key []byte, exptime uint32) []byte {
+func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
 	header := MakeRequestHeader(OpcodeTouch, len(key), extrasLen, totalBodyLength)
 
-	reqBuf := bytes.NewBuffer(make([]byte, 0, ReqHeaderLen+extrasLen+len(key)))
-	binary.Write(reqBuf, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, exptime)
+	_, err := binary.Write(w, binary.BigEndian, key)
 
-	binary.Write(reqBuf, binary.BigEndian, exptime)
-	binary.Write(reqBuf, binary.BigEndian, key)
+	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
+	//exptime, totalBodyLength)
+	return err
+}
 
-	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key), exptime, totalBodyLength)
-	return reqBuf.Bytes()
+func WriteNoopCmd(w io.Writer) error {
+	// opcode, keyLength, extraLength, totalBodyLength
+	header := MakeRequestHeader(OpcodeNoop, 0, 0, 0)
+
+	_, err := binary.Write(w, binary.BigEndian, header)
+
+	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
+	return err
 }
