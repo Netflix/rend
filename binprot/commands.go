@@ -17,8 +17,6 @@ package binprot
 import "io"
 import "encoding/binary"
 
-//import "fmt"
-
 func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
@@ -26,36 +24,33 @@ func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
 	header := MakeRequestHeader(OpcodeSet, len(key), extrasLen, totalBodyLength)
 
+	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, dataSize, totalBodyLength)
+
 	binary.Write(w, binary.BigEndian, header)
 	binary.Write(w, binary.BigEndian, flags)
 	binary.Write(w, binary.BigEndian, exptime)
-	_, err := binary.Write(w, binary.BigEndian, key)
-
-	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | totalBodyLength: %v\n",
-	//string(key), flags, exptime, totalBodyLength)
-	return err
+	return binary.Write(w, binary.BigEndian, key)
 }
 
 func WriteGetCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeGet, len(key), 0, len(key))
 
-	binary.Write(w, binary.BigEndian, header)
-	_, err := binary.Write(w, binary.BigEndian, key)
-
 	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return err
+
+	binary.Write(w, binary.BigEndian, header)
+	return binary.Write(w, binary.BigEndian, key)
 }
 
 func WriteGetQCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeGetQ, len(key), 0, len(key))
 
-	binary.Write(w, binary.BigEndian, header)
-	_, err := binary.Write(w, binary.BigEndian, key)
-
 	//fmt.Printf("GetQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return err
+
+	binary.Write(w, binary.BigEndian, header)
+	return binary.Write(w, binary.BigEndian, key)
 }
 
 func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
@@ -64,13 +59,12 @@ func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
 	totalBodyLength := len(key) + extrasLen
 	header := MakeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
 
-	binary.Write(w, binary.BigEndian, header)
-	binary.Write(w, binary.BigEndian, exptime)
-	_, err := binary.Write(w, binary.BigEndian, key)
-
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
-	return err
+
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, exptime)
+	return binary.Write(w, binary.BigEndian, key)
 }
 
 func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
@@ -79,24 +73,22 @@ func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
 	totalBodyLength := len(key) + extrasLen
 	header := MakeRequestHeader(OpcodeGatQ, len(key), extrasLen, totalBodyLength)
 
-	binary.Write(w, binary.BigEndian, header)
-	binary.Write(w, binary.BigEndian, exptime)
-	_, err := binary.Write(w, binary.BigEndian, key)
-
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
-	return err
+
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, exptime)
+	return binary.Write(w, binary.BigEndian, key)
 }
 
 func WriteDeleteCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeDelete, len(key), 0, len(key))
 
-	binary.Write(w, binary.BigEndian, header)
-	_, err := binary.Write(w, binary.BigEndian, key)
-
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return err
+
+	binary.Write(w, binary.BigEndian, header)
+	return binary.Write(w, binary.BigEndian, key)
 }
 
 func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
@@ -106,21 +98,17 @@ func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
 	totalBodyLength := len(key) + extrasLen
 	header := MakeRequestHeader(OpcodeTouch, len(key), extrasLen, totalBodyLength)
 
-	binary.Write(w, binary.BigEndian, header)
-	binary.Write(w, binary.BigEndian, exptime)
-	_, err := binary.Write(w, binary.BigEndian, key)
-
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, totalBodyLength)
-	return err
+
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, exptime)
+	return binary.Write(w, binary.BigEndian, key)
 }
 
 func WriteNoopCmd(w io.Writer) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeNoop, 0, 0, 0)
-
-	_, err := binary.Write(w, binary.BigEndian, header)
-
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return err
+	return binary.Write(w, binary.BigEndian, header)
 }

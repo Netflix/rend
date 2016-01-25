@@ -20,8 +20,7 @@ import "io"
 
 import "github.com/netflix/rend/binprot"
 
-func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
-	rw.Write(cmd)
+func simpleCmdLocal(rw *bufio.ReadWriter) error {
 	if err := rw.Flush(); err != nil {
 		return err
 	}
@@ -47,8 +46,7 @@ func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
 	return nil
 }
 
-func getLocal(rw *bufio.ReadWriter, cmd []byte) (data []byte, flags uint32, err error) {
-	rw.Write(cmd)
+func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
 	if err := rw.Flush(); err != nil {
 		return nil, 0, err
 	}

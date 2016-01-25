@@ -54,13 +54,13 @@ func (h Handler) Close() error {
 
 func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// TODO: should there be a unique flags value for regular data?
-	setCmd := binprot.SetCmd(cmd.Key, cmd.Flags, cmd.Exptime, cmd.Length)
-
 	// Write command header
-	h.rw.Write(setCmd)
+	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, cmd.Length); err != nil {
+		return err
+	}
+
 	// Write value
-	lr := io.LimitReader(src, int64(cmd.Length))
-	io.Copy(h.rw, lr)
+	io.Copy(h.rw, io.LimitReader(src, int64(cmd.Length)))
 
 	if err := h.rw.Flush(); err != nil {
 		return err
@@ -97,9 +97,12 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 	defer close(dataOut)
 
 	for idx, key := range cmd.Keys {
-		getCmd := binprot.GetCmd(key)
-		data, flags, err := getLocal(rw, getCmd)
+		if err := binprot.WriteGetCmd(rw.Writer, key); err != nil {
+			errorOut <- err
+			return
+		}
 
+		data, flags, err := getLocal(rw)
 		if err != nil {
 			if err == common.ErrKeyNotFound {
 				dataOut <- common.GetResponse{
@@ -130,9 +133,11 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 }
 
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
-	getCmd := binprot.GATCmd(cmd.Key, cmd.Exptime)
-	data, flags, err := getLocal(h.rw, getCmd)
+	if err := binprot.WriteGATCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
+		return common.GetResponse{}, err
+	}
 
+	data, flags, err := getLocal(h.rw)
 	if err != nil {
 		if err == common.ErrKeyNotFound {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
@@ -160,11 +165,15 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 }
 
 func (h Handler) Delete(cmd common.DeleteRequest) error {
-	deleteCmd := binprot.DeleteCmd(cmd.Key)
-	return simpleCmdLocal(h.rw, deleteCmd)
+	if err := binprot.WriteDeleteCmd(h.rw.Writer, cmd.Key); err != nil {
+		return err
+	}
+	return simpleCmdLocal(h.rw)
 }
 
 func (h Handler) Touch(cmd common.TouchRequest) error {
-	touchCmd := binprot.TouchCmd(cmd.Key, cmd.Exptime)
-	return simpleCmdLocal(h.rw, touchCmd)
+	if err := binprot.WriteTouchCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
+		return err
+	}
+	return simpleCmdLocal(h.rw)
 }

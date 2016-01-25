@@ -22,7 +22,7 @@ import "github.com/netflix/rend/binprot"
 
 func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
-	if err := binprot.WriteGATCmd(metaKey, exptime); err != nil {
+	if err := binprot.WriteGATCmd(rw, metaKey, exptime); err != nil {
 		return nil, metadata{}, err
 	}
 	metadata, err := getMetadataCommon(rw)
@@ -31,7 +31,7 @@ func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]by
 
 func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
-	if err := binprot.WriteGetCmd(metaKey); err != nil {
+	if err := binprot.WriteGetCmd(rw, metaKey); err != nil {
 		return nil, metadata{}, err
 	}
 	metadata, err := getMetadataCommon(rw)
@@ -66,16 +66,7 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	return metaData, nil
 }
 
-func setLocalWithToken(w *bufio.Writer, cmd []byte, token [16]byte, data io.Reader) error {
-	cmd = append(cmd, token[:]...)
-	return setLocal(w, cmd, data)
-}
-
-func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
-	if _, err := rw.Write(cmd); err != nil {
-		return err
-	}
-
+func simpleCmdLocal(rw *bufio.ReadWriter) error {
 	if err := rw.Flush(); err != nil {
 		return err
 	}
@@ -101,10 +92,10 @@ func simpleCmdLocal(rw *bufio.ReadWriter, cmd []byte) error {
 	return nil
 }
 
-func getLocalIntoBuf(rw *bufio.ReadWriter, tokenBuf []byte, buf []byte, totalDataLength int) (opcodeNoop bool, err error) {
+func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []byte, chunkNum, totalDataLength int) (opcodeNoop bool, err error) {
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// it feels a bit dirty knowing about batch gets here, but it's the most logical place to put
@@ -132,14 +123,19 @@ func getLocalIntoBuf(rw *bufio.ReadWriter, tokenBuf []byte, buf []byte, totalDat
 		}
 	}
 
+	// indices for slicing, end exclusive
+	start, end := chunkSliceIndices(int(metaData.ChunkSize), chunkNum, int(metaData.Length))
+	// read data directly into buf
+	chunkBuf := dataBuf[start:end]
+
 	// Read in value
-	if _, err := io.ReadFull(rw, buf); err != nil {
+	if _, err := io.ReadFull(rw, chunkBuf); err != nil {
 		return false, err
 	}
 
 	// consume padding at end of chunk if needed
-	if len(buf) < totalDataLength {
-		if _, ioerr := rw.Discard(totalDataLength - len(buf)); ioerr != nil {
+	if len(chunkBuf) < totalDataLength {
+		if _, ioerr := rw.Discard(totalDataLength - len(chunkBuf)); ioerr != nil {
 			return false, ioerr
 		}
 	}
