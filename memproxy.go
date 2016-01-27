@@ -51,7 +51,8 @@ func main() {
 	server, err := net.Listen("tcp", ":11211")
 
 	if err != nil {
-		print(err.Error())
+		fmt.Println(err.Error())
+		return
 	}
 
 	for {
