@@ -17,9 +17,11 @@ package common
 import "errors"
 
 var (
-	ErrBadLength = errors.New("CLIENT_ERROR length is not a valid integer")
-	ErrBadFlags  = errors.New("CLIENT_ERROR flags is not a valid integer")
+	ErrBadRequest = errors.New("CLIENT_ERROR bad request")
+	ErrBadLength  = errors.New("CLIENT_ERROR length is not a valid integer")
+	ErrBadFlags   = errors.New("CLIENT_ERROR flags is not a valid integer")
 
+	ErrNoError        = errors.New("Success")
 	ErrKeyNotFound    = errors.New("ERROR Key not found")
 	ErrKeyExists      = errors.New("ERROR Key already exists")
 	ErrValueTooBig    = errors.New("ERROR Value too big")
@@ -29,6 +31,10 @@ var (
 	ErrAuth           = errors.New("ERROR Authentication error")
 	ErrUnknownCmd     = errors.New("ERROR Unknown command")
 	ErrNoMem          = errors.New("ERROR Out of memory")
+	ErrNotSupported   = errors.New("ERROR Not supported")
+	ErrInternal       = errors.New("ERROR Internal error")
+	ErrBusy           = errors.New("ERROR Busy")
+	ErrTempFailure    = errors.New("ERROR Temporary error")
 )
 
 // Make sure to keep this list in sync with the one above

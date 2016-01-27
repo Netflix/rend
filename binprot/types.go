@@ -71,6 +71,10 @@ const (
 	StatusAuthContinue   = uint16(0x21)
 	StatusUnknownCommand = uint16(0x81)
 	StatusEnomem         = uint16(0x82)
+	StatusNotSupported   = uint16(0x83)
+	StatusInternalError  = uint16(0x84)
+	StatusBusy           = uint16(0x85)
+	StatusTempFailure    = uint16(0x86)
 )
 
 func DecodeError(header ResponseHeader) error {
@@ -93,6 +97,14 @@ func DecodeError(header ResponseHeader) error {
 		return common.ErrUnknownCmd
 	case StatusEnomem:
 		return common.ErrNoMem
+	case StatusNotSupported:
+		return common.ErrNotSupported
+	case StatusInternalError:
+		return common.ErrInternal
+	case StatusBusy:
+		return common.ErrBusy
+	case StatusTempFailure:
+		return common.ErrTempFailure
 	}
 	return nil
 }
@@ -117,6 +129,14 @@ func errorToCode(err error) uint16 {
 		return StatusUnknownCommand
 	case common.ErrNoMem:
 		return StatusEnomem
+	case common.ErrNotSupported:
+		return StatusNotSupported
+	case common.ErrInternal:
+		return StatusInternalError
+	case common.ErrBusy:
+		return StatusBusy
+	case common.ErrTempFailure:
+		return StatusTempFailure
 	}
 	return 0xFFFF
 }
