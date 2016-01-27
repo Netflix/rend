@@ -17,7 +17,7 @@ package chunked
 import "bufio"
 import "bytes"
 import "encoding/binary"
-import "fmt"
+
 import "io"
 import "io/ioutil"
 import "math"
@@ -66,7 +66,7 @@ func (h Handler) Close() error {
 func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// For writing chunks, the specialized chunked reader is appropriate.
 	// for unchunked, a limited reader will be needed since the text protocol
-	// includes a /r/n at the end and there's no EOF to be had with a long-l`ived
+	// includes a /r/n at the end and there's no EOF to be had with a long-lived
 	// connection.
 	limChunkReader := newChunkLimitedReader(src, int64(chunkSize), int64(cmd.Length))
 	numChunks := int(math.Ceil(float64(cmd.Length) / float64(chunkSize)))
@@ -86,8 +86,14 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
-	localCmd := binprot.SetCmd(metaKey, cmd.Flags, cmd.Exptime, metadataSize)
-	if err := setLocal(h.rw.Writer, localCmd, metaDataBuf); err != nil {
+	if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
+		return err
+	}
+	// Write value
+	if _, err := io.Copy(h.rw.Writer, metaDataBuf); err != nil {
+		return err
+	}
+	if err := h.rw.Writer.Flush(); err != nil {
 		return err
 	}
 
@@ -117,8 +123,21 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 		key := chunkKey(cmd.Key, chunkNum)
 
 		// Write the key
-		localCmd = binprot.SetCmd(key, cmd.Flags, cmd.Exptime, fullDataSize)
-		if err = setLocalWithToken(h.rw.Writer, localCmd, token, limChunkReader); err != nil {
+		if err := binprot.WriteSetCmd(h.rw.Writer, key, cmd.Flags, cmd.Exptime, fullDataSize); err != nil {
+			return err
+		}
+		// Write token
+		if _, err := h.rw.Write(token[:]); err != nil {
+			return err
+		}
+		// Write value
+		if _, err := io.Copy(h.rw.Writer, limChunkReader); err != nil {
+			return err
+		}
+		// There's some additional overhead here calling Flush() because it causes a write() syscall
+		// The set case is already a slow path and is async from the client perspective for our use
+		// case so this is not a problem.
+		if err := h.rw.Writer.Flush(); err != nil {
 			return err
 		}
 
@@ -170,18 +189,20 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 
 outer:
 	for idx, key := range cmd.Keys {
+		errResponse := common.GetResponse{
+			Miss:   true,
+			Quiet:  cmd.Quiet[idx],
+			Opaque: cmd.Opaques[idx],
+			Flags:  0,
+			Key:    key,
+			Data:   nil,
+		}
+
 		_, metaData, err := getMetadata(rw, key)
 		if err != nil {
 			if err == common.ErrKeyNotFound {
 				//fmt.Println("Get miss because of missing metadata. Key:", key)
-				dataOut <- common.GetResponse{
-					Miss:   true,
-					Quiet:  cmd.Quiet[idx],
-					Opaque: cmd.Opaques[idx],
-					Flags:  metaData.OrigFlags,
-					Key:    key,
-					Data:   nil,
-				}
+				dataOut <- errResponse
 				continue outer
 			}
 
@@ -189,33 +210,43 @@ outer:
 			return
 		}
 
-		// Retrieve all the data from memcached
+		errResponse.Flags = metaData.OrigFlags
+		// Write all the get commands before reading
+		for i := 0; i < int(metaData.NumChunks); i++ {
+			chunkKey := chunkKey(key, i)
+			if err := binprot.WriteGetQCmd(rw.Writer, chunkKey); err != nil {
+				errorOut <- err
+				return
+			}
+		}
+
+		// The final command must be Get or Noop to guarantee a response
+		// We use Noop to make coding easier, but it's (very) slightly less efficient
+		// since we send 24 extra bytes in each direction
+		if err := binprot.WriteNoopCmd(rw.Writer); err != nil {
+			errorOut <- err
+			return
+		}
+
+		// Flush to make sure all the get commands are sent to the server.
+		if err := rw.Flush(); err != nil {
+			errorOut <- err
+			return
+		}
+
 		dataBuf := make([]byte, metaData.Length)
 		tokenBuf := make([]byte, tokenSize)
 
-		for i := 0; i < int(metaData.NumChunks); i++ {
-			chunkKey := chunkKey(key, i)
-
-			// indices for slicing, end exclusive
-			start, end := chunkSliceIndices(int(metaData.ChunkSize), i, int(metaData.Length))
-
-			// Get the data directly into our buf
-			chunkBuf := dataBuf[start:end]
-			getCmd := binprot.GetCmd(chunkKey)
-			if err := getLocalIntoBuf(rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
-				if err == common.ErrKeyNotFound {
-					//fmt.Println("Get miss because of missing chunk. Cmd:", getCmd)
-					dataOut <- common.GetResponse{
-						Miss:   true,
-						Quiet:  cmd.Quiet[idx],
-						Opaque: cmd.Opaques[idx],
-						Flags:  metaData.OrigFlags,
-						Key:    key,
-						Data:   nil,
-					}
-					continue outer
-				}
-
+		// Now that all the headers are sent, start reading in the data chunks. We read until the
+		// header for the Noop command comes back, keeping track of how many chunks are read. This
+		// means that there is no fast fail when a chunk is missing, but at least all the data is
+		// read in so there's no problem with unread, buffered data that should have been discarded.
+		// If the number of chunks doesn't match, we throw away the data and call it a miss.
+		opcodeNoop := false
+		chunk := 0
+		for !opcodeNoop {
+			opcodeNoop, err = getLocalIntoBuf(rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
+			if err != nil {
 				errorOut <- err
 				return
 			}
@@ -224,17 +255,18 @@ outer:
 				//fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
 				//fmt.Printf("Expected: %v\n", metaData.Token)
 				//fmt.Printf("Got:      %v\n", tokenBuf)
-				dataOut <- common.GetResponse{
-					Miss:   true,
-					Quiet:  cmd.Quiet[idx],
-					Opaque: cmd.Opaques[idx],
-					Flags:  metaData.OrigFlags,
-					Key:    key,
-					Data:   nil,
-				}
-
+				dataOut <- errResponse
 				continue outer
 			}
+
+			// keeping track of chunks read
+			chunk++
+		}
+
+		if chunk < int(metaData.NumChunks-1) {
+			//fmt.Println("Get miss because of missing chunk")
+			dataOut <- errResponse
+			continue outer
 		}
 
 		dataOut <- common.GetResponse{
@@ -249,66 +281,80 @@ outer:
 }
 
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
+	errResponse := common.GetResponse{
+		Miss:   true,
+		Quiet:  false,
+		Opaque: cmd.Opaque,
+		Flags:  0,
+		Key:    cmd.Key,
+		Data:   nil,
+	}
+
 	_, metaData, err := getAndTouchMetadata(h.rw, cmd.Key, cmd.Exptime)
 	if err != nil {
 		if err == common.ErrKeyNotFound {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
-			return common.GetResponse{
-				Miss:   true,
-				Quiet:  false,
-				Opaque: cmd.Opaque,
-				Flags:  metaData.OrigFlags,
-				Key:    cmd.Key,
-				Data:   nil,
-			}, nil
+			return errResponse, nil
 		}
 
 		return common.GetResponse{}, err
 	}
 
-	// Retrieve all the data from memcached while touching each segment
+	errResponse.Flags = metaData.OrigFlags
+
+	// Write all the GAT commands before reading
+	for i := 0; i < int(metaData.NumChunks); i++ {
+		chunkKey := chunkKey(cmd.Key, i)
+		if err := binprot.WriteGATQCmd(h.rw.Writer, chunkKey, cmd.Exptime); err != nil {
+			return common.GetResponse{}, err
+		}
+	}
+
+	// The final command must be GAT or Noop to guarantee a response
+	// We use Noop to make coding easier, but it's (very) slightly less efficient
+	// since we send 24 extra bytes in each direction
+	if err := binprot.WriteNoopCmd(h.rw.Writer); err != nil {
+		return common.GetResponse{}, err
+	}
+
+	// Flush to make sure all the GAT commands are sent to the server.
+	if err := h.rw.Flush(); err != nil {
+		return common.GetResponse{}, err
+	}
+
 	dataBuf := make([]byte, metaData.Length)
 	tokenBuf := make([]byte, 16)
 
-	for i := 0; i < int(metaData.NumChunks); i++ {
-		chunkKey := chunkKey(cmd.Key, i)
-
-		// indices for slicing, end exclusive
-		start, end := chunkSliceIndices(int(metaData.ChunkSize), i, int(metaData.Length))
-
-		// Get the data directly into our buf
-		chunkBuf := dataBuf[start:end]
-		getCmd := binprot.GATCmd(chunkKey, cmd.Exptime)
-		if err := getLocalIntoBuf(h.rw, getCmd, tokenBuf, chunkBuf, int(metaData.ChunkSize)); err != nil {
+	// Now that all the headers are sent, start reading in the data chunks. We read until the
+	// header for the Noop command comes back, keeping track of how many chunks are read. This
+	// means that there is no fast fail when a chunk is missing, but at least all the data is
+	// read in so there's no problem with unread, buffered data that should have been discarded.
+	// If the number of chunks doesn't match, we throw away the data and call it a miss.
+	opcodeNoop := false
+	chunk := 0
+	for !opcodeNoop {
+		opcodeNoop, err = getLocalIntoBuf(h.rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
+		if err != nil {
 			if err == common.ErrKeyNotFound {
-				//fmt.Println("GAT miss because of missing chunk. Cmd:", getCmd)
-				return common.GetResponse{
-					Miss:   true,
-					Quiet:  false,
-					Opaque: cmd.Opaque,
-					Flags:  metaData.OrigFlags,
-					Key:    cmd.Key,
-					Data:   nil,
-				}, nil
+				return errResponse, nil
 			}
-
 			return common.GetResponse{}, err
 		}
 
 		if !bytes.Equal(metaData.Token[:], tokenBuf) {
-			fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
-			fmt.Printf("Expected: %v\n", metaData.Token)
-			fmt.Printf("Got:      %v\n", tokenBuf)
-
-			return common.GetResponse{
-				Miss:   true,
-				Quiet:  false,
-				Opaque: cmd.Opaque,
-				Flags:  metaData.OrigFlags,
-				Key:    cmd.Key,
-				Data:   nil,
-			}, nil
+			//fmt.Println("GAT miss because of invalid chunk token. Cmd:", getCmd)
+			//fmt.Printf("Expected: %v\n", metaData.Token)
+			//fmt.Printf("Got:      %v\n", tokenBuf)
+			return errResponse, nil
 		}
+
+		// keeping track of chunks read
+		chunk++
+	}
+
+	if chunk < int(metaData.NumChunks-1) {
+		//fmt.Println("Get miss because of missing chunk")
+		return errResponse, nil
 	}
 
 	return common.GetResponse{
@@ -317,7 +363,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 		Opaque: cmd.Opaque,
 		Flags:  metaData.OrigFlags,
 		Key:    cmd.Key,
-		Data:   nil,
+		Data:   dataBuf,
 	}, nil
 }
 
@@ -336,16 +382,21 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 		return err
 	}
 
-	deleteCmd := binprot.DeleteCmd(metaKey)
-	if err := simpleCmdLocal(h.rw, deleteCmd); err != nil {
+	// Delete metadata first
+	if err := binprot.WriteDeleteCmd(h.rw.Writer, metaKey); err != nil {
+		return err
+	}
+	if err := simpleCmdLocal(h.rw); err != nil {
 		return err
 	}
 
+	// Then delete data chunks
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
-		deleteCmd = binprot.DeleteCmd(chunkKey)
-
-		if err := simpleCmdLocal(h.rw, deleteCmd); err != nil {
+		if err := binprot.WriteDeleteCmd(h.rw.Writer, chunkKey); err != nil {
+			return err
+		}
+		if err := simpleCmdLocal(h.rw); err != nil {
 			return err
 		}
 	}
@@ -370,16 +421,22 @@ func (h Handler) Touch(cmd common.TouchRequest) error {
 		return err
 	}
 
+	// First touch all the chunks
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
-		touchCmd := binprot.TouchCmd(chunkKey, cmd.Exptime)
-		if err := simpleCmdLocal(h.rw, touchCmd); err != nil {
+		if err := binprot.WriteTouchCmd(h.rw.Writer, chunkKey, cmd.Exptime); err != nil {
+			return err
+		}
+		if err := simpleCmdLocal(h.rw); err != nil {
 			return err
 		}
 	}
 
-	touchCmd := binprot.TouchCmd(metaKey, cmd.Exptime)
-	if err := simpleCmdLocal(h.rw, touchCmd); err != nil {
+	// Then touch the metadata
+	if err := binprot.WriteTouchCmd(h.rw.Writer, metaKey, cmd.Exptime); err != nil {
+		return err
+	}
+	if err := simpleCmdLocal(h.rw); err != nil {
 		return err
 	}
 

@@ -15,7 +15,7 @@
 package binprot
 
 import "bufio"
-import "bytes"
+
 import "encoding/binary"
 
 import "github.com/netflix/rend/common"
@@ -110,7 +110,7 @@ func NewBinaryResponder(writer *bufio.Writer) BinaryResponder {
 // TODO: CAS?
 func (b BinaryResponder) Set() error {
 	header := makeSuccessResponseHeader(OpcodeSet, 0, 0, 0, 0)
-	return writeHeader(header, b.writer)
+	return writeHeader(header, b.writer, true)
 }
 
 func (b BinaryResponder) Get(response common.GetResponse) error {
@@ -118,9 +118,10 @@ func (b BinaryResponder) Get(response common.GetResponse) error {
 }
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
+	// TODO: use Error() instead
 	if !response.Quiet {
 		header := makeErrorResponseHeader(OpcodeGet, int(StatusKeyEnoent), 0)
-		return writeHeader(header, b.writer)
+		return writeHeader(header, b.writer, true)
 	}
 	return nil
 }
@@ -130,7 +131,7 @@ func (b BinaryResponder) GetEnd(noopEnd bool) error {
 	// otherwise, stay quiet as the last get would be a GET and not a GETQ
 	if noopEnd {
 		header := makeSuccessResponseHeader(OpcodeNoop, 0, 0, 0, 0)
-		return writeHeader(header, b.writer)
+		return writeHeader(header, b.writer, true)
 	}
 
 	return nil
@@ -141,42 +142,39 @@ func (b BinaryResponder) GAT(response common.GetResponse) error {
 }
 
 func (b BinaryResponder) GATMiss(response common.GetResponse) error {
+	// TODO: use Error() instead
 	if !response.Quiet {
 		header := makeErrorResponseHeader(OpcodeGat, int(StatusKeyEnoent), 0)
-		return writeHeader(header, b.writer)
+		return writeHeader(header, b.writer, true)
 	}
 	return nil
 }
 
 func (b BinaryResponder) Delete() error {
 	header := makeSuccessResponseHeader(OpcodeDelete, 0, 0, 0, 0)
-	return writeHeader(header, b.writer)
+	return writeHeader(header, b.writer, true)
 }
 
 func (b BinaryResponder) Touch() error {
 	header := makeSuccessResponseHeader(OpcodeTouch, 0, 0, 0, 0)
-	return writeHeader(header, b.writer)
+	return writeHeader(header, b.writer, true)
 }
 
 func (b BinaryResponder) Error(err error) error {
 	// TODO: proper opcode
 	header := makeErrorResponseHeader(OpcodeGet, int(errorToCode(err)), 0)
-	return writeHeader(header, b.writer)
+	return writeHeader(header, b.writer, true)
 }
 
-func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer) error {
-	headerBuf := new(bytes.Buffer)
-	binary.Write(headerBuf, binary.BigEndian, header)
-
-	// TODO: Error handling for less bytes
-	_, err := remoteWriter.Write(headerBuf.Bytes())
-	if err != nil {
+func writeHeader(header ResponseHeader, remoteWriter *bufio.Writer, flush bool) error {
+	if err := binary.Write(remoteWriter, binary.BigEndian, header); err != nil {
 		return err
 	}
 
-	err = remoteWriter.Flush()
-	if err != nil {
-		return err
+	if flush {
+		if err := remoteWriter.Flush(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -187,18 +185,15 @@ func getCommon(w *bufio.Writer, response common.GetResponse, opcode int) error {
 	totalBodyLength := len(response.Data) + 4
 	header := makeSuccessResponseHeader(opcode, 0, 4, totalBodyLength, 0)
 
-	err := writeHeader(header, w)
-	if err != nil {
+	if err := writeHeader(header, w, false); err != nil {
 		return err
 	}
 
-	err = binary.Write(w, binary.BigEndian, response.Flags)
-	if err != nil {
+	if err := binary.Write(w, binary.BigEndian, response.Flags); err != nil {
 		return err
 	}
 
-	_, err = w.Write(response.Data)
-	if err != nil {
+	if _, err := w.Write(response.Data); err != nil {
 		return err
 	}
 
