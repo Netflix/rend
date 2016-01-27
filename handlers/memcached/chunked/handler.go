@@ -15,6 +15,7 @@
 package chunked
 
 import "bufio"
+
 import "bytes"
 import "encoding/binary"
 
@@ -46,7 +47,7 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 
 type Handler struct {
 	rw   *bufio.ReadWriter
-	conn io.Closer
+	conn io.ReadWriteCloser
 }
 
 func NewHandler(conn io.ReadWriteCloser) Handler {
@@ -55,6 +56,11 @@ func NewHandler(conn io.ReadWriteCloser) Handler {
 		rw:   rw,
 		conn: conn,
 	}
+}
+
+func (h Handler) reset() {
+	h.rw.Reader.Reset(bufio.NewReader(h.conn))
+	h.rw.Writer.Reset(bufio.NewWriter(h.conn))
 }
 
 // Closes the Handler's underlying io.ReadWriteCloser.
@@ -93,7 +99,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	if _, err := io.Copy(h.rw.Writer, metaDataBuf); err != nil {
 		return err
 	}
-	if err := h.rw.Writer.Flush(); err != nil {
+	if err := h.rw.Flush(); err != nil {
 		return err
 	}
 
@@ -137,14 +143,21 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 		// There's some additional overhead here calling Flush() because it causes a write() syscall
 		// The set case is already a slow path and is async from the client perspective for our use
 		// case so this is not a problem.
-		if err := h.rw.Writer.Flush(); err != nil {
+		if err := h.rw.Flush(); err != nil {
 			return err
 		}
 
 		// Read server's response
 		resHeader, err = readResponseHeader(h.rw.Reader)
 		if err != nil {
+			// Reset the ReadWriter to prevent sending garbage to memcached
+			// otherwise we get disconnected
+			h.reset()
+
 			// Discard request body
+			// This is more complicated code but more straightforward than attempting to get at
+			// the underlying reader and discard directly, since we don't exactly know how many
+			// bytes were sent already
 			for limChunkReader.More() {
 				if _, ioerr := io.Copy(ioutil.Discard, limChunkReader); ioerr != nil {
 					return ioerr
