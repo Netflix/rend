@@ -91,7 +91,7 @@ func abort(toClose []io.Closer, err error, binary bool) {
 			c.Close()
 		}
 	}
-	panic(err)
+	//panic(err)
 }
 
 func identifyPanic() string {
