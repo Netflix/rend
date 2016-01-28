@@ -14,17 +14,17 @@
 
 package chunked
 
-import "bufio"
+import (
+	"bufio"
+	"bytes"
+	"encoding/binary"
+	"io"
+	"io/ioutil"
+	"math"
 
-import "bytes"
-import "encoding/binary"
-
-import "io"
-import "io/ioutil"
-import "math"
-
-import "github.com/netflix/rend/binprot"
-import "github.com/netflix/rend/common"
+	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/common"
+)
 
 // Chunk size, leaving room for the token
 // Make sure the value subtracted from chunk size stays in sync
@@ -74,13 +74,13 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// for unchunked, a limited reader will be needed since the text protocol
 	// includes a /r/n at the end and there's no EOF to be had with a long-lived
 	// connection.
-	limChunkReader := newChunkLimitedReader(src, int64(chunkSize), int64(cmd.Length))
-	numChunks := int(math.Ceil(float64(cmd.Length) / float64(chunkSize)))
+	limChunkReader := newChunkLimitedReader(bytes.NewBuffer(cmd.Data), int64(chunkSize), int64(len(cmd.Data)))
+	numChunks := int(math.Ceil(float64(len(cmd.Data)) / float64(chunkSize)))
 	token := <-tokens
 
 	metaKey := metaKey(cmd.Key)
 	metaData := metadata{
-		Length:    cmd.Length,
+		Length:    uint32(len(cmd.Data)),
 		OrigFlags: cmd.Flags,
 		NumChunks: uint32(numChunks),
 		ChunkSize: chunkSize,
@@ -107,7 +107,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	resHeader, err := readResponseHeader(h.rw.Reader)
 	if err != nil {
 		// Discard request body
-		if _, ioerr := src.Discard(int(cmd.Length)); ioerr != nil {
+		if _, ioerr := src.Discard(len(cmd.Data)); ioerr != nil {
 			return ioerr
 		}
 

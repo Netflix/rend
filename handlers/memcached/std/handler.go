@@ -14,11 +14,13 @@
 
 package std
 
-import "bufio"
-import "io"
+import (
+	"bufio"
+	"io"
 
-import "github.com/netflix/rend/binprot"
-import "github.com/netflix/rend/common"
+	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/common"
+)
 
 func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	resHeader, err := binprot.ReadResponseHeader(r)
@@ -55,12 +57,12 @@ func (h Handler) Close() error {
 func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	// TODO: should there be a unique flags value for regular data?
 	// Write command header
-	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, cmd.Length); err != nil {
+	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
 		return err
 	}
 
 	// Write value
-	io.Copy(h.rw, io.LimitReader(src, int64(cmd.Length)))
+	h.rw.Write(cmd.Data)
 
 	if err := h.rw.Flush(); err != nil {
 		return err
@@ -70,7 +72,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	resHeader, err := readResponseHeader(h.rw.Reader)
 	if err != nil {
 		// Discard request body
-		if _, ioerr := src.Discard(int(cmd.Length)); ioerr != nil {
+		if _, ioerr := src.Discard(len(cmd.Data)); ioerr != nil {
 			return ioerr
 		}
 

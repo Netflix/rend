@@ -82,9 +82,9 @@ type Responder interface {
 
 type SetRequest struct {
 	Key     []byte
+	Data    []byte
 	Flags   uint32
 	Exptime uint32
-	Length  uint32
 	Opaque  uint32
 }
 
@@ -114,10 +114,10 @@ type GATRequest struct {
 }
 
 type GetResponse struct {
-	Miss   bool
-	Quiet  bool
-	Opaque uint32
-	Flags  uint32
 	Key    []byte
 	Data   []byte
+	Opaque uint32
+	Flags  uint32
+	Miss   bool
+	Quiet  bool
 }

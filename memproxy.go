@@ -172,16 +172,7 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			err = l1.Set(request.(common.SetRequest), remoteReader)
 
 			if err == nil {
-				// For text protocol, read in \r\n at end of data.
-				// A little hacky, but oh well. Might be wrapped up in a
-				// "cleaupSet" function or something
-				if !binary {
-					_, err = remoteReader.ReadString('\n')
-				}
-
-				if err == nil {
-					responder.Set()
-				}
+				responder.Set()
 			}
 
 		case common.RequestDelete:

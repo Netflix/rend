@@ -53,7 +53,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 		// sanity check
 		if len(clParts) != 5 {
 			// TODO: standardize errors
-			return nil, common.RequestSet, errors.New("Bad request")
+			return nil, common.RequestSet, common.ErrBadRequest
 		}
 
 		key := []byte(clParts[1])
@@ -82,12 +82,21 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 			return nil, common.RequestSet, common.ErrBadLength
 		}
 
+		// Read in data
+		dataBuf := make([]byte, length)
+		if _, err := io.ReadFull(t.reader, dataBuf); err != nil {
+			return nil, common.RequestSet, common.ErrInternal
+		}
+
+		// Consume the last two bytes "\r\n"
+		t.reader.Discard(2)
+
 		return common.SetRequest{
 			Key:     key,
 			Flags:   uint32(flags),
 			Exptime: uint32(exptime),
-			Length:  uint32(length),
 			Opaque:  uint32(0),
+			Data:    dataBuf,
 		}, common.RequestSet, nil
 
 	case "get":

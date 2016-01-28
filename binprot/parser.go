@@ -158,11 +158,16 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			uint32(reqHeader.ExtraLength) -
 			uint32(reqHeader.KeyLength)
 
+		// Read in the body of the set request
+		dataBuf := make([]byte, realLength)
+		io.ReadFull(b.reader, dataBuf)
+
 		return common.SetRequest{
 			Key:     key,
 			Flags:   flags,
 			Exptime: exptime,
-			Length:  realLength,
+			Opaque:  reqHeader.OpaqueToken,
+			Data:    dataBuf,
 		}, common.RequestSet, nil
 
 	case OpcodeGetQ:
