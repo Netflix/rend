@@ -23,21 +23,29 @@ func IncCounter(name string) {
 	lock.RLock()
 	defer lock.RUnlock()
 
-	atomic.AddUint64(counters[name], 1)
+	if _, ok := counters[name]; ok {
+		atomic.AddUint64(counters[name], 1)
+	}
 }
 
 func IncCounterBy(name string, amount uint64) {
 	lock.RLock()
 	defer lock.RUnlock()
 
-	atomic.AddUint64(counters[name], amount)
+	if _, ok := counters[name]; ok {
+		atomic.AddUint64(counters[name], amount)
+	}
 }
 
 func GetCounter(name string) uint64 {
 	lock.RLock()
 	defer lock.RUnlock()
 
-	return atomic.LoadUint64(counters[name])
+	if _, ok := counters[name]; ok {
+		return atomic.LoadUint64(counters[name])
+	} else {
+		return uint64(0)
+	}
 }
 
 func GetAllCounters() map[string]uint64 {
