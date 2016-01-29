@@ -14,11 +14,16 @@
 
 package binprot
 
-import "bytes"
-import "encoding/binary"
-import "io"
+import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"io"
 
-import "github.com/netflix/rend/common"
+	"github.com/netflix/rend/common"
+)
+
+var ErrBadMagic = errors.New("Bad magic value")
 
 const (
 	MagicRequest  = 0x80
@@ -75,6 +80,7 @@ const (
 	StatusInternalError  = uint16(0x84)
 	StatusBusy           = uint16(0x85)
 	StatusTempFailure    = uint16(0x86)
+	StatusInvalid        = uint16(0xFFFF)
 )
 
 func DecodeError(header ResponseHeader) error {
@@ -138,7 +144,7 @@ func errorToCode(err error) uint16 {
 	case common.ErrTempFailure:
 		return StatusTempFailure
 	}
-	return 0xFFFF
+	return StatusInvalid
 }
 
 const ReqHeaderLen = 24
@@ -172,14 +178,16 @@ func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) Requ
 func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
 	// read in the full header before any variable length fields
 	headerBuf := make([]byte, ReqHeaderLen)
-	_, err := io.ReadFull(reader, headerBuf)
-
-	if err != nil {
+	if _, err := io.ReadFull(reader, headerBuf); err != nil {
 		return RequestHeader{}, err
 	}
 
 	var reqHeader RequestHeader
 	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
+
+	if reqHeader.Magic != MagicResponse {
+		return RequestHeader{}, ErrBadMagic
+	}
 
 	return reqHeader, nil
 }
@@ -229,14 +237,16 @@ func makeErrorResponseHeader(opcode, status, opaqueToken int) ResponseHeader {
 func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
 	// read in the full header before any variable length fields
 	headerBuf := make([]byte, resHeaderLen)
-	_, err := io.ReadFull(reader, headerBuf)
-
-	if err != nil {
+	if _, err := io.ReadFull(reader, headerBuf); err != nil {
 		return ResponseHeader{}, err
 	}
 
 	var resHeader ResponseHeader
 	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &resHeader)
+
+	if resHeader.Magic != MagicResponse {
+		return ResponseHeader{}, ErrBadMagic
+	}
 
 	return resHeader, nil
 }
