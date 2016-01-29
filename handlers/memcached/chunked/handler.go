@@ -202,7 +202,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 
 outer:
 	for idx, key := range cmd.Keys {
-		errResponse := common.GetResponse{
+		missResponse := common.GetResponse{
 			Miss:   true,
 			Quiet:  cmd.Quiet[idx],
 			Opaque: cmd.Opaques[idx],
@@ -215,7 +215,7 @@ outer:
 		if err != nil {
 			if err == common.ErrKeyNotFound {
 				//fmt.Println("Get miss because of missing metadata. Key:", key)
-				dataOut <- errResponse
+				dataOut <- missResponse
 				continue outer
 			}
 
@@ -223,7 +223,7 @@ outer:
 			return
 		}
 
-		errResponse.Flags = metaData.OrigFlags
+		missResponse.Flags = metaData.OrigFlags
 		// Write all the get commands before reading
 		for i := 0; i < int(metaData.NumChunks); i++ {
 			chunkKey := chunkKey(key, i)
@@ -257,28 +257,37 @@ outer:
 		// If the number of chunks doesn't match, we throw away the data and call it a miss.
 		opcodeNoop := false
 		chunk := 0
-		errState := false
+		var lastErr error
+		missed := false
 
 		for !opcodeNoop {
-			opcodeNoop, err = getLocalIntoBuf(rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
-			if err != nil {
-				errState = true
+			opcodeNoop, lastErr = getLocalIntoBuf(rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
+			if lastErr != nil {
+				if lastErr == common.ErrKeyNotFound {
+					lastErr = nil
+					missed = true
+					continue
+				}
+				lastErr = err
 			}
 
 			if !bytes.Equal(metaData.Token[:], tokenBuf) {
 				//fmt.Println(id, "Get miss because of invalid chunk token. Cmd:", cmd)
 				//fmt.Printf("Expected: %v\n", metaData.Token)
 				//fmt.Printf("Got:      %v\n", tokenBuf)
-				errState = true
+				missed = true
 			}
 
-			// keeping track of chunks read
 			chunk++
 		}
 
-		if errState || chunk < int(metaData.NumChunks-1) {
+		if lastErr != nil {
+			errorOut <- lastErr
+			return
+		}
+		if missed {
 			//fmt.Println("Get miss because of missing chunk")
-			dataOut <- errResponse
+			dataOut <- missResponse
 			continue outer
 		}
 
@@ -294,7 +303,7 @@ outer:
 }
 
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
-	errResponse := common.GetResponse{
+	missResponse := common.GetResponse{
 		Miss:   true,
 		Quiet:  false,
 		Opaque: cmd.Opaque,
@@ -307,13 +316,13 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	if err != nil {
 		if err == common.ErrKeyNotFound {
 			//fmt.Println("GAT miss because of missing metadata. Key:", key)
-			return errResponse, nil
+			return missResponse, nil
 		}
 
 		return common.GetResponse{}, err
 	}
 
-	errResponse.Flags = metaData.OrigFlags
+	missResponse.Flags = metaData.OrigFlags
 
 	// Write all the GAT commands before reading
 	for i := 0; i < int(metaData.NumChunks); i++ {
@@ -345,29 +354,36 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	// If the number of chunks doesn't match, we throw away the data and call it a miss.
 	opcodeNoop := false
 	chunk := 0
+	var lastErr error
+	missed := false
+
 	for !opcodeNoop {
-		opcodeNoop, err = getLocalIntoBuf(h.rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
-		if err != nil {
-			if err == common.ErrKeyNotFound {
-				return errResponse, nil
+		opcodeNoop, lastErr = getLocalIntoBuf(h.rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
+		if lastErr != nil {
+			if lastErr == common.ErrKeyNotFound {
+				lastErr = nil
+				missed = true
+				continue
 			}
-			return common.GetResponse{}, err
+			lastErr = err
 		}
 
 		if !bytes.Equal(metaData.Token[:], tokenBuf) {
-			//fmt.Println("GAT miss because of invalid chunk token. Cmd:", getCmd)
+			//fmt.Println(id, "GAT miss because of invalid chunk token. Cmd:", cmd)
 			//fmt.Printf("Expected: %v\n", metaData.Token)
 			//fmt.Printf("Got:      %v\n", tokenBuf)
-			return errResponse, nil
+			missed = true
 		}
 
-		// keeping track of chunks read
 		chunk++
 	}
 
-	if chunk < int(metaData.NumChunks-1) {
-		//fmt.Println("Get miss because of missing chunk")
-		return errResponse, nil
+	if lastErr != nil {
+		return common.GetResponse{}, lastErr
+	}
+	if missed {
+		//fmt.Println("GAT miss because of missing chunk")
+		return missResponse, nil
 	}
 
 	return common.GetResponse{
