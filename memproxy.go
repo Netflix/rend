@@ -14,22 +14,24 @@
 
 package main
 
-import "bufio"
-import "fmt"
-import "io"
-import "net"
-import "net/http"
-import _ "net/http/pprof"
-import "os"
-import "os/signal"
-import "runtime"
-import "strings"
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"runtime"
+	"strings"
 
-import "github.com/netflix/rend/binprot"
-import "github.com/netflix/rend/common"
-import "github.com/netflix/rend/handlers"
-import "github.com/netflix/rend/handlers/memcached"
-import "github.com/netflix/rend/textprot"
+	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/handlers"
+	"github.com/netflix/rend/handlers/memcached"
+	"github.com/netflix/rend/textprot"
+)
 
 // Setting up signal handlers
 func init() {
@@ -169,29 +171,41 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		// TODO: handle nil
 		switch reqType {
 		case common.RequestSet:
-			err = l1.Set(request.(common.SetRequest), remoteReader)
+			req := request.(common.SetRequest)
+			//fmt.Println("set", string(req.Key))
+			err = l1.Set(req, remoteReader)
 
 			if err == nil {
 				responder.Set()
 			}
 
 		case common.RequestDelete:
-			err = l1.Delete(request.(common.DeleteRequest))
+			req := request.(common.DeleteRequest)
+			//fmt.Println("delete", string(req.Key))
+			err = l1.Delete(req)
 
 			if err == nil {
 				responder.Delete()
 			}
 
 		case common.RequestTouch:
-			err = l1.Touch(request.(common.TouchRequest))
+			req := request.(common.TouchRequest)
+			//fmt.Println("touch", string(req.Key))
+			err = l1.Touch(req)
 
 			if err == nil {
 				responder.Touch()
 			}
 
 		case common.RequestGet:
-			getReq := request.(common.GetRequest)
-			resChan, errChan := l1.Get(getReq)
+			req := request.(common.GetRequest)
+			//debugString := "get"
+			//for _, k := range req.Keys {
+			//	debugString += " "
+			//	debugString += string(k)
+			//}
+			//println(debugString)
+			resChan, errChan := l1.Get(req)
 
 			for {
 				select {
@@ -219,10 +233,14 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				}
 			}
 
-			responder.GetEnd(getReq.NoopEnd)
+			if err == nil {
+				responder.GetEnd(req.NoopEnd)
+			}
 
 		case common.RequestGat:
-			res, err := l1.GAT(request.(common.GATRequest))
+			req := request.(common.GATRequest)
+			//fmt.Println("gat", string(req.Key))
+			res, err := l1.GAT(req)
 
 			if err == nil {
 				if res.Miss {

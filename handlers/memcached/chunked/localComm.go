@@ -107,6 +107,7 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
+		// Discard the message body on error
 		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
 			return false, ioerr
 		}

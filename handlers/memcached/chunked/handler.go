@@ -257,26 +257,26 @@ outer:
 		// If the number of chunks doesn't match, we throw away the data and call it a miss.
 		opcodeNoop := false
 		chunk := 0
+		errState := false
+
 		for !opcodeNoop {
 			opcodeNoop, err = getLocalIntoBuf(rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
 			if err != nil {
-				errorOut <- err
-				return
+				errState = true
 			}
 
 			if !bytes.Equal(metaData.Token[:], tokenBuf) {
-				//fmt.Println("Get miss because of invalid chunk token. Cmd:", getCmd)
+				//fmt.Println(id, "Get miss because of invalid chunk token. Cmd:", cmd)
 				//fmt.Printf("Expected: %v\n", metaData.Token)
 				//fmt.Printf("Got:      %v\n", tokenBuf)
-				dataOut <- errResponse
-				continue outer
+				errState = true
 			}
 
 			// keeping track of chunks read
 			chunk++
 		}
 
-		if chunk < int(metaData.NumChunks-1) {
+		if errState || chunk < int(metaData.NumChunks-1) {
 			//fmt.Println("Get miss because of missing chunk")
 			dataOut <- errResponse
 			continue outer
