@@ -487,7 +487,9 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		// TODO: distinguish fatal errors from non-fatal
 		if err != nil {
 			if common.IsAppError(err) {
-				metrics.IncCounter(MetricErrAppError)
+				if err != common.ErrKeyNotFound {
+					metrics.IncCounter(MetricErrAppError)
+				}
 				responder.Error(err)
 			} else {
 				metrics.IncCounter(MetricErrUnrecoverable)
