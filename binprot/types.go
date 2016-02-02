@@ -208,34 +208,6 @@ type ResponseHeader struct {
 	CASToken        uint64
 }
 
-func makeSuccessResponseHeader(opcode, keyLength, extraLength, totalBodyLength, opaqueToken int) ResponseHeader {
-	return ResponseHeader{
-		Magic:           MagicResponse,
-		Opcode:          uint8(opcode),
-		KeyLength:       uint16(keyLength),
-		ExtraLength:     uint8(extraLength),
-		DataType:        uint8(0),
-		Status:          uint16(StatusSuccess),
-		TotalBodyLength: uint32(totalBodyLength),
-		OpaqueToken:     uint32(opaqueToken),
-		CASToken:        uint64(0),
-	}
-}
-
-func makeErrorResponseHeader(opcode, status, opaqueToken int) ResponseHeader {
-	return ResponseHeader{
-		Magic:           MagicResponse,
-		Opcode:          uint8(opcode),
-		KeyLength:       uint16(0),
-		ExtraLength:     uint8(0),
-		DataType:        uint8(0),
-		Status:          uint16(status),
-		TotalBodyLength: uint32(0),
-		OpaqueToken:     uint32(opaqueToken),
-		CASToken:        uint64(0),
-	}
-}
-
 func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
 	// read in the full header before any variable length fields
 	headerBuf := make([]byte, resHeaderLen)
