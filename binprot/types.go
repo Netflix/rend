@@ -185,7 +185,7 @@ func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
 	var reqHeader RequestHeader
 	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
 
-	if reqHeader.Magic != MagicResponse {
+	if reqHeader.Magic != MagicRequest {
 		return RequestHeader{}, ErrBadMagic
 	}
 
