@@ -14,8 +14,13 @@
 
 package binprot
 
-import "io"
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"io"
+
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
+)
 
 func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
@@ -30,7 +35,11 @@ func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	binary.Write(w, binary.BigEndian, header)
 	binary.Write(w, binary.BigEndian, flags)
 	binary.Write(w, binary.BigEndian, exptime)
-	return binary.Write(w, binary.BigEndian, key)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+
+	return err
 }
 
 func WriteGetCmd(w io.Writer, key []byte) error {
@@ -40,7 +49,11 @@ func WriteGetCmd(w io.Writer, key []byte) error {
 	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
 	binary.Write(w, binary.BigEndian, header)
-	return binary.Write(w, binary.BigEndian, key)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
+
+	return err
 }
 
 func WriteGetQCmd(w io.Writer, key []byte) error {
@@ -50,7 +63,11 @@ func WriteGetQCmd(w io.Writer, key []byte) error {
 	//fmt.Printf("GetQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
 	binary.Write(w, binary.BigEndian, header)
-	return binary.Write(w, binary.BigEndian, key)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
+
+	return err
 }
 
 func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
@@ -64,7 +81,11 @@ func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
 
 	binary.Write(w, binary.BigEndian, header)
 	binary.Write(w, binary.BigEndian, exptime)
-	return binary.Write(w, binary.BigEndian, key)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+
+	return err
 }
 
 func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
@@ -78,7 +99,11 @@ func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
 
 	binary.Write(w, binary.BigEndian, header)
 	binary.Write(w, binary.BigEndian, exptime)
-	return binary.Write(w, binary.BigEndian, key)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+
+	return err
 }
 
 func WriteDeleteCmd(w io.Writer, key []byte) error {
@@ -88,7 +113,11 @@ func WriteDeleteCmd(w io.Writer, key []byte) error {
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
 	binary.Write(w, binary.BigEndian, header)
-	return binary.Write(w, binary.BigEndian, key)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
+
+	return err
 }
 
 func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
@@ -103,12 +132,21 @@ func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
 
 	binary.Write(w, binary.BigEndian, header)
 	binary.Write(w, binary.BigEndian, exptime)
-	return binary.Write(w, binary.BigEndian, key)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+
+	return err
 }
 
 func WriteNoopCmd(w io.Writer) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeNoop, 0, 0, 0)
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return binary.Write(w, binary.BigEndian, header)
+
+	err := binary.Write(w, binary.BigEndian, header)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen))
+
+	return err
 }
