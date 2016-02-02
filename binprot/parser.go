@@ -123,8 +123,7 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
 
 func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	// read in the full header before any variable length fields
-	var reqHeader RequestHeader
-	err := binary.Read(b.reader, binary.BigEndian, &reqHeader)
+	reqHeader, err := ReadRequestHeader(b.reader)
 
 	if err != nil {
 		return nil, common.RequestUnknown, err
