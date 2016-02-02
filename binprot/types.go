@@ -21,6 +21,7 @@ import (
 	"io"
 
 	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
 )
 
 var ErrBadMagic = errors.New("Bad magic value")
@@ -184,6 +185,7 @@ func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
 
 	var reqHeader RequestHeader
 	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
+	metrics.IncCounterBy(common.MetricBytesReadRemote, ReqHeaderLen)
 
 	if reqHeader.Magic != MagicRequest {
 		return RequestHeader{}, ErrBadMagic
@@ -243,6 +245,8 @@ func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
 
 	var resHeader ResponseHeader
 	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &resHeader)
+
+	metrics.IncCounterBy(common.MetricBytesReadLocal, resHeaderLen)
 
 	if resHeader.Magic != MagicResponse {
 		return ResponseHeader{}, ErrBadMagic
