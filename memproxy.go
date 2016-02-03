@@ -51,145 +51,76 @@ func init() {
 }
 
 // Set up the counters used in this file
-const (
-	MetricConnectionsEstablishedExt = "conn_established_ext"
-	MetricConnectionsEstablishedL1  = "conn_established_l1"
-	MetricConnectionsEstablishedL2  = "conn_established_l2"
-	MetricCmdGet                    = "cmd_get"
-	MetricCmdGetL1                  = "cmd_get_l1"
-	MetricCmdGetL2                  = "cmd_get_l2"
-	MetricCmdGetHits                = "cmd_get_hits"
-	MetricCmdGetHitsL1              = "cmd_get_hits_l1"
-	MetricCmdGetHitsL2              = "cmd_get_hits_l2"
-	MetricCmdGetMisses              = "cmd_get_misses"
-	MetricCmdGetMissesL1            = "cmd_get_misses_l1"
-	MetricCmdGetMissesL2            = "cmd_get_misses_l2"
-	MetricCmdGetErrors              = "cmd_get_errors"
-	MetricCmdGetErrorsL1            = "cmd_get_errors_l1"
-	MetricCmdGetErrorsL2            = "cmd_get_errors_l2"
-	MetricCmdGetKeys                = "cmd_get_keys"
-	MetricCmdGetKeysL1              = "cmd_get_keys_l1"
-	MetricCmdGetKeysL2              = "cmd_get_keys_l2"
-	MetricCmdSet                    = "cmd_set"
-	MetricCmdSetL1                  = "cmd_set_l1"
-	MetricCmdSetL2                  = "cmd_set_l2"
-	MetricCmdSetSuccess             = "cmd_set_success"
-	MetricCmdSetSuccessL1           = "cmd_set_success_l1"
-	MetricCmdSetSuccessL2           = "cmd_set_success_l2"
-	MetricCmdSetErrors              = "cmd_set_errors"
-	MetricCmdSetErrorsL1            = "cmd_set_errors_l1"
-	MetricCmdSetErrorsL2            = "cmd_set_errors_l2"
-	MetricCmdDelete                 = "cmd_delete"
-	MetricCmdDeleteL1               = "cmd_delete_l1"
-	MetricCmdDeleteL2               = "cmd_delete_l2"
-	MetricCmdDeleteHits             = "cmd_delete_hits"
-	MetricCmdDeleteHitsL1           = "cmd_delete_hits_l1"
-	MetricCmdDeleteHitsL2           = "cmd_delete_hits_l2"
-	MetricCmdDeleteMisses           = "cmd_delete_misses"
-	MetricCmdDeleteMissesL1         = "cmd_delete_misses_l1"
-	MetricCmdDeleteMissesL2         = "cmd_delete_misses_l2"
-	MetricCmdDeleteErrors           = "cmd_delete_errors"
-	MetricCmdDeleteErrorsL1         = "cmd_delete_errors_l1"
-	MetricCmdDeleteErrorsL2         = "cmd_delete_errors_l2"
-	MetricCmdTouch                  = "cmd_touch"
-	MetricCmdTouchL1                = "cmd_touch_l1"
-	MetricCmdTouchL2                = "cmd_touch_l2"
-	MetricCmdTouchHits              = "cmd_touch_hits"
-	MetricCmdTouchHitsL1            = "cmd_touch_hits_l1"
-	MetricCmdTouchHitsL2            = "cmd_touch_hits_l2"
-	MetricCmdTouchMisses            = "cmd_touch_misses"
-	MetricCmdTouchMissesL1          = "cmd_touch_misses_l1"
-	MetricCmdTouchMissesL2          = "cmd_touch_misses_l2"
-	MetricCmdTouchErrors            = "cmd_touch_errors"
-	MetricCmdTouchErrorsL1          = "cmd_touch_errors_l1"
-	MetricCmdTouchErrorsL2          = "cmd_touch_errors_l2"
-	MetricCmdGat                    = "cmd_gat"
-	MetricCmdGatL1                  = "cmd_gat_l1"
-	MetricCmdGatL2                  = "cmd_gat_l2"
-	MetricCmdGatHits                = "cmd_gat_hits"
-	MetricCmdGatHitsL1              = "cmd_gat_hits_l1"
-	MetricCmdGatHitsL2              = "cmd_gat_hits_l2"
-	MetricCmdGatMisses              = "cmd_gat_misses"
-	MetricCmdGatMissesL1            = "cmd_gat_misses_l1"
-	MetricCmdGatMissesL2            = "cmd_gat_misses_l2"
-	MetricCmdGatErrors              = "cmd_gat_errors"
-	MetricCmdGatErrorsL1            = "cmd_gat_errors_l1"
-	MetricCmdGatErrorsL2            = "cmd_gat_errors_l2"
-	MetricCmdUnknown                = "cmd_unknown"
-	MetricErrAppError               = "err_app_err"
-	MetricErrUnrecoverable          = "err_unrecoverable"
+var (
+	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext")
+	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1")
+	MetricConnectionsEstablishedL2  = metrics.AddCounter("conn_established_l2")
+	MetricCmdGet                    = metrics.AddCounter("cmd_get")
+	MetricCmdGetL1                  = metrics.AddCounter("cmd_get_l1")
+	MetricCmdGetL2                  = metrics.AddCounter("cmd_get_l2")
+	MetricCmdGetHits                = metrics.AddCounter("cmd_get_hits")
+	MetricCmdGetHitsL1              = metrics.AddCounter("cmd_get_hits_l1")
+	MetricCmdGetHitsL2              = metrics.AddCounter("cmd_get_hits_l2")
+	MetricCmdGetMisses              = metrics.AddCounter("cmd_get_misses")
+	MetricCmdGetMissesL1            = metrics.AddCounter("cmd_get_misses_l1")
+	MetricCmdGetMissesL2            = metrics.AddCounter("cmd_get_misses_l2")
+	MetricCmdGetErrors              = metrics.AddCounter("cmd_get_errors")
+	MetricCmdGetErrorsL1            = metrics.AddCounter("cmd_get_errors_l1")
+	MetricCmdGetErrorsL2            = metrics.AddCounter("cmd_get_errors_l2")
+	MetricCmdGetKeys                = metrics.AddCounter("cmd_get_keys")
+	MetricCmdGetKeysL1              = metrics.AddCounter("cmd_get_keys_l1")
+	MetricCmdGetKeysL2              = metrics.AddCounter("cmd_get_keys_l2")
+	MetricCmdSet                    = metrics.AddCounter("cmd_set")
+	MetricCmdSetL1                  = metrics.AddCounter("cmd_set_l1")
+	MetricCmdSetL2                  = metrics.AddCounter("cmd_set_l2")
+	MetricCmdSetSuccess             = metrics.AddCounter("cmd_set_success")
+	MetricCmdSetSuccessL1           = metrics.AddCounter("cmd_set_success_l1")
+	MetricCmdSetSuccessL2           = metrics.AddCounter("cmd_set_success_l2")
+	MetricCmdSetErrors              = metrics.AddCounter("cmd_set_errors")
+	MetricCmdSetErrorsL1            = metrics.AddCounter("cmd_set_errors_l1")
+	MetricCmdSetErrorsL2            = metrics.AddCounter("cmd_set_errors_l2")
+	MetricCmdDelete                 = metrics.AddCounter("cmd_delete")
+	MetricCmdDeleteL1               = metrics.AddCounter("cmd_delete_l1")
+	MetricCmdDeleteL2               = metrics.AddCounter("cmd_delete_l2")
+	MetricCmdDeleteHits             = metrics.AddCounter("cmd_delete_hits")
+	MetricCmdDeleteHitsL1           = metrics.AddCounter("cmd_delete_hits_l1")
+	MetricCmdDeleteHitsL2           = metrics.AddCounter("cmd_delete_hits_l2")
+	MetricCmdDeleteMisses           = metrics.AddCounter("cmd_delete_misses")
+	MetricCmdDeleteMissesL1         = metrics.AddCounter("cmd_delete_misses_l1")
+	MetricCmdDeleteMissesL2         = metrics.AddCounter("cmd_delete_misses_l2")
+	MetricCmdDeleteErrors           = metrics.AddCounter("cmd_delete_errors")
+	MetricCmdDeleteErrorsL1         = metrics.AddCounter("cmd_delete_errors_l1")
+	MetricCmdDeleteErrorsL2         = metrics.AddCounter("cmd_delete_errors_l2")
+	MetricCmdTouch                  = metrics.AddCounter("cmd_touch")
+	MetricCmdTouchL1                = metrics.AddCounter("cmd_touch_l1")
+	MetricCmdTouchL2                = metrics.AddCounter("cmd_touch_l2")
+	MetricCmdTouchHits              = metrics.AddCounter("cmd_touch_hits")
+	MetricCmdTouchHitsL1            = metrics.AddCounter("cmd_touch_hits_l1")
+	MetricCmdTouchHitsL2            = metrics.AddCounter("cmd_touch_hits_l2")
+	MetricCmdTouchMisses            = metrics.AddCounter("cmd_touch_misses")
+	MetricCmdTouchMissesL1          = metrics.AddCounter("cmd_touch_misses_l1")
+	MetricCmdTouchMissesL2          = metrics.AddCounter("cmd_touch_misses_l2")
+	MetricCmdTouchErrors            = metrics.AddCounter("cmd_touch_errors")
+	MetricCmdTouchErrorsL1          = metrics.AddCounter("cmd_touch_errors_l1")
+	MetricCmdTouchErrorsL2          = metrics.AddCounter("cmd_touch_errors_l2")
+	MetricCmdGat                    = metrics.AddCounter("cmd_gat")
+	MetricCmdGatL1                  = metrics.AddCounter("cmd_gat_l1")
+	MetricCmdGatL2                  = metrics.AddCounter("cmd_gat_l2")
+	MetricCmdGatHits                = metrics.AddCounter("cmd_gat_hits")
+	MetricCmdGatHitsL1              = metrics.AddCounter("cmd_gat_hits_l1")
+	MetricCmdGatHitsL2              = metrics.AddCounter("cmd_gat_hits_l2")
+	MetricCmdGatMisses              = metrics.AddCounter("cmd_gat_misses")
+	MetricCmdGatMissesL1            = metrics.AddCounter("cmd_gat_misses_l1")
+	MetricCmdGatMissesL2            = metrics.AddCounter("cmd_gat_misses_l2")
+	MetricCmdGatErrors              = metrics.AddCounter("cmd_gat_errors")
+	MetricCmdGatErrorsL1            = metrics.AddCounter("cmd_gat_errors_l1")
+	MetricCmdGatErrorsL2            = metrics.AddCounter("cmd_gat_errors_l2")
+	MetricCmdUnknown                = metrics.AddCounter("cmd_unknown")
+	MetricErrAppError               = metrics.AddCounter("err_app_err")
+	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )
-
-func init() {
-	metrics.AddCounter(MetricConnectionsEstablishedExt)
-	metrics.AddCounter(MetricConnectionsEstablishedL1)
-	metrics.AddCounter(MetricConnectionsEstablishedL2)
-	metrics.AddCounter(MetricCmdGet)
-	metrics.AddCounter(MetricCmdGetL1)
-	metrics.AddCounter(MetricCmdGetL2)
-	metrics.AddCounter(MetricCmdGetHits)
-	metrics.AddCounter(MetricCmdGetHitsL1)
-	metrics.AddCounter(MetricCmdGetHitsL2)
-	metrics.AddCounter(MetricCmdGetMisses)
-	metrics.AddCounter(MetricCmdGetMissesL1)
-	metrics.AddCounter(MetricCmdGetMissesL2)
-	metrics.AddCounter(MetricCmdGetErrors)
-	metrics.AddCounter(MetricCmdGetErrorsL1)
-	metrics.AddCounter(MetricCmdGetErrorsL2)
-	metrics.AddCounter(MetricCmdGetKeys)
-	metrics.AddCounter(MetricCmdGetKeysL1)
-	metrics.AddCounter(MetricCmdGetKeysL2)
-	metrics.AddCounter(MetricCmdSet)
-	metrics.AddCounter(MetricCmdSetL1)
-	metrics.AddCounter(MetricCmdSetL2)
-	metrics.AddCounter(MetricCmdSetSuccess)
-	metrics.AddCounter(MetricCmdSetSuccessL1)
-	metrics.AddCounter(MetricCmdSetSuccessL2)
-	metrics.AddCounter(MetricCmdSetErrors)
-	metrics.AddCounter(MetricCmdSetErrorsL1)
-	metrics.AddCounter(MetricCmdSetErrorsL2)
-	metrics.AddCounter(MetricCmdDelete)
-	metrics.AddCounter(MetricCmdDeleteL1)
-	metrics.AddCounter(MetricCmdDeleteL2)
-	metrics.AddCounter(MetricCmdDeleteHits)
-	metrics.AddCounter(MetricCmdDeleteHitsL1)
-	metrics.AddCounter(MetricCmdDeleteHitsL2)
-	metrics.AddCounter(MetricCmdDeleteMisses)
-	metrics.AddCounter(MetricCmdDeleteMissesL1)
-	metrics.AddCounter(MetricCmdDeleteMissesL2)
-	metrics.AddCounter(MetricCmdDeleteErrors)
-	metrics.AddCounter(MetricCmdDeleteErrorsL1)
-	metrics.AddCounter(MetricCmdDeleteErrorsL2)
-	metrics.AddCounter(MetricCmdTouch)
-	metrics.AddCounter(MetricCmdTouchL1)
-	metrics.AddCounter(MetricCmdTouchL2)
-	metrics.AddCounter(MetricCmdTouchHits)
-	metrics.AddCounter(MetricCmdTouchHitsL1)
-	metrics.AddCounter(MetricCmdTouchHitsL2)
-	metrics.AddCounter(MetricCmdTouchMisses)
-	metrics.AddCounter(MetricCmdTouchMissesL1)
-	metrics.AddCounter(MetricCmdTouchMissesL2)
-	metrics.AddCounter(MetricCmdTouchErrors)
-	metrics.AddCounter(MetricCmdTouchErrorsL1)
-	metrics.AddCounter(MetricCmdTouchErrorsL2)
-	metrics.AddCounter(MetricCmdGat)
-	metrics.AddCounter(MetricCmdGatL1)
-	metrics.AddCounter(MetricCmdGatL2)
-	metrics.AddCounter(MetricCmdGatHits)
-	metrics.AddCounter(MetricCmdGatHitsL1)
-	metrics.AddCounter(MetricCmdGatHitsL2)
-	metrics.AddCounter(MetricCmdGatMisses)
-	metrics.AddCounter(MetricCmdGatMissesL1)
-	metrics.AddCounter(MetricCmdGatMissesL2)
-	metrics.AddCounter(MetricCmdGatErrors)
-	metrics.AddCounter(MetricCmdGatErrorsL1)
-	metrics.AddCounter(MetricCmdGatErrorsL2)
-	metrics.AddCounter(MetricCmdUnknown)
-	metrics.AddCounter(MetricErrAppError)
-	metrics.AddCounter(MetricErrUnrecoverable)
-}
 
 // And away we go
 func main() {

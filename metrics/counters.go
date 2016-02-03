@@ -6,46 +6,36 @@ import (
 )
 
 var (
-	counters = make(map[string]*uint64)
+	names    = make([]string, 0)
+	counters = make([]*uint64, 0)
 	lock     = new(sync.RWMutex)
 )
 
-func AddCounter(name string) {
+// Registers a counter and returns an ID that can be used to access it
+func AddCounter(name string) int {
 	lock.Lock()
 	defer lock.Unlock()
 
-	temp := new(uint64)
-	atomic.StoreUint64(temp, 0)
-	counters[name] = temp
+	counterID := len(names)
+
+	names = append(names, name)
+	counters = append(counters, new(uint64))
+
+	return counterID
 }
 
-func IncCounter(name string) {
+func IncCounter(id int) {
 	lock.RLock()
 	defer lock.RUnlock()
 
-	if _, ok := counters[name]; ok {
-		atomic.AddUint64(counters[name], 1)
-	}
+	atomic.AddUint64(counters[id], 1)
 }
 
-func IncCounterBy(name string, amount uint64) {
+func IncCounterBy(id int, amount uint64) {
 	lock.RLock()
 	defer lock.RUnlock()
 
-	if _, ok := counters[name]; ok {
-		atomic.AddUint64(counters[name], amount)
-	}
-}
-
-func GetCounter(name string) uint64 {
-	lock.RLock()
-	defer lock.RUnlock()
-
-	if _, ok := counters[name]; ok {
-		return atomic.LoadUint64(counters[name])
-	} else {
-		return uint64(0)
-	}
+	atomic.AddUint64(counters[id], amount)
 }
 
 func GetAllCounters() map[string]uint64 {
@@ -53,8 +43,10 @@ func GetAllCounters() map[string]uint64 {
 	defer lock.RUnlock()
 
 	ret := make(map[string]uint64)
-	for name, val := range counters {
-		ret[name] = atomic.LoadUint64(val)
+
+	for i, name := range names {
+		ret[name] = atomic.LoadUint64(counters[i])
 	}
+
 	return ret
 }

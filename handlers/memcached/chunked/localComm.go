@@ -78,9 +78,11 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	return metaData, nil
 }
 
-func simpleCmdLocal(rw *bufio.ReadWriter) error {
-	if err := rw.Flush(); err != nil {
-		return err
+func simpleCmdLocal(rw *bufio.ReadWriter, flush bool) error {
+	if flush {
+		if err := rw.Flush(); err != nil {
+			return err
+		}
 	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)

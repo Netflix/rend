@@ -27,11 +27,49 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-// Chunk size, leaving room for the token
-// Make sure the value subtracted from chunk size stays in sync
-// with the size of the Metadata struct
-const chunkSize = 1024 - 16
-const fullDataSize = 1024
+const (
+	// Chunk size, leaving room for the token
+	// Make sure the value subtracted from chunk size stays in sync
+	// with the size of the Metadata struct
+	chunkSize    = 1024 - 16
+	fullDataSize = 1024
+)
+
+var (
+	MetricCmdSetErrorsOOM        = metrics.AddCounter("cmd_set_errors_oom")
+	MetricCmdSetErrorsOOML1      = metrics.AddCounter("cmd_set_errors_oom_l1")
+	MetricCmdSetErrorsOOML2      = metrics.AddCounter("cmd_set_errors_oom_l2")
+	MetricCmdTouchMissesMeta     = metrics.AddCounter("cmd_touch_misses_meta")
+	MetricCmdTouchMissesMetaL1   = metrics.AddCounter("cmd_touch_misses_meta_l1")
+	MetricCmdTouchMissesMetaL2   = metrics.AddCounter("cmd_touch_misses_meta_l2")
+	MetricCmdTouchMissesChunk    = metrics.AddCounter("cmd_touch_misses_chunk")
+	MetricCmdTouchMissesChunkL1  = metrics.AddCounter("cmd_touch_misses_chunk_l1")
+	MetricCmdTouchMissesChunkL2  = metrics.AddCounter("cmd_touch_misses_chunk_l2")
+	MetricCmdDeleteMissesMeta    = metrics.AddCounter("cmd_delete_misses_meta")
+	MetricCmdDeleteMissesMetaL1  = metrics.AddCounter("cmd_delete_misses_meta_l1")
+	MetricCmdDeleteMissesMetaL2  = metrics.AddCounter("cmd_delete_misses_meta_l2")
+	MetricCmdDeleteMissesChunk   = metrics.AddCounter("cmd_delete_misses_chunk")
+	MetricCmdDeleteMissesChunkL1 = metrics.AddCounter("cmd_delete_misses_chunk_l1")
+	MetricCmdDeleteMissesChunkL2 = metrics.AddCounter("cmd_delete_misses_chunk_l2")
+	MetricCmdGetMissesMeta       = metrics.AddCounter("cmd_get_misses_meta")
+	MetricCmdGetMissesMetaL1     = metrics.AddCounter("cmd_get_misses_meta_l1")
+	MetricCmdGetMissesMetaL2     = metrics.AddCounter("cmd_get_misses_meta_l2")
+	MetricCmdGetMissesChunk      = metrics.AddCounter("cmd_get_misses_chunk")
+	MetricCmdGetMissesChunkL1    = metrics.AddCounter("cmd_get_misses_chunk_l1")
+	MetricCmdGetMissesChunkL2    = metrics.AddCounter("cmd_get_misses_chunk_l2")
+	MetricCmdGetMissesToken      = metrics.AddCounter("cmd_get_misses_token")
+	MetricCmdGetMissesTokenL1    = metrics.AddCounter("cmd_get_misses_token_l1")
+	MetricCmdGetMissesTokenL2    = metrics.AddCounter("cmd_get_misses_token_l2")
+	MetricCmdGatMissesMeta       = metrics.AddCounter("cmd_gat_misses_meta")
+	MetricCmdGatMissesMetaL1     = metrics.AddCounter("cmd_gat_misses_meta_l1")
+	MetricCmdGatMissesMetaL2     = metrics.AddCounter("cmd_gat_misses_meta_l2")
+	MetricCmdGatMissesChunk      = metrics.AddCounter("cmd_gat_misses_chunk")
+	MetricCmdGatMissesChunkL1    = metrics.AddCounter("cmd_gat_misses_chunk_l1")
+	MetricCmdGatMissesChunkL2    = metrics.AddCounter("cmd_gat_misses_chunk_l2")
+	MetricCmdGatMissesToken      = metrics.AddCounter("cmd_gat_misses_token")
+	MetricCmdGatMissesTokenL1    = metrics.AddCounter("cmd_gat_misses_token_l1")
+	MetricCmdGatMissesTokenL2    = metrics.AddCounter("cmd_gat_misses_token_l2")
+)
 
 func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	resHeader, err := binprot.ReadResponseHeader(r)
@@ -71,10 +109,7 @@ func (h Handler) Close() error {
 }
 
 func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
-	// For writing chunks, the specialized chunked reader is appropriate.
-	// for unchunked, a limited reader will be needed since the text protocol
-	// includes a /r/n at the end and there's no EOF to be had with a long-lived
-	// connection.
+	// Specialized chunk reader to make the code here much simpler
 	limChunkReader := newChunkLimitedReader(bytes.NewBuffer(cmd.Data), int64(chunkSize), int64(len(cmd.Data)))
 	numChunks := int(math.Ceil(float64(len(cmd.Data)) / float64(chunkSize)))
 	token := <-tokens
@@ -88,20 +123,17 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 		Token:     token,
 	}
 
-	metaDataBuf := new(bytes.Buffer)
-	binary.Write(metaDataBuf, binary.BigEndian, metaData)
-
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
 	if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
 		return err
 	}
 	// Write value
-	n, err := io.Copy(h.rw.Writer, metaDataBuf)
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
-	if err != nil {
+	if err := binary.Write(h.rw, binary.BigEndian, metaData); err != nil {
 		return err
 	}
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, metadataSize)
+
 	if err := h.rw.Flush(); err != nil {
 		return err
 	}
@@ -163,6 +195,9 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 		// Read server's response
 		resHeader, err = readResponseHeader(h.rw.Reader)
 		if err != nil {
+			if err == common.ErrNoMem {
+				metrics.IncCounter(MetricCmdSetErrorsOOM)
+			}
 			// Reset the ReadWriter to prevent sending garbage to memcached
 			// otherwise we get disconnected
 			h.reset()
@@ -232,7 +267,7 @@ outer:
 		_, metaData, err := getMetadata(rw, key)
 		if err != nil {
 			if err == common.ErrKeyNotFound {
-				//fmt.Println("Get miss because of missing metadata. Key:", key)
+				metrics.IncCounter(MetricCmdGetMissesMeta)
 				dataOut <- missResponse
 				continue outer
 			}
@@ -242,6 +277,7 @@ outer:
 		}
 
 		missResponse.Flags = metaData.OrigFlags
+
 		// Write all the get commands before reading
 		for i := 0; i < int(metaData.NumChunks); i++ {
 			chunkKey := chunkKey(key, i)
@@ -273,27 +309,36 @@ outer:
 		// means that there is no fast fail when a chunk is missing, but at least all the data is
 		// read in so there's no problem with unread, buffered data that should have been discarded.
 		// If the number of chunks doesn't match, we throw away the data and call it a miss.
-		opcodeNoop := false
 		chunk := 0
+		miss := false
 		var lastErr error
-		missed := false
 
-		for !opcodeNoop {
-			opcodeNoop, lastErr = getLocalIntoBuf(rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
-			if lastErr != nil {
-				if lastErr == common.ErrKeyNotFound {
-					lastErr = nil
-					missed = true
+		for {
+			opcodeNoop, err := getLocalIntoBuf(rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
+			if err != nil {
+				if err == common.ErrKeyNotFound {
+					if !miss {
+						metrics.IncCounter(MetricCmdGetMissesChunk)
+						miss = true
+					}
 					continue
+				} else {
+					lastErr = err
 				}
-				lastErr = err
+			}
+
+			if opcodeNoop {
+				break
 			}
 
 			if !bytes.Equal(metaData.Token[:], tokenBuf) {
 				//fmt.Println(id, "Get miss because of invalid chunk token. Cmd:", cmd)
 				//fmt.Printf("Expected: %v\n", metaData.Token)
 				//fmt.Printf("Got:      %v\n", tokenBuf)
-				missed = true
+				if !miss {
+					metrics.IncCounter(MetricCmdGetMissesToken)
+					miss = true
+				}
 			}
 
 			chunk++
@@ -303,7 +348,7 @@ outer:
 			errorOut <- lastErr
 			return
 		}
-		if missed {
+		if miss {
 			//fmt.Println("Get miss because of missing chunk")
 			dataOut <- missResponse
 			continue outer
@@ -333,7 +378,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	_, metaData, err := getAndTouchMetadata(h.rw, cmd.Key, cmd.Exptime)
 	if err != nil {
 		if err == common.ErrKeyNotFound {
-			//fmt.Println("GAT miss because of missing metadata. Key:", key)
+			metrics.IncCounter(MetricCmdGatMissesMeta)
 			return missResponse, nil
 		}
 
@@ -370,27 +415,36 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	// means that there is no fast fail when a chunk is missing, but at least all the data is
 	// read in so there's no problem with unread, buffered data that should have been discarded.
 	// If the number of chunks doesn't match, we throw away the data and call it a miss.
-	opcodeNoop := false
 	chunk := 0
+	miss := false
 	var lastErr error
-	missed := false
 
-	for !opcodeNoop {
-		opcodeNoop, lastErr = getLocalIntoBuf(h.rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
-		if lastErr != nil {
-			if lastErr == common.ErrKeyNotFound {
-				lastErr = nil
-				missed = true
+	for {
+		opcodeNoop, err := getLocalIntoBuf(h.rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
+		if err != nil {
+			if err == common.ErrKeyNotFound {
+				if !miss {
+					metrics.IncCounter(MetricCmdGatMissesChunk)
+					miss = true
+				}
 				continue
+			} else {
+				lastErr = err
 			}
-			lastErr = err
+		}
+
+		if opcodeNoop {
+			break
 		}
 
 		if !bytes.Equal(metaData.Token[:], tokenBuf) {
 			//fmt.Println(id, "GAT miss because of invalid chunk token. Cmd:", cmd)
 			//fmt.Printf("Expected: %v\n", metaData.Token)
 			//fmt.Printf("Got:      %v\n", tokenBuf)
-			missed = true
+			if !miss {
+				metrics.IncCounter(MetricCmdGatMissesToken)
+				miss = true
+			}
 		}
 
 		chunk++
@@ -399,7 +453,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	if lastErr != nil {
 		return common.GetResponse{}, lastErr
 	}
-	if missed {
+	if miss {
 		//fmt.Println("GAT miss because of missing chunk")
 		return missResponse, nil
 	}
@@ -424,7 +478,7 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 
 	if err != nil {
 		if err == common.ErrKeyNotFound {
-			//fmt.Println("Delete miss because of missing metadata. Key:", cmd.Key)
+			metrics.IncCounter(MetricCmdDeleteMissesMeta)
 		}
 		return err
 	}
@@ -433,7 +487,10 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 	if err := binprot.WriteDeleteCmd(h.rw.Writer, metaKey); err != nil {
 		return err
 	}
-	if err := simpleCmdLocal(h.rw); err != nil {
+	if err := simpleCmdLocal(h.rw, true); err != nil {
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdDeleteMissesMeta)
+		}
 		return err
 	}
 
@@ -443,9 +500,25 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 		if err := binprot.WriteDeleteCmd(h.rw.Writer, chunkKey); err != nil {
 			return err
 		}
-		if err := simpleCmdLocal(h.rw); err != nil {
+	}
+
+	if err := h.rw.Flush(); err != nil {
+		return err
+	}
+
+	miss := false
+	for i := 0; i < int(metaData.NumChunks); i++ {
+		if err := simpleCmdLocal(h.rw, false); err != nil {
+			if err == common.ErrKeyNotFound && !miss {
+				metrics.IncCounter(MetricCmdDeleteMissesChunk)
+				miss = true
+			}
 			return err
 		}
+	}
+
+	if miss {
+		return common.ErrKeyNotFound
 	}
 
 	return nil
@@ -457,33 +530,54 @@ func (h Handler) Touch(cmd common.TouchRequest) error {
 	//  touch item
 	// touch metadata
 
+	// We get the metadata and not GAT it in case the key is *just* about to expire.
+	// In this case if a chunk expires during the operation, we fail the touch instead of
+	// leaving a key in an inconsistent state where the metadata lives on and the data is
+	// incomplete. The metadata is touched last to make sure the data exists first.
 	metaKey, metaData, err := getMetadata(h.rw, cmd.Key)
 
 	if err != nil {
 		if err == common.ErrKeyNotFound {
-			//fmt.Println("Touch miss because of missing metadata. Key:", cmd.Key)
-			return err
+			metrics.IncCounter(MetricCmdTouchMissesMeta)
 		}
 
 		return err
 	}
 
-	// First touch all the chunks
+	// First touch all the chunks as a batch
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
 		if err := binprot.WriteTouchCmd(h.rw.Writer, chunkKey, cmd.Exptime); err != nil {
 			return err
 		}
-		if err := simpleCmdLocal(h.rw); err != nil {
-			return err
+	}
+
+	if err := h.rw.Flush(); err != nil {
+		return err
+	}
+
+	miss := false
+	for i := 0; i < int(metaData.NumChunks); i++ {
+		if err := simpleCmdLocal(h.rw, false); err != nil {
+			if err == common.ErrKeyNotFound && !miss {
+				metrics.IncCounter(MetricCmdTouchMissesChunk)
+				miss = true
+			}
 		}
+	}
+
+	if miss {
+		return common.ErrKeyNotFound
 	}
 
 	// Then touch the metadata
 	if err := binprot.WriteTouchCmd(h.rw.Writer, metaKey, cmd.Exptime); err != nil {
 		return err
 	}
-	if err := simpleCmdLocal(h.rw); err != nil {
+	if err := simpleCmdLocal(h.rw, true); err != nil {
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdTouchMissesMeta)
+		}
 		return err
 	}
 
