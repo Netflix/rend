@@ -20,6 +20,7 @@ import (
 
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
 )
 
 func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
@@ -63,6 +64,7 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 
 	// Write value
 	h.rw.Write(cmd.Data)
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(len(cmd.Data)))
 
 	if err := h.rw.Flush(); err != nil {
 		return err
@@ -72,12 +74,16 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	resHeader, err := readResponseHeader(h.rw.Reader)
 	if err != nil {
 		// Discard request body
-		if _, ioerr := src.Discard(len(cmd.Data)); ioerr != nil {
+		n, ioerr := src.Discard(len(cmd.Data))
+		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+		if ioerr != nil {
 			return ioerr
 		}
 
 		// Discard response body
-		if _, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+		n, ioerr = h.rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
 			return ioerr
 		}
 
