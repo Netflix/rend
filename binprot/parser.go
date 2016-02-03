@@ -14,12 +14,15 @@
 
 package binprot
 
-import "bufio"
-import "encoding/binary"
-import "fmt"
-import "io"
+import (
+	"bufio"
+	"encoding/binary"
+	"fmt"
+	"io"
 
-import "github.com/netflix/rend/common"
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
+)
 
 // Example Set Request
 // Field        (offset) (value)
@@ -133,21 +136,18 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	case OpcodeSet:
 		// flags, exptime, key, value
 		flags, err := readUInt32(b.reader)
-
 		if err != nil {
 			fmt.Println("Error reading flags")
 			return nil, common.RequestSet, err
 		}
 
 		exptime, err := readUInt32(b.reader)
-
 		if err != nil {
 			fmt.Println("Error reading exptime")
 			return nil, common.RequestSet, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
-
 		if err != nil {
 			fmt.Println("Error reading key")
 			return nil, common.RequestSet, err
@@ -159,7 +159,11 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 		// Read in the body of the set request
 		dataBuf := make([]byte, realLength)
-		io.ReadFull(b.reader, dataBuf)
+		n, err := io.ReadFull(b.reader, dataBuf)
+		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+		if err != nil {
+			return nil, common.RequestSet, err
+		}
 
 		return common.SetRequest{
 			Key:     key,
@@ -171,7 +175,6 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
-
 		if err != nil {
 			fmt.Println("Error reading batch get")
 			return nil, common.RequestGet, err
@@ -182,7 +185,6 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	case OpcodeGet:
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
-
 		if err != nil {
 			fmt.Println("Error reading key")
 			return nil, common.RequestGet, err
@@ -198,14 +200,12 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	case OpcodeGat:
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
-
 		if err != nil {
 			fmt.Println("Error reading exptime")
 			return nil, common.RequestGat, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
-
 		if err != nil {
 			fmt.Println("Error reading key")
 			return nil, common.RequestGat, err
@@ -220,7 +220,6 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	case OpcodeDelete:
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
-
 		if err != nil {
 			fmt.Println("Error reading key")
 			return nil, common.RequestDelete, err
@@ -233,14 +232,12 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	case OpcodeTouch:
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
-
 		if err != nil {
 			fmt.Println("Error reading exptime")
 			return nil, common.RequestTouch, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
-
 		if err != nil {
 			fmt.Println("Error reading key")
 			return nil, common.RequestTouch, err
@@ -266,7 +263,6 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	for header.Opcode == OpcodeGetQ {
 		// key
 		key, err := readString(r, header.KeyLength)
-
 		if err != nil {
 			return common.GetRequest{}, err
 		}
@@ -276,8 +272,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		quiet = append(quiet, true)
 
 		// read in the next header
-		err = binary.Read(r, binary.BigEndian, &header)
-
+		header, err = ReadRequestHeader(r)
 		if err != nil {
 			return common.GetRequest{}, err
 		}
@@ -286,7 +281,6 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	if header.Opcode == OpcodeGet {
 		// key
 		key, err := readString(r, header.KeyLength)
-
 		if err != nil {
 			return common.GetRequest{}, err
 		}
@@ -295,9 +289,11 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		opaques = append(opaques, header.OpaqueToken)
 		quiet = append(quiet, false)
 		noopEnd = false
+
 	} else if header.Opcode == OpcodeNoop {
 		// nothing to do, header is read already
 		noopEnd = true
+
 	} else {
 		// no idea... this is a problem though.
 		// unexpected patterns shouldn't come over the wire, so maybe it will
@@ -314,8 +310,8 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 
 func readString(r io.Reader, l uint16) ([]byte, error) {
 	buf := make([]byte, l)
-	_, err := io.ReadFull(r, buf)
-
+	n, err := io.ReadFull(r, buf)
+	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
 		return nil, err
 	}
@@ -326,10 +322,10 @@ func readString(r io.Reader, l uint16) ([]byte, error) {
 func readUInt32(r io.Reader) (uint32, error) {
 	var num uint32
 	err := binary.Read(r, binary.BigEndian, &num)
-
 	if err != nil {
 		return uint32(0), err
 	}
+	metrics.IncCounterBy(common.MetricBytesReadRemote, 4)
 
 	return num, nil
 }
