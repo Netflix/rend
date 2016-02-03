@@ -14,11 +14,15 @@
 
 package std
 
-import "bufio"
-import "encoding/binary"
-import "io"
+import (
+	"bufio"
+	"encoding/binary"
+	"io"
 
-import "github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
+)
 
 func simpleCmdLocal(rw *bufio.ReadWriter) error {
 	if err := rw.Flush(); err != nil {
@@ -32,14 +36,18 @@ func simpleCmdLocal(rw *bufio.ReadWriter) error {
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
 			return ioerr
 		}
 		return err
 	}
 
 	// Read in the message bytes from the body
-	if _, err := rw.Discard(int(resHeader.TotalBodyLength)); err != nil {
+	n, err := rw.Discard(int(resHeader.TotalBodyLength))
+	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+	if err != nil {
 		return err
 	}
 
@@ -58,7 +66,9 @@ func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
 			return nil, 0, ioerr
 		}
 		return nil, 0, err
@@ -66,13 +76,16 @@ func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
 
 	var serverFlags uint32
 	binary.Read(rw, binary.BigEndian, &serverFlags)
+	metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
 
 	// total body - key - extra
 	dataLen := resHeader.TotalBodyLength - uint32(resHeader.KeyLength) - uint32(resHeader.ExtraLength)
 	buf := make([]byte, dataLen)
 
 	// Read in value
-	if _, err := io.ReadFull(rw, buf); err != nil {
+	n, err := io.ReadFull(rw, buf)
+	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+	if err != nil {
 		return nil, 0, err
 	}
 

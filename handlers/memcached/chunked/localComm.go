@@ -14,11 +14,15 @@
 
 package chunked
 
-import "bufio"
-import "encoding/binary"
-import "io"
+import (
+	"bufio"
+	"encoding/binary"
+	"io"
 
-import "github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
+)
 
 func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
@@ -51,17 +55,25 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
 		// read in the message "Not found" after a miss
-		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
 			return metadata{}, ioerr
 		}
 		return metadata{}, err
 	}
 
-	serverFlags := make([]byte, 4)
-	binary.Read(rw, binary.BigEndian, &serverFlags)
+	var serverFlags uint32
+	if err := binary.Read(rw, binary.BigEndian, &serverFlags); err != nil {
+		return metadata{}, err
+	}
 
 	var metaData metadata
-	binary.Read(rw, binary.BigEndian, &metaData)
+	if err := binary.Read(rw, binary.BigEndian, &metaData); err != nil {
+		return metadata{}, err
+	}
+
+	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(metadataSize+4))
 
 	return metaData, nil
 }
@@ -76,20 +88,13 @@ func simpleCmdLocal(rw *bufio.ReadWriter) error {
 		return err
 	}
 
-	err = binprot.DecodeError(resHeader)
-	if err != nil {
-		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
-			return ioerr
-		}
-		return err
+	n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
+	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+	if ioerr != nil {
+		return ioerr
 	}
 
-	// Read in the message bytes from the body
-	if _, err := rw.Discard(int(resHeader.TotalBodyLength)); err != nil {
-		return err
-	}
-
-	return nil
+	return binprot.DecodeError(resHeader)
 }
 
 func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []byte, chunkNum, totalDataLength int) (opcodeNoop bool, err error) {
@@ -107,19 +112,26 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
-		// Discard the message body on error
-		if _, ioerr := rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+		// read in the message "Not found" after a miss
+		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
 			return false, ioerr
 		}
 		return false, err
 	}
 
-	serverFlags := make([]byte, 4)
-	binary.Read(rw, binary.BigEndian, &serverFlags)
+	var serverFlags uint32
+	if err := binary.Read(rw, binary.BigEndian, &serverFlags); err != nil {
+		return false, err
+	}
+	metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
 
 	// Read in token if requested
 	if tokenBuf != nil {
-		if _, err := io.ReadFull(rw, tokenBuf); err != nil {
+		n, err := io.ReadFull(rw, tokenBuf)
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if err != nil {
 			return false, err
 		}
 	}
@@ -130,13 +142,17 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 	chunkBuf := dataBuf[start:end]
 
 	// Read in value
-	if _, err := io.ReadFull(rw, chunkBuf); err != nil {
+	n, err := io.ReadFull(rw, chunkBuf)
+	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+	if err != nil {
 		return false, err
 	}
 
 	// consume padding at end of chunk if needed
 	if len(chunkBuf) < totalDataLength {
-		if _, ioerr := rw.Discard(totalDataLength - len(chunkBuf)); ioerr != nil {
+		n, ioerr := rw.Discard(totalDataLength - len(chunkBuf))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
 			return false, ioerr
 		}
 	}

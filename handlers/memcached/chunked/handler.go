@@ -24,6 +24,7 @@ import (
 
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
 )
 
 // Chunk size, leaving room for the token
@@ -96,7 +97,9 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 		return err
 	}
 	// Write value
-	if _, err := io.Copy(h.rw.Writer, metaDataBuf); err != nil {
+	n, err := io.Copy(h.rw.Writer, metaDataBuf)
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+	if err != nil {
 		return err
 	}
 	if err := h.rw.Flush(); err != nil {
@@ -107,12 +110,16 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	resHeader, err := readResponseHeader(h.rw.Reader)
 	if err != nil {
 		// Discard request body
-		if _, ioerr := src.Discard(len(cmd.Data)); ioerr != nil {
+		n, ioerr := src.Discard(len(cmd.Data))
+		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+		if ioerr != nil {
 			return ioerr
 		}
 
 		// Discard response body
-		if _, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+		n, ioerr = h.rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
 			return ioerr
 		}
 
@@ -133,11 +140,17 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 			return err
 		}
 		// Write token
-		if _, err := h.rw.Write(token[:]); err != nil {
+		n, err := h.rw.Write(token[:])
+		metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+		if err != nil {
 			return err
 		}
 		// Write value
-		if _, err := io.Copy(h.rw.Writer, limChunkReader); err != nil {
+		n2, err := io.Copy(h.rw.Writer, limChunkReader)
+		// If sets are streaming through, we'd be reading at the same time
+		//metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+		metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n2))
+		if err != nil {
 			return err
 		}
 		// There's some additional overhead here calling Flush() because it causes a write() syscall
@@ -159,7 +172,10 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 			// the underlying reader and discard directly, since we don't exactly know how many
 			// bytes were sent already
 			for limChunkReader.More() {
-				if _, ioerr := io.Copy(ioutil.Discard, limChunkReader); ioerr != nil {
+				_, ioerr := io.Copy(ioutil.Discard, limChunkReader)
+				// If sets are streaming through, we'd be reading at the same time
+				//metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+				if ioerr != nil {
 					return ioerr
 				}
 
@@ -167,7 +183,9 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 			}
 
 			// Discard repsonse body
-			if _, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength)); ioerr != nil {
+			n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
+			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+			if ioerr != nil {
 				return ioerr
 			}
 

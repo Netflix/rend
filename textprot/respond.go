@@ -14,10 +14,13 @@
 
 package textprot
 
-import "bufio"
-import "fmt"
+import (
+	"bufio"
+	"fmt"
 
-import "github.com/netflix/rend/common"
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
+)
 
 type TextResponder struct {
 	writer *bufio.Writer
@@ -32,7 +35,8 @@ func NewTextResponder(writer *bufio.Writer) TextResponder {
 func (t TextResponder) Set() error {
 	// TODO: Error handling for less bytes
 	//numWritten, err := writer.WriteString("STORED\r\n")
-	_, err := t.writer.WriteString("STORED\r\n")
+	n, err := t.writer.WriteString("STORED\r\n")
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
 		return err
 	}
@@ -50,18 +54,20 @@ func (t TextResponder) Get(response common.GetResponse) error {
 	// [VALUE <key> <flags> <bytes>\r\n
 	// <data block>\r\n]*
 	// END\r\n
-	_, err := fmt.Fprintf(t.writer, "VALUE %s %d %d\r\n",
-		response.Key, response.Flags, len(response.Data))
+	n, err := fmt.Fprintf(t.writer, "VALUE %s %d %d\r\n", response.Key, response.Flags, len(response.Data))
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
 		return err
 	}
 
-	_, err = t.writer.Write(response.Data)
+	n, err = t.writer.Write(response.Data)
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
 		return err
 	}
 
-	_, err = t.writer.WriteString("\r\n")
+	n, err = t.writer.WriteString("\r\n")
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
 		return err
 	}
@@ -76,7 +82,8 @@ func (t TextResponder) GetMiss(response common.GetResponse) error {
 }
 
 func (t TextResponder) GetEnd(noopEnd bool) error {
-	_, err := fmt.Fprintf(t.writer, "END\r\n")
+	n, err := fmt.Fprintf(t.writer, "END\r\n")
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
 		return err
 	}
@@ -101,7 +108,8 @@ func (t TextResponder) GATMiss(response common.GetResponse) error {
 }
 
 func (t TextResponder) Delete() error {
-	_, err := fmt.Fprintf(t.writer, "DELETED\r\n")
+	n, err := fmt.Fprintf(t.writer, "DELETED\r\n")
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
 		return err
 	}
@@ -111,7 +119,8 @@ func (t TextResponder) Delete() error {
 }
 
 func (t TextResponder) Touch() error {
-	_, err := fmt.Fprintf(t.writer, "TOUCHED\r\n")
+	n, err := fmt.Fprintf(t.writer, "TOUCHED\r\n")
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
 		return err
 	}
@@ -121,26 +130,29 @@ func (t TextResponder) Touch() error {
 }
 
 func (t TextResponder) Error(err error) error {
+	var n int
 
 	switch err {
 	case common.ErrKeyNotFound:
-		_, err = fmt.Fprintf(t.writer, "NOT_FOUND\r\n")
+		n, err = fmt.Fprintf(t.writer, "NOT_FOUND\r\n")
 	case common.ErrKeyExists:
-		_, err = fmt.Fprintf(t.writer, "EXISTS\r\n")
+		n, err = fmt.Fprintf(t.writer, "EXISTS\r\n")
 	case common.ErrItemNotStored:
-		_, err = fmt.Fprintf(t.writer, "NOT_STORED\r\n")
+		n, err = fmt.Fprintf(t.writer, "NOT_STORED\r\n")
 	case common.ErrValueTooBig:
 	case common.ErrInvalidArgs:
-		_, err = fmt.Fprintf(t.writer, "CLIENT_ERROR bad command line\r\n")
+		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR bad command line\r\n")
 	case common.ErrBadIncDecValue:
-		_, err = fmt.Fprintf(t.writer, "CLIENT_ERROR invalid numeric delta argument\r\n")
+		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR invalid numeric delta argument\r\n")
 	case common.ErrAuth:
-		_, err = fmt.Fprintf(t.writer, "CLIENT_ERROR\r\n")
+		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR\r\n")
 	case common.ErrUnknownCmd:
 	case common.ErrNoMem:
 	default:
-		_, err = fmt.Fprintf(t.writer, "ERROR\r\n")
+		n, err = fmt.Fprintf(t.writer, "ERROR\r\n")
 	}
+
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 
 	if err != nil {
 		return err

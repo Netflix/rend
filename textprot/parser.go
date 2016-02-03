@@ -14,14 +14,17 @@
 
 package textprot
 
-import "bufio"
-import "errors"
-import "fmt"
-import "io"
-import "strconv"
-import "strings"
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
 
-import "github.com/netflix/rend/common"
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
+)
 
 type TextParser struct {
 	reader *bufio.Reader
@@ -36,6 +39,7 @@ func NewTextParser(reader *bufio.Reader) TextParser {
 func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 
 	data, err := t.reader.ReadString('\n')
+	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(len(data)))
 
 	if err != nil {
 		if err == io.EOF {
@@ -84,12 +88,15 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 
 		// Read in data
 		dataBuf := make([]byte, length)
-		if _, err := io.ReadFull(t.reader, dataBuf); err != nil {
+		n, err := io.ReadFull(t.reader, dataBuf)
+		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+		if err != nil {
 			return nil, common.RequestSet, common.ErrInternal
 		}
 
 		// Consume the last two bytes "\r\n"
 		t.reader.Discard(2)
+		metrics.IncCounterBy(common.MetricBytesReadRemote, 2)
 
 		return common.SetRequest{
 			Key:     key,

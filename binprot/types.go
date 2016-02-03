@@ -15,12 +15,12 @@
 package binprot
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
 
 	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
 )
 
 var ErrBadMagic = errors.New("Bad magic value")
@@ -176,16 +176,14 @@ func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) Requ
 }
 
 func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
-	// read in the full header before any variable length fields
-	headerBuf := make([]byte, ReqHeaderLen)
-	if _, err := io.ReadFull(reader, headerBuf); err != nil {
+	var reqHeader RequestHeader
+	if err := binary.Read(reader, binary.BigEndian, &reqHeader); err != nil {
 		return RequestHeader{}, err
 	}
 
-	var reqHeader RequestHeader
-	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
+	metrics.IncCounterBy(common.MetricBytesReadRemote, ReqHeaderLen)
 
-	if reqHeader.Magic != MagicResponse {
+	if reqHeader.Magic != MagicRequest {
 		return RequestHeader{}, ErrBadMagic
 	}
 
@@ -206,43 +204,13 @@ type ResponseHeader struct {
 	CASToken        uint64
 }
 
-func makeSuccessResponseHeader(opcode, keyLength, extraLength, totalBodyLength, opaqueToken int) ResponseHeader {
-	return ResponseHeader{
-		Magic:           MagicResponse,
-		Opcode:          uint8(opcode),
-		KeyLength:       uint16(keyLength),
-		ExtraLength:     uint8(extraLength),
-		DataType:        uint8(0),
-		Status:          uint16(StatusSuccess),
-		TotalBodyLength: uint32(totalBodyLength),
-		OpaqueToken:     uint32(opaqueToken),
-		CASToken:        uint64(0),
-	}
-}
-
-func makeErrorResponseHeader(opcode, status, opaqueToken int) ResponseHeader {
-	return ResponseHeader{
-		Magic:           MagicResponse,
-		Opcode:          uint8(opcode),
-		KeyLength:       uint16(0),
-		ExtraLength:     uint8(0),
-		DataType:        uint8(0),
-		Status:          uint16(status),
-		TotalBodyLength: uint32(0),
-		OpaqueToken:     uint32(opaqueToken),
-		CASToken:        uint64(0),
-	}
-}
-
 func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
-	// read in the full header before any variable length fields
-	headerBuf := make([]byte, resHeaderLen)
-	if _, err := io.ReadFull(reader, headerBuf); err != nil {
+	var resHeader ResponseHeader
+	if err := binary.Read(reader, binary.BigEndian, &resHeader); err != nil {
 		return ResponseHeader{}, err
 	}
 
-	var resHeader ResponseHeader
-	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &resHeader)
+	metrics.IncCounterBy(common.MetricBytesReadLocal, resHeaderLen)
 
 	if resHeader.Magic != MagicResponse {
 		return ResponseHeader{}, ErrBadMagic
