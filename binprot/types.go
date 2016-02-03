@@ -15,7 +15,6 @@
 package binprot
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -177,14 +176,11 @@ func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) Requ
 }
 
 func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
-	// read in the full header before any variable length fields
-	headerBuf := make([]byte, ReqHeaderLen)
-	if _, err := io.ReadFull(reader, headerBuf); err != nil {
+	var reqHeader RequestHeader
+	if err := binary.Read(reader, binary.BigEndian, &reqHeader); err != nil {
 		return RequestHeader{}, err
 	}
 
-	var reqHeader RequestHeader
-	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &reqHeader)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, ReqHeaderLen)
 
 	if reqHeader.Magic != MagicRequest {
@@ -209,14 +205,10 @@ type ResponseHeader struct {
 }
 
 func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
-	// read in the full header before any variable length fields
-	headerBuf := make([]byte, resHeaderLen)
-	if _, err := io.ReadFull(reader, headerBuf); err != nil {
+	var resHeader ResponseHeader
+	if err := binary.Read(reader, binary.BigEndian, &resHeader); err != nil {
 		return ResponseHeader{}, err
 	}
-
-	var resHeader ResponseHeader
-	binary.Read(bytes.NewBuffer(headerBuf), binary.BigEndian, &resHeader)
 
 	metrics.IncCounterBy(common.MetricBytesReadLocal, resHeaderLen)
 
