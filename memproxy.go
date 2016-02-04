@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 
 	"github.com/netflix/rend/binprot"
@@ -33,6 +34,13 @@ import (
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/textprot"
 )
+
+// Set up more sane GOGC default
+func init() {
+	if _, set := os.LookupEnv("GOGC"); !set {
+		debug.SetGCPercent(200)
+	}
+}
 
 // Setting up signal handlers
 func init() {
