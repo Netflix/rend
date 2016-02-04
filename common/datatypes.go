@@ -20,31 +20,18 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-// Common metrics used across packages
-const (
-	MetricBytesReadRemote     = "bytes_read_remote"
-	MetricBytesReadLocal      = "bytes_read_local"
-	MetricBytesReadLocalL1    = "bytes_read_local_l1"
-	MetricBytesReadLocalL2    = "bytes_read_local_l2"
-	MetricBytesWrittenRemote  = "bytes_written_remote"
-	MetricBytesWrittenLocal   = "bytes_written_local"
-	MetricBytesWrittenLocalL1 = "bytes_written_local_l1"
-	MetricBytesWrittenLocalL2 = "bytes_written_local_l2"
-)
-
-func init() {
-	metrics.AddCounter(MetricBytesReadRemote)
-	metrics.AddCounter(MetricBytesReadLocal)
-	metrics.AddCounter(MetricBytesReadLocalL1)
-	metrics.AddCounter(MetricBytesReadLocalL2)
-	metrics.AddCounter(MetricBytesWrittenRemote)
-	metrics.AddCounter(MetricBytesWrittenLocal)
-	metrics.AddCounter(MetricBytesWrittenLocalL1)
-	metrics.AddCounter(MetricBytesWrittenLocalL2)
-}
-
-// Errors used across the application
 var (
+	// Common metrics used across packages
+	MetricBytesReadRemote     = metrics.AddCounter("bytes_read_remote")
+	MetricBytesReadLocal      = metrics.AddCounter("bytes_read_local")
+	MetricBytesReadLocalL1    = metrics.AddCounter("bytes_read_local_l1")
+	MetricBytesReadLocalL2    = metrics.AddCounter("bytes_read_local_l2")
+	MetricBytesWrittenRemote  = metrics.AddCounter("bytes_written_remote")
+	MetricBytesWrittenLocal   = metrics.AddCounter("bytes_written_local")
+	MetricBytesWrittenLocalL1 = metrics.AddCounter("bytes_written_local_l1")
+	MetricBytesWrittenLocalL2 = metrics.AddCounter("bytes_written_local_l2")
+
+	// Errors used across the application
 	ErrBadRequest = errors.New("CLIENT_ERROR bad request")
 	ErrBadLength  = errors.New("CLIENT_ERROR length is not a valid integer")
 	ErrBadFlags   = errors.New("CLIENT_ERROR flags is not a valid integer")
