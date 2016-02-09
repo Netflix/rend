@@ -231,29 +231,24 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	var reqType common.RequestType
 	var request interface{}
 
-	binaryParser := binprot.NewBinaryParser(remoteReader)
-	binaryResponder := binprot.NewBinaryResponder(remoteWriter)
-	textParser := textprot.NewTextParser(remoteReader)
-	textResponder := textprot.NewTextResponder(remoteWriter)
+	// A connection is either binary protocol or text. It cannot switch between the two.
+	// This is the way memcached handles protocols, so it can be as strict here.
+	binary, err := isBinaryRequest(remoteReader)
+	if err != nil {
+		abort([]io.Closer{remoteConn, l1, l2}, err, binary)
+		return
+	}
+
+	if binary {
+		reqParser = binprot.NewBinaryParser(remoteReader)
+		responder = binprot.NewBinaryResponder(remoteWriter)
+	} else {
+		reqParser = textprot.NewTextParser(remoteReader)
+		responder = textprot.NewTextResponder(remoteWriter)
+	}
 
 	for {
-		binary, err := isBinaryRequest(remoteReader)
-
-		if err != nil {
-			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
-			return
-		}
-
-		if binary {
-			reqParser = binaryParser
-			responder = binaryResponder
-		} else {
-			reqParser = textParser
-			responder = textResponder
-		}
-
 		request, reqType, err = reqParser.Parse()
-
 		if err != nil {
 			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 			return
