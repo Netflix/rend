@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
@@ -126,6 +127,10 @@ var (
 	MetricCmdUnknown                = metrics.AddCounter("cmd_unknown")
 	MetricErrAppError               = metrics.AddCounter("err_app_err")
 	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
+
+	HistGet   = metrics.AddHistogram("get")
+	HistGetL1 = metrics.AddHistogram("get_l1")
+	HistGetL2 = metrics.AddHistogram("get_l2")
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )
@@ -333,6 +338,7 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			// TODO: L2 metrics for touches, touch hits, touch misses, touch errors
 
 		case common.RequestGet:
+			start := time.Now()
 			metrics.IncCounter(MetricCmdGet)
 			req := request.(common.GetRequest)
 			metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
@@ -388,6 +394,8 @@ func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			if err == nil {
 				responder.GetEnd(req.NoopEnd)
 			}
+
+			metrics.ObserveHist(HistGet, uint64(time.Since(start)))
 
 			// TODO: L2 metrics for gets, get hits, get misses, get errors
 
