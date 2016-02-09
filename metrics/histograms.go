@@ -58,7 +58,6 @@ func newHdat() *hdat {
 }
 
 func AddHistogram(name string) uint32 {
-	println("Adding", name)
 	idx := atomic.AddUint32(curHistID, 1)
 
 	if idx >= numHists {
