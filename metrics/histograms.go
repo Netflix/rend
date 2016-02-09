@@ -1,19 +1,14 @@
 package metrics
 
 import (
-	"bytes"
-	crand "crypto/rand"
-	"encoding/binary"
 	"math"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 )
 
 const (
-	numHists   = 100
-	buflen     = 0x3FFF // 16384 entries
-	sampleRate = 0.25   // sample 1 out of every 4 observations
+	numHists = 100
+	buflen   = 0x3FFF // 16384 entries
 )
 
 var (
@@ -33,12 +28,12 @@ func init() {
 // path of pulling the data, and the large circular buffers can be reused.
 type hist struct {
 	lock sync.RWMutex
-	rand *rand.Rand
 	prim *hdat
 	sec  *hdat
 }
 type hdat struct {
 	count *uint64
+	kept  *uint64
 	min   *uint64
 	max   *uint64
 	buf   []uint64
@@ -46,7 +41,6 @@ type hdat struct {
 
 func newHist() *hist {
 	return &hist{
-		rand: rand.New(rand.NewSource(seed())),
 		prim: newHdat(),
 		sec:  newHdat(),
 	}
@@ -54,6 +48,7 @@ func newHist() *hist {
 func newHdat() *hdat {
 	ret := &hdat{
 		count: new(uint64),
+		kept:  new(uint64),
 		min:   new(uint64),
 		max:   new(uint64),
 		buf:   make([]uint64, buflen),
@@ -62,17 +57,8 @@ func newHdat() *hdat {
 	return ret
 }
 
-func seed() int64 {
-	b := make([]byte, 8)
-	if _, err := crand.Read(b); err != nil {
-		panic(err.Error())
-	}
-	var ret int64
-	binary.Read(bytes.NewBuffer(b), binary.LittleEndian, &ret)
-	return ret
-}
-
 func AddHistogram(name string) uint32 {
+	println("Adding", name)
 	idx := atomic.AddUint32(curHistID, 1)
 
 	if idx >= numHists {
@@ -109,35 +95,31 @@ func ObserveHist(id uint32, value uint64) {
 		}
 	}
 
-	// Sample at a fixed rate
-	if h.rand.Float64() > sampleRate {
+	// Sample, keep every 4th observation
+	if c := atomic.AddUint64(h.prim.count, 1) & 0x3; c > 0 {
 		return
 	}
 
 	// Get the current index as the count % buflen
-	idx := atomic.AddUint64(h.prim.count, 1)
-	idx &= buflen
+	idx := atomic.AddUint64(h.prim.kept, 1) & buflen
 
 	// Add observation
 	h.prim.buf[idx] = value
 }
 
-func getAllHistograms() ([]string, []*hdat) {
+func getAllHistograms() map[string]*hdat {
 	n := int(atomic.LoadUint32(curHistID))
 
-	retnames := hnames[:n]
-	retdat := make([]*hdat, n)
+	ret := make(map[string]*hdat)
 
 	for i := 0; i < n; i++ {
-		retdat[i] = extractAndReset(i)
+		ret[hnames[i]] = extractAndReset(hists[i])
 	}
 
-	return retnames, retdat
+	return ret
 }
 
-func extractAndReset(id int) *hdat {
-	h := hists[id]
-
+func extractAndReset(h *hist) *hdat {
 	h.lock.Lock()
 
 	// flip and reset the count
@@ -146,6 +128,7 @@ func extractAndReset(id int) *hdat {
 	h.sec = temp
 
 	atomic.StoreUint64(h.prim.count, 0)
+	atomic.StoreUint64(h.prim.kept, 0)
 	atomic.StoreUint64(h.prim.max, 0)
 	atomic.StoreUint64(h.prim.min, math.MaxUint64)
 
