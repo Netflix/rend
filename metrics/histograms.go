@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	numHists = 100
+	numHists = 1024
 	buflen   = 0x3FFF // 16384 entries
 )
 
