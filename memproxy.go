@@ -219,10 +219,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		}
 	}()
 
-	handleConnectionReal(remoteConn, l1, l2)
-}
-
-func handleConnectionReal(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	remoteReader := bufio.NewReader(remoteConn)
 	remoteWriter := bufio.NewWriter(remoteConn)
 
