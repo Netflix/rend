@@ -59,7 +59,11 @@ func init() {
 	go http.ListenAndServe("localhost:11299", nil)
 }
 
-// Set up the counters used in this file
+// Set up the metrics
+func init() {
+	metrics.SetPrefix("rend_")
+}
+
 var (
 	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext")
 	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1")

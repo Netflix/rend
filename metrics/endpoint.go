@@ -9,7 +9,11 @@ import (
 	"time"
 )
 
-const prefix = "rend_"
+var prefix = ""
+
+func SetPrefix(p string) {
+	prefix = p
+}
 
 var (
 	memstats = new(runtime.MemStats)
