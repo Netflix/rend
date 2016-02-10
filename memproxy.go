@@ -16,6 +16,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -141,6 +142,18 @@ var (
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )
 
+// Flags
+var chunked bool
+var l1sock string
+var l2sock string
+
+func init() {
+	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
+	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
+	flag.StringVar(&l1sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2")
+	flag.Parse()
+}
+
 // And away we go
 func main() {
 	server, err := net.Listen("tcp", ":11211")
@@ -161,7 +174,7 @@ func main() {
 
 		metrics.IncCounter(MetricConnectionsEstablishedExt)
 
-		l1conn, err := net.Dial("unix", "/tmp/memcached.sock")
+		l1conn, err := net.Dial("unix", l1sock)
 
 		if err != nil {
 			fmt.Println(err.Error())
@@ -174,8 +187,12 @@ func main() {
 
 		metrics.IncCounter(MetricConnectionsEstablishedL1)
 
-		l1 := memcached.NewChunkedHandler(l1conn)
-		//l1 := memcached.NewHandler(l1conn)
+		var l1 handlers.Handler
+		if chunked {
+			l1 = memcached.NewChunkedHandler(l1conn)
+		} else {
+			l1 = memcached.NewHandler(l1conn)
+		}
 
 		go handleConnection(remote, l1, nil)
 	}
