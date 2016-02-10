@@ -132,9 +132,11 @@ var (
 	MetricErrAppError               = metrics.AddCounter("err_app_err")
 	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
 
-	HistGet   = metrics.AddHistogram("get")
-	HistGetL1 = metrics.AddHistogram("get_l1")
-	HistGetL2 = metrics.AddHistogram("get_l2")
+	HistSet    = metrics.AddHistogram("set")
+	HistDelete = metrics.AddHistogram("delete")
+	HistTouch  = metrics.AddHistogram("touch")
+	HistGet    = metrics.AddHistogram("get")
+	HistGat    = metrics.AddHistogram("gat")
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )
@@ -248,6 +250,8 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	}
 
 	for {
+		start := time.Now()
+
 		request, reqType, err = reqParser.Parse()
 		if err != nil {
 			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
@@ -269,7 +273,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				// TODO: Account for L2
 				metrics.IncCounter(MetricCmdSetSuccess)
 
-				responder.Set()
+				err = responder.Set()
 
 			} else {
 				metrics.IncCounter(MetricCmdSetErrorsL1)
@@ -333,7 +337,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			// TODO: L2 metrics for touches, touch hits, touch misses, touch errors
 
 		case common.RequestGet:
-			start := time.Now()
 			metrics.IncCounter(MetricCmdGet)
 			req := request.(common.GetRequest)
 			metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
@@ -390,8 +393,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				responder.GetEnd(req.NoopEnd)
 			}
 
-			metrics.ObserveHist(HistGet, uint64(time.Since(start)))
-
 			// TODO: L2 metrics for gets, get hits, get misses, get errors
 
 		case common.RequestGat:
@@ -438,6 +439,20 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				abort([]io.Closer{remoteConn, l1, l2}, err, binary)
 				return
 			}
+		}
+
+		dur := uint64(time.Since(start))
+		switch reqType {
+		case common.RequestSet:
+			metrics.ObserveHist(HistSet, dur)
+		case common.RequestDelete:
+			metrics.ObserveHist(HistDelete, dur)
+		case common.RequestTouch:
+			metrics.ObserveHist(HistTouch, dur)
+		case common.RequestGet:
+			metrics.ObserveHist(HistGet, dur)
+		case common.RequestGat:
+			metrics.ObserveHist(HistGat, dur)
 		}
 	}
 }
