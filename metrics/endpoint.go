@@ -48,6 +48,8 @@ func printCounters(w http.ResponseWriter, r *http.Request) {
 	// Histograms
 	hists := getAllHistograms()
 	for name, dat := range hists {
+		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, *dat.count)
+		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, *dat.kept)
 		for i, p := range gatherPercentiles(dat) {
 			fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, i*5, p)
 		}
@@ -88,8 +90,8 @@ func gatherPercentiles(dat *hdat) []uint64 {
 	pctls[0] = *dat.min
 	pctls[20] = *dat.max
 
-	for i := uint64(1); i < 20; i++ {
-		idx := kept * i / 20
+	for i := 1; i < 20; i++ {
+		idx := len(buf) * i / 20
 		pctls[i] = buf[idx]
 	}
 
