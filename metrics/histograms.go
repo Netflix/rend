@@ -8,7 +8,7 @@ import (
 
 const (
 	numHists = 1024
-	buflen   = 0x3FFF // 16384 entries
+	buflen   = 0x3FFF // max index, 16385 entries
 )
 
 var (
@@ -51,7 +51,7 @@ func newHdat() *hdat {
 		kept:  new(uint64),
 		min:   new(uint64),
 		max:   new(uint64),
-		buf:   make([]uint64, buflen),
+		buf:   make([]uint64, buflen+1),
 	}
 	atomic.StoreUint64(ret.min, math.MaxUint64)
 	return ret
