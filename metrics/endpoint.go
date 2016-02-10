@@ -64,7 +64,7 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	// Per-size allocation statistics.
 	for _, b := range memstats.BySize {
 		fmt.Fprintf(w, "%salloc_size_%d_mallocs %d\n", prefix, b.Size, b.Mallocs)
-		fmt.Fprintf(w, "%salloc_size_%d_mallocs %d\n", prefix, b.Size, b.Frees)
+		fmt.Fprintf(w, "%salloc_size_%d_frees %d\n", prefix, b.Size, b.Frees)
 	}
 
 	// Histograms
