@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
-	"runtime/debug"
 	"sort"
-	"time"
 )
 
 var prefix = ""
@@ -15,42 +13,66 @@ func SetPrefix(p string) {
 	prefix = p
 }
 
-var (
-	memstats = new(runtime.MemStats)
-	gcstats  = &debug.GCStats{
-		PauseQuantiles: make([]time.Duration, 21),
-	}
-)
+var memstats = new(runtime.MemStats)
 
 func init() {
-	http.Handle("/metrics/counters", http.HandlerFunc(printCounters))
+	http.Handle("/metrics", http.HandlerFunc(printMetrics))
 }
 
-func printCounters(w http.ResponseWriter, r *http.Request) {
+func printMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
-	/*/ Runtime memory stats
+	// Runtime memory stats
 	runtime.ReadMemStats(memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
-	fmt.Fprintf(w, "%smem_", prefix, memstats)
+	// General statistics.
+	fmt.Fprintf(w, "%smem_alloc %d\n", prefix, memstats.Alloc)            // bytes allocated and not yet freed
+	fmt.Fprintf(w, "%smem_alloc_total %d\n", prefix, memstats.TotalAlloc) // bytes allocated (even if freed)
+	fmt.Fprintf(w, "%smem_sys %d\n", prefix, memstats.Sys)                // bytes obtained from system (sum of XxxSys below)
+	fmt.Fprintf(w, "%smem_ptr_lookups %d\n", prefix, memstats.Lookups)    // number of pointer lookups
+	fmt.Fprintf(w, "%smem_mallocs %d\n", prefix, memstats.Mallocs)        // number of mallocs
+	fmt.Fprintf(w, "%smem_frees %d\n", prefix, memstats.Frees)            // number of frees
 
-	fmt.Fprintf(w, "%sgc_", prefix, memstats)*/
+	// Main allocation heap statistics.
+	fmt.Fprintf(w, "%smem_heap_alloc %d\n", prefix, memstats.HeapAlloc)       // bytes allocated and not yet freed (same as Alloc above)
+	fmt.Fprintf(w, "%smem_heap_sys %d\n", prefix, memstats.HeapSys)           // bytes obtained from system
+	fmt.Fprintf(w, "%smem_heap_idle %d\n", prefix, memstats.HeapIdle)         // bytes in idle spans
+	fmt.Fprintf(w, "%smem_heap_in_use %d\n", prefix, memstats.HeapInuse)      // bytes in non-idle span
+	fmt.Fprintf(w, "%smem_heap_released %d\n", prefix, memstats.HeapReleased) // bytes released to the OS
+	fmt.Fprintf(w, "%smem_heap_objects %d\n", prefix, memstats.HeapObjects)   // total number of allocated objects
+
+	fmt.Fprintf(w, "%smem_stack_in_use %d\n", prefix, memstats.StackInuse) // bytes used by stack allocator
+	fmt.Fprintf(w, "%smem_stack_sys %d\n", prefix, memstats.StackSys)
+	fmt.Fprintf(w, "%smem_mspan_in_use %d\n", prefix, memstats.MSpanInuse) // mspan structures
+	fmt.Fprintf(w, "%smem_mspan_sys %d\n", prefix, memstats.MSpanSys)
+	fmt.Fprintf(w, "%smem_mcache_in_use %d\n", prefix, memstats.MCacheInuse) // mcache structures
+	fmt.Fprintf(w, "%smem_mcache_sys %d\n", prefix, memstats.MCacheSys)
+	fmt.Fprintf(w, "%smem_buck_hash_sys %d\n", prefix, memstats.BuckHashSys) // profiling bucket hash table
+	fmt.Fprintf(w, "%smem_gc_sys %d\n", prefix, memstats.GCSys)              // GC metadata
+	fmt.Fprintf(w, "%smem_other_sys %d\n", prefix, memstats.OtherSys)        // other system allocations
+
+	fmt.Fprintf(w, "%sgc_next_gc_heap_alloc %d\n", prefix, memstats.NextGC) // next collection will happen when HeapAlloc ≥ this amount
+	fmt.Fprintf(w, "%sgc_last_gc_time %d\n", prefix, memstats.LastGC)       // end time of last collection (nanoseconds since 1970)
+	fmt.Fprintf(w, "%sgc_pause_total %d\n", prefix, memstats.PauseTotalNs)
+	fmt.Fprintf(w, "%sgc_num_gc %d\n", prefix, memstats.NumGC)
+	fmt.Fprintf(w, "%sgc_gc_cpu_frac %f\n", prefix, memstats.GCCPUFraction)
+
+	// circular buffer of recent GC pause durations, most recent at [(NumGC+255)%256]
+	for i, p := range pausePercentiles(memstats.PauseNs[:], memstats.NumGC) {
+		fmt.Fprintf(w, "%sgc_pause_pctl_%d %d\n", prefix, i*5, p)
+	}
+
+	// Per-size allocation statistics.
+	for _, b := range memstats.BySize {
+		fmt.Fprintf(w, "%salloc_size_%d_mallocs %d\n", prefix, b.Size, b.Mallocs)
+		fmt.Fprintf(w, "%salloc_size_%d_mallocs %d\n", prefix, b.Size, b.Frees)
+	}
 
 	// Histograms
 	hists := getAllHistograms()
 	for name, dat := range hists {
 		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, *dat.count)
 		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, *dat.kept)
-		for i, p := range gatherPercentiles(dat) {
+		for i, p := range hdatPercentiles(dat) {
 			fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, i*5, p)
 		}
 	}
@@ -73,7 +95,7 @@ func printCounters(w http.ResponseWriter, r *http.Request) {
 //  [n]: 5n
 //  [19]: 95th
 //  [20]: max (100th)
-func gatherPercentiles(dat *hdat) []uint64 {
+func hdatPercentiles(dat *hdat) []uint64 {
 	buf := dat.buf
 	kept := *dat.kept
 
@@ -98,14 +120,27 @@ func gatherPercentiles(dat *hdat) []uint64 {
 	return pctls
 }
 
+func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
+	if ngc < uint32(len(pauses)) {
+		pauses = pauses[:ngc]
+	}
+
+	sort.Sort(uint64slice(pauses))
+
+	pctls := make([]uint64, 21)
+	pctls[0] = pauses[0]
+	pctls[20] = pauses[len(pauses)-1]
+
+	for i := 1; i < 20; i++ {
+		idx := len(pauses) * i / 20
+		pctls[i] = pauses[idx]
+	}
+
+	return pctls
+}
+
 type uint64slice []uint64
 
 func (u uint64slice) Len() int           { return len(u) }
 func (u uint64slice) Swap(i, j int)      { u[i], u[j] = u[j], u[i] }
 func (u uint64slice) Less(i, j int) bool { return u[i] < u[j] }
-
-type durationslice []time.Duration
-
-func (d durationslice) Len() int           { return len(d) }
-func (d durationslice) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
-func (d durationslice) Less(i, j int) bool { return d[i] < d[j] }
