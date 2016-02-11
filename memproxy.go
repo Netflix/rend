@@ -69,6 +69,7 @@ var (
 	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext")
 	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1")
 	MetricConnectionsEstablishedL2  = metrics.AddCounter("conn_established_l2")
+	MetricCmdTotal                  = metrics.AddCounter("cmd_total")
 	MetricCmdGet                    = metrics.AddCounter("cmd_get")
 	MetricCmdGetL1                  = metrics.AddCounter("cmd_get_l1")
 	MetricCmdGetL2                  = metrics.AddCounter("cmd_get_l2")
@@ -277,6 +278,8 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			return
 		}
 
+		metrics.IncCounter(MetricCmdTotal)
+
 		// TODO: handle nil
 		switch reqType {
 		case common.RequestSet:
@@ -459,7 +462,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				if err != common.ErrKeyNotFound {
 					metrics.IncCounter(MetricErrAppError)
 				}
-				responder.Error(opaque, err)
+				responder.Error(opaque, reqType, err)
 			} else {
 				metrics.IncCounter(MetricErrUnrecoverable)
 				abort([]io.Closer{remoteConn, l1, l2}, err, binary)

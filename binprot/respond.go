@@ -120,7 +120,7 @@ func (b BinaryResponder) Get(response common.GetResponse) error {
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
 	if !response.Quiet {
-		return b.Error(response.Opaque, common.ErrKeyNotFound)
+		return b.Error(response.Opaque, common.RequestGet, common.ErrKeyNotFound)
 	}
 	return nil
 }
@@ -141,7 +141,7 @@ func (b BinaryResponder) GAT(response common.GetResponse) error {
 
 func (b BinaryResponder) GATMiss(response common.GetResponse) error {
 	if !response.Quiet {
-		return b.Error(response.Opaque, common.ErrKeyNotFound)
+		return b.Error(response.Opaque, common.RequestGat, common.ErrKeyNotFound)
 	}
 	return nil
 }
@@ -154,9 +154,30 @@ func (b BinaryResponder) Touch(opaque uint32) error {
 	return writeSuccessResponseHeader(b.writer, OpcodeTouch, 0, 0, 0, opaque, true)
 }
 
-func (b BinaryResponder) Error(opaque uint32, err error) error {
+func (b BinaryResponder) Error(opaque uint32, reqType common.RequestType, err error) error {
 	// TODO: proper opcode
-	return writeErrorResponseHeader(b.writer, OpcodeGet, errorToCode(err), opaque)
+	return writeErrorResponseHeader(b.writer, reqTypeToOpcode(reqType), errorToCode(err), opaque)
+}
+
+// Mae sure this includes all possibilities in the github.com/netflix/rend/common.RequestType enum
+func reqTypeToOpcode(reqType common.RequestType) uint8 {
+	switch reqType {
+	case common.RequestGet:
+		return OpcodeGet
+	case common.RequestGat:
+		return OpcodeGat
+	case common.RequestSet:
+		return OpcodeSet
+	case common.RequestDelete:
+		return OpcodeDelete
+	case common.RequestTouch:
+		return OpcodeTouch
+	case common.RequestUnknown:
+		fallthrough
+	default:
+		return OpcodeInvalid
+	}
+	// TODO: add, replace, append...
 }
 
 func getCommon(w *bufio.Writer, response common.GetResponse, opcode uint8) error {

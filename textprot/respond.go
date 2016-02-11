@@ -129,7 +129,7 @@ func (t TextResponder) Touch(opaque uint32) error {
 	return nil
 }
 
-func (t TextResponder) Error(opaque uint32, err error) error {
+func (t TextResponder) Error(opaque uint32, reqType common.RequestType, err error) error {
 	var n int
 
 	switch err {
@@ -140,6 +140,7 @@ func (t TextResponder) Error(opaque uint32, err error) error {
 	case common.ErrItemNotStored:
 		n, err = fmt.Fprintf(t.writer, "NOT_STORED\r\n")
 	case common.ErrValueTooBig:
+		fallthrough
 	case common.ErrInvalidArgs:
 		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR bad command line\r\n")
 	case common.ErrBadIncDecValue:
