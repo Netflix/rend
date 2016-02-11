@@ -29,6 +29,7 @@ var NumOps int
 var NumWorkers int
 var Port int
 var Pprof string
+var Host string
 
 // Flags
 func init() {
@@ -51,6 +52,9 @@ func init() {
 	flag.IntVar(&Port, "p", 11212, "Port to connect to. (shorthand)")
 
 	flag.StringVar(&Pprof, "pprof", "", "File to be filled with pprof sampling data")
+
+	flag.StringVar(&Host, "h", "localhost", "Hostname / IP to connect to.")
+	flag.StringVar(&Host, "host", "localhost", "Hostname / IP to connect to. (shorthand)")
 
 	flag.Parse()
 

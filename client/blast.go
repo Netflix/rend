@@ -95,7 +95,7 @@ func main() {
 	// spawn communicators
 	for i := 0; i < f.NumWorkers; i++ {
 		comms.Add(1)
-		conn, err := common.Connect("localhost", f.Port)
+		conn, err := common.Connect(f.Host, f.Port)
 
 		if err != nil {
 			i--
