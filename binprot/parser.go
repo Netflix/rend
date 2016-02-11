@@ -226,7 +226,8 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 		}
 
 		return common.DeleteRequest{
-			Key: key,
+			Key:    key,
+			Opaque: reqHeader.OpaqueToken,
 		}, common.RequestDelete, nil
 
 	case OpcodeTouch:
@@ -246,6 +247,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 		return common.TouchRequest{
 			Key:     key,
 			Exptime: exptime,
+			Opaque:  reqHeader.OpaqueToken,
 		}, common.RequestTouch, nil
 	}
 
@@ -256,6 +258,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	keys := make([][]byte, 0)
 	opaques := make([]uint32, 0)
 	quiet := make([]bool, 0)
+	var noopOpaque uint32
 	var noopEnd bool
 
 	// while GETQ
@@ -293,6 +296,7 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	} else if header.Opcode == OpcodeNoop {
 		// nothing to do, header is read already
 		noopEnd = true
+		noopOpaque = header.OpaqueToken
 
 	} else {
 		// no idea... this is a problem though.
@@ -301,10 +305,11 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	}
 
 	return common.GetRequest{
-		Keys:    keys,
-		Opaques: opaques,
-		Quiet:   quiet,
-		NoopEnd: noopEnd,
+		Keys:       keys,
+		Opaques:    opaques,
+		Quiet:      quiet,
+		NoopOpaque: noopOpaque,
+		NoopEnd:    noopEnd,
 	}, nil
 }
 

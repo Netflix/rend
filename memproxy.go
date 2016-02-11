@@ -249,6 +249,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	var responder common.Responder
 	var reqType common.RequestType
 	var request interface{}
+	var opaque uint32
 
 	// A connection is either binary protocol or text. It cannot switch between the two.
 	// This is the way memcached handles protocols, so it can be as strict here.
@@ -267,6 +268,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	}
 
 	for {
+		opaque = 0
 		start := time.Now()
 
 		request, reqType, err = reqParser.Parse()
@@ -280,6 +282,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestSet:
 			metrics.IncCounter(MetricCmdSet)
 			req := request.(common.SetRequest)
+			opaque = req.Opaque
 			//fmt.Println("set", string(req.Key))
 
 			metrics.IncCounter(MetricCmdSetL1)
@@ -290,7 +293,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				// TODO: Account for L2
 				metrics.IncCounter(MetricCmdSetSuccess)
 
-				err = responder.Set()
+				err = responder.Set(req.Opaque)
 
 			} else {
 				metrics.IncCounter(MetricCmdSetErrorsL1)
@@ -303,6 +306,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestDelete:
 			metrics.IncCounter(MetricCmdDelete)
 			req := request.(common.DeleteRequest)
+			opaque = req.Opaque
 			//fmt.Println("delete", string(req.Key))
 
 			metrics.IncCounter(MetricCmdDeleteL1)
@@ -312,7 +316,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				metrics.IncCounter(MetricCmdDeleteHits)
 				metrics.IncCounter(MetricCmdDeleteHitsL1)
 
-				responder.Delete()
+				responder.Delete(req.Opaque)
 
 			} else if err == common.ErrKeyNotFound {
 				metrics.IncCounter(MetricCmdDeleteMissesL1)
@@ -329,6 +333,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestTouch:
 			metrics.IncCounter(MetricCmdTouch)
 			req := request.(common.TouchRequest)
+			opaque = req.Opaque
 			//fmt.Println("touch", string(req.Key))
 
 			metrics.IncCounter(MetricCmdTouchL1)
@@ -339,7 +344,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				// TODO: Account for L2
 				metrics.IncCounter(MetricCmdTouchHits)
 
-				responder.Touch()
+				responder.Touch(req.Opaque)
 
 			} else if err == common.ErrKeyNotFound {
 				metrics.IncCounter(MetricCmdTouchMissesL1)
@@ -368,6 +373,9 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
 			resChan, errChan := l1.Get(req)
 
+			// note to self later: gather misses from L1 into a slice and send as gets to L2 in a batch
+			// The L2 handler will be able to send it in a batch to L2, which will internally parallelize
+
 			// Read all the responses back from L1.
 			// The contract is that the resChan will have GetResponse's for get hits and misses,
 			// and the errChan will have any other errors, such as an out of memory error from
@@ -380,13 +388,13 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 						resChan = nil
 					} else {
 						if res.Miss {
-							metrics.IncCounter(MetricCmdGetHits)
-							metrics.IncCounter(MetricCmdGetHitsL1)
-							responder.GetMiss(res)
-						} else {
 							metrics.IncCounter(MetricCmdGetMissesL1)
 							// TODO: Account for L2
 							metrics.IncCounter(MetricCmdGetMisses)
+							responder.GetMiss(res)
+						} else {
+							metrics.IncCounter(MetricCmdGetHits)
+							metrics.IncCounter(MetricCmdGetHitsL1)
 							responder.Get(res)
 						}
 					}
@@ -407,7 +415,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			}
 
 			if err == nil {
-				responder.GetEnd(req.NoopEnd)
+				responder.GetEnd(req.NoopOpaque, req.NoopEnd)
 			}
 
 			// TODO: L2 metrics for gets, get hits, get misses, get errors
@@ -415,6 +423,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestGat:
 			metrics.IncCounter(MetricCmdGat)
 			req := request.(common.GATRequest)
+			opaque = req.Opaque
 			//fmt.Println("gat", string(req.Key))
 
 			metrics.IncCounter(MetricCmdGatL1)
@@ -430,7 +439,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 					metrics.IncCounter(MetricCmdGatHits)
 					metrics.IncCounter(MetricCmdGatHitsL1)
 					responder.GAT(res)
-					responder.GetEnd(false)
+					responder.GetEnd(0, false)
 				}
 			} else {
 				metrics.IncCounter(MetricCmdGatErrors)
@@ -450,7 +459,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				if err != common.ErrKeyNotFound {
 					metrics.IncCounter(MetricErrAppError)
 				}
-				responder.Error(err)
+				responder.Error(opaque, err)
 			} else {
 				metrics.IncCounter(MetricErrUnrecoverable)
 				abort([]io.Closer{remoteConn, l1, l2}, err, binary)
@@ -479,5 +488,5 @@ func isBinaryRequest(reader *bufio.Reader) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return int(headerByte[0]) == binprot.MagicRequest, nil
+	return headerByte[0] == binprot.MagicRequest, nil
 }

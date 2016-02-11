@@ -89,15 +89,15 @@ type RequestParser interface {
 }
 
 type Responder interface {
-	Set() error
+	Set(opaque uint32) error
 	Get(response GetResponse) error
 	GetMiss(response GetResponse) error
-	GetEnd(noopEnd bool) error
+	GetEnd(opaque uint32, noopEnd bool) error
 	GAT(response GetResponse) error
 	GATMiss(response GetResponse) error
-	Delete() error
-	Touch() error
-	Error(err error) error
+	Delete(opaque uint32) error
+	Touch(opaque uint32) error
+	Error(opaque uint32, err error) error
 }
 
 type SetRequest struct {
@@ -110,10 +110,11 @@ type SetRequest struct {
 
 // Gets are batch by default
 type GetRequest struct {
-	Keys    [][]byte
-	Opaques []uint32
-	Quiet   []bool
-	NoopEnd bool
+	Keys       [][]byte
+	Opaques    []uint32
+	Quiet      []bool
+	NoopOpaque uint32
+	NoopEnd    bool
 }
 
 type DeleteRequest struct {

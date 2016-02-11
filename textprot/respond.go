@@ -32,7 +32,7 @@ func NewTextResponder(writer *bufio.Writer) TextResponder {
 	}
 }
 
-func (t TextResponder) Set() error {
+func (t TextResponder) Set(opaque uint32) error {
 	// TODO: Error handling for less bytes
 	//numWritten, err := writer.WriteString("STORED\r\n")
 	n, err := t.writer.WriteString("STORED\r\n")
@@ -81,7 +81,7 @@ func (t TextResponder) GetMiss(response common.GetResponse) error {
 	return nil
 }
 
-func (t TextResponder) GetEnd(noopEnd bool) error {
+func (t TextResponder) GetEnd(opaque uint32, noopEnd bool) error {
 	n, err := fmt.Fprintf(t.writer, "END\r\n")
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
@@ -107,7 +107,7 @@ func (t TextResponder) GATMiss(response common.GetResponse) error {
 	panic("GAT command in text protocol")
 }
 
-func (t TextResponder) Delete() error {
+func (t TextResponder) Delete(opaque uint32) error {
 	n, err := fmt.Fprintf(t.writer, "DELETED\r\n")
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
@@ -118,7 +118,7 @@ func (t TextResponder) Delete() error {
 	return nil
 }
 
-func (t TextResponder) Touch() error {
+func (t TextResponder) Touch(opaque uint32) error {
 	n, err := fmt.Fprintf(t.writer, "TOUCHED\r\n")
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
 	if err != nil {
@@ -129,7 +129,7 @@ func (t TextResponder) Touch() error {
 	return nil
 }
 
-func (t TextResponder) Error(err error) error {
+func (t TextResponder) Error(opaque uint32, err error) error {
 	var n int
 
 	switch err {
@@ -147,7 +147,9 @@ func (t TextResponder) Error(err error) error {
 	case common.ErrAuth:
 		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR\r\n")
 	case common.ErrUnknownCmd:
+		fallthrough
 	case common.ErrNoMem:
+		fallthrough
 	default:
 		n, err = fmt.Fprintf(t.writer, "ERROR\r\n")
 	}

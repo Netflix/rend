@@ -110,8 +110,8 @@ func NewBinaryResponder(writer *bufio.Writer) BinaryResponder {
 }
 
 // TODO: CAS?
-func (b BinaryResponder) Set() error {
-	return writeSuccessResponseHeader(b.writer, OpcodeSet, 0, 0, 0, 0, true)
+func (b BinaryResponder) Set(opaque uint32) error {
+	return writeSuccessResponseHeader(b.writer, OpcodeSet, 0, 0, 0, opaque, true)
 }
 
 func (b BinaryResponder) Get(response common.GetResponse) error {
@@ -120,16 +120,16 @@ func (b BinaryResponder) Get(response common.GetResponse) error {
 
 func (b BinaryResponder) GetMiss(response common.GetResponse) error {
 	if !response.Quiet {
-		return b.Error(common.ErrKeyNotFound)
+		return b.Error(response.Opaque, common.ErrKeyNotFound)
 	}
 	return nil
 }
 
-func (b BinaryResponder) GetEnd(noopEnd bool) error {
+func (b BinaryResponder) GetEnd(opaque uint32, noopEnd bool) error {
 	// if Noop was the end of the pipelined batch gets, respond with a Noop header
 	// otherwise, stay quiet as the last get would be a GET and not a GETQ
 	if noopEnd {
-		return writeSuccessResponseHeader(b.writer, OpcodeNoop, 0, 0, 0, 0, true)
+		return writeSuccessResponseHeader(b.writer, OpcodeNoop, 0, 0, 0, opaque, true)
 	}
 
 	return nil
@@ -141,28 +141,28 @@ func (b BinaryResponder) GAT(response common.GetResponse) error {
 
 func (b BinaryResponder) GATMiss(response common.GetResponse) error {
 	if !response.Quiet {
-		return b.Error(common.ErrKeyNotFound)
+		return b.Error(response.Opaque, common.ErrKeyNotFound)
 	}
 	return nil
 }
 
-func (b BinaryResponder) Delete() error {
-	return writeSuccessResponseHeader(b.writer, OpcodeDelete, 0, 0, 0, 0, true)
+func (b BinaryResponder) Delete(opaque uint32) error {
+	return writeSuccessResponseHeader(b.writer, OpcodeDelete, 0, 0, 0, opaque, true)
 }
 
-func (b BinaryResponder) Touch() error {
-	return writeSuccessResponseHeader(b.writer, OpcodeTouch, 0, 0, 0, 0, true)
+func (b BinaryResponder) Touch(opaque uint32) error {
+	return writeSuccessResponseHeader(b.writer, OpcodeTouch, 0, 0, 0, opaque, true)
 }
 
-func (b BinaryResponder) Error(err error) error {
+func (b BinaryResponder) Error(opaque uint32, err error) error {
 	// TODO: proper opcode
-	return writeErrorResponseHeader(b.writer, OpcodeGet, int(errorToCode(err)), 0)
+	return writeErrorResponseHeader(b.writer, OpcodeGet, errorToCode(err), opaque)
 }
 
-func getCommon(w *bufio.Writer, response common.GetResponse, opcode int) error {
+func getCommon(w *bufio.Writer, response common.GetResponse, opcode uint8) error {
 	// total body length = extras (flags, 4 bytes) + data length
 	totalBodyLength := len(response.Data) + 4
-	if err := writeSuccessResponseHeader(w, opcode, 0, 4, totalBodyLength, 0, false); err != nil {
+	if err := writeSuccessResponseHeader(w, opcode, 0, 4, totalBodyLength, response.Opaque, false); err != nil {
 		return err
 	}
 	if err := binary.Write(w, binary.BigEndian, response.Flags); err != nil {
@@ -178,7 +178,9 @@ func getCommon(w *bufio.Writer, response common.GetResponse, opcode int) error {
 	return nil
 }
 
-func writeSuccessResponseHeader(w *bufio.Writer, opcode, keyLength, extraLength, totalBodyLength, opaqueToken int, flush bool) error {
+func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraLength,
+	totalBodyLength int, opaque uint32, flush bool) error {
+
 	header := ResponseHeader{
 		Magic:           MagicResponse,
 		Opcode:          uint8(opcode),
@@ -187,7 +189,7 @@ func writeSuccessResponseHeader(w *bufio.Writer, opcode, keyLength, extraLength,
 		DataType:        uint8(0),
 		Status:          uint16(StatusSuccess),
 		TotalBodyLength: uint32(totalBodyLength),
-		OpaqueToken:     uint32(opaqueToken),
+		OpaqueToken:     opaque,
 		CASToken:        uint64(0),
 	}
 
@@ -206,16 +208,16 @@ func writeSuccessResponseHeader(w *bufio.Writer, opcode, keyLength, extraLength,
 	return nil
 }
 
-func writeErrorResponseHeader(w *bufio.Writer, opcode, status, opaqueToken int) error {
+func writeErrorResponseHeader(w *bufio.Writer, opcode uint8, status uint16, opaque uint32) error {
 	header := ResponseHeader{
 		Magic:           MagicResponse,
-		Opcode:          uint8(opcode),
+		Opcode:          opcode,
 		KeyLength:       uint16(0),
 		ExtraLength:     uint8(0),
 		DataType:        uint8(0),
-		Status:          uint16(status),
+		Status:          status,
 		TotalBodyLength: uint32(0),
-		OpaqueToken:     uint32(opaqueToken),
+		OpaqueToken:     opaque,
 		CASToken:        uint64(0),
 	}
 

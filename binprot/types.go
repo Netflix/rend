@@ -26,44 +26,44 @@ import (
 var ErrBadMagic = errors.New("Bad magic value")
 
 const (
-	MagicRequest  = 0x80
-	MagicResponse = 0x81
+	MagicRequest  = uint8(0x80)
+	MagicResponse = uint8(0x81)
 
 	// All opcodes as defined in memcached
 	// Minus SASL and range ops
-	OpcodeGet        = 0x00
-	OpcodeSet        = 0x01
-	OpcodeAdd        = 0x02
-	OpcodeReplace    = 0x03
-	OpcodeDelete     = 0x04
-	OpcodeIncrement  = 0x05
-	OpcodeDecrement  = 0x06
-	OpcodeQuit       = 0x07
-	OpcodeFlush      = 0x08
-	OpcodeGetQ       = 0x09
-	OpcodeNoop       = 0x0a
-	OpcodeVersion    = 0x0b
-	OpcodeGetK       = 0x0c
-	OpcodeGetKQ      = 0x0d
-	OpcodeAppend     = 0x0e
-	OpcodePrepend    = 0x0f
-	OpcodeStat       = 0x10
-	OpcodeSetQ       = 0x11
-	OpcodeAddQ       = 0x12
-	OpcodeReplaceQ   = 0x13
-	OpcodeDeleteQ    = 0x14
-	OpcodeIncrementQ = 0x15
-	OpcodeDecrementQ = 0x16
-	OpcodeQuitQ      = 0x17
-	OpcodeFlushQ     = 0x18
-	OpcodeAppendQ    = 0x19
-	OpcodePrependQ   = 0x1a
-	OpcodeTouch      = 0x1c
-	OpcodeGat        = 0x1d
-	OpcodeGatQ       = 0x1e
-	OpcodeGatK       = 0x23
-	OpcodeGatKQ      = 0x24
-	OpcodeInvalid    = 0xFF
+	OpcodeGet        = uint8(0x00)
+	OpcodeSet        = uint8(0x01)
+	OpcodeAdd        = uint8(0x02)
+	OpcodeReplace    = uint8(0x03)
+	OpcodeDelete     = uint8(0x04)
+	OpcodeIncrement  = uint8(0x05)
+	OpcodeDecrement  = uint8(0x06)
+	OpcodeQuit       = uint8(0x07)
+	OpcodeFlush      = uint8(0x08)
+	OpcodeGetQ       = uint8(0x09)
+	OpcodeNoop       = uint8(0x0a)
+	OpcodeVersion    = uint8(0x0b)
+	OpcodeGetK       = uint8(0x0c)
+	OpcodeGetKQ      = uint8(0x0d)
+	OpcodeAppend     = uint8(0x0e)
+	OpcodePrepend    = uint8(0x0f)
+	OpcodeStat       = uint8(0x10)
+	OpcodeSetQ       = uint8(0x11)
+	OpcodeAddQ       = uint8(0x12)
+	OpcodeReplaceQ   = uint8(0x13)
+	OpcodeDeleteQ    = uint8(0x14)
+	OpcodeIncrementQ = uint8(0x15)
+	OpcodeDecrementQ = uint8(0x16)
+	OpcodeQuitQ      = uint8(0x17)
+	OpcodeFlushQ     = uint8(0x18)
+	OpcodeAppendQ    = uint8(0x19)
+	OpcodePrependQ   = uint8(0x1a)
+	OpcodeTouch      = uint8(0x1c)
+	OpcodeGat        = uint8(0x1d)
+	OpcodeGatQ       = uint8(0x1e)
+	OpcodeGatK       = uint8(0x23)
+	OpcodeGatKQ      = uint8(0x24)
+	OpcodeInvalid    = uint8(0xFF)
 
 	StatusSuccess        = uint16(0x00)
 	StatusKeyEnoent      = uint16(0x01)
@@ -161,9 +161,9 @@ type RequestHeader struct {
 	CASToken        uint64 // Unused in current implementation
 }
 
-func MakeRequestHeader(opcode, keyLength, extraLength, totalBodyLength int) RequestHeader {
+func MakeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int) RequestHeader {
 	return RequestHeader{
-		Magic:           uint8(MagicRequest),
+		Magic:           MagicRequest,
 		Opcode:          uint8(opcode),
 		KeyLength:       uint16(keyLength),
 		ExtraLength:     uint8(extraLength),
