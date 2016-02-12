@@ -107,7 +107,7 @@ func (h Handler) Close() error {
 	return h.conn.Close()
 }
 
-func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
+func (h Handler) Set(cmd common.SetRequest) error {
 	// Specialized chunk reader to make the code here much simpler
 	limChunkReader := newChunkLimitedReader(bytes.NewBuffer(cmd.Data), int64(chunkSize), int64(len(cmd.Data)))
 	numChunks := int(math.Ceil(float64(len(cmd.Data)) / float64(chunkSize)))

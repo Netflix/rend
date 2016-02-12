@@ -55,7 +55,7 @@ func (h Handler) Close() error {
 	return h.conn.Close()
 }
 
-func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
+func (h Handler) Set(cmd common.SetRequest) error {
 	// TODO: should there be a unique flags value for regular data?
 	// Write command header
 	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
@@ -74,11 +74,12 @@ func (h Handler) Set(cmd common.SetRequest, src *bufio.Reader) error {
 	resHeader, err := readResponseHeader(h.rw.Reader)
 	if err != nil {
 		// Discard request body
+		/*/ only when using streaming sets
 		n, ioerr := src.Discard(len(cmd.Data))
 		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 		if ioerr != nil {
 			return ioerr
-		}
+		}*/
 
 		// Discard response body
 		n, ioerr = h.rw.Discard(int(resHeader.TotalBodyLength))
