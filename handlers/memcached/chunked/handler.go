@@ -235,6 +235,11 @@ func (h Handler) Set(cmd common.SetRequest) error {
 
 	return nil
 }
+func (h Handler) Add(cmd common.SetRequest) error {
+	// be fancy here and check if the metadata exists. Try to "add" it, and if the response is a "already exists" then
+	// bail and return already exists
+	return nil
+}
 
 func (h Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {
 	// No buffering here so there's not multiple gets in memory

@@ -82,7 +82,38 @@ func (h Handler) Set(cmd common.SetRequest) error {
 		}*/
 
 		// Discard response body
-		n, ioerr = h.rw.Discard(int(resHeader.TotalBodyLength))
+		n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
+			return ioerr
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func (h Handler) Add(cmd common.SetRequest) error {
+	// TODO: should there be a unique flags value for regular data?
+	// Write command header
+	if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+		return err
+	}
+
+	// Write value
+	h.rw.Write(cmd.Data)
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(len(cmd.Data)))
+
+	if err := h.rw.Flush(); err != nil {
+		return err
+	}
+
+	// Read server's response
+	resHeader, err := readResponseHeader(h.rw.Reader)
+	if err != nil {
+		// Discard response body
+		n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
 		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 		if ioerr != nil {
 			return ioerr
