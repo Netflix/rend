@@ -8,7 +8,7 @@ import (
 
 const (
 	numHists = 1024
-	buflen   = 0x3FFF // max index, 16385 entries
+	buflen   = 0x7FFF // max index, 32769 entries
 )
 
 var (
