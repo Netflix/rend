@@ -289,7 +289,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			//fmt.Println("set", string(req.Key))
 
 			metrics.IncCounter(MetricCmdSetL1)
-			err = l1.Set(req, remoteReader)
+			err = l1.Set(req)
 
 			if err == nil {
 				metrics.IncCounter(MetricCmdSetSuccessL1)
