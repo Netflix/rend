@@ -77,6 +77,9 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, *dat.count)
 		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, *dat.kept)
 		pctls := hdatPercentiles(dat)
+		if len(pctls) == 0 {
+			continue
+		}
 		for i := 0; i < 20; i++ {
 			p := pctls[i]
 			fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, i*5, p)
