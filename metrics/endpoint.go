@@ -57,9 +57,13 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%sgc_gc_cpu_frac %f\n", prefix, memstats.GCCPUFraction)
 
 	// circular buffer of recent GC pause durations, most recent at [(NumGC+255)%256]
-	for i, p := range pausePercentiles(memstats.PauseNs[:], memstats.NumGC) {
+	pctls := pausePercentiles(memstats.PauseNs[:], memstats.NumGC)
+	for i := 0; i < 20; i++ {
+		p := pctls[i]
 		fmt.Fprintf(w, "%sgc_pause_pctl_%d %d\n", prefix, i*5, p)
 	}
+	fmt.Fprintf(w, "%sgc_pause_pctl_%d %d\n", prefix, 99, pctls[20])
+	fmt.Fprintf(w, "%sgc_pause_pctl_%d %d\n", prefix, 100, pctls[21])
 
 	// Per-size allocation statistics.
 	for _, b := range memstats.BySize {
@@ -72,9 +76,13 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	for name, dat := range hists {
 		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, *dat.count)
 		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, *dat.kept)
-		for i, p := range hdatPercentiles(dat) {
+		pctls := hdatPercentiles(dat)
+		for i := 0; i < 20; i++ {
+			p := pctls[i]
 			fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, i*5, p)
 		}
+		fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, 99, pctls[20])
+		fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, 100, pctls[21])
 	}
 
 	// Application stats
@@ -85,16 +93,17 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 // Percentiles go by 5% percentile steps from min to max. We report all of them even though it's
-// likely only min, 25th, 50th, 75th, 95th, and max will be used. It's assumed the metric poller
-// that is consuming this output will choose to only report to the metrics system what it considers
-// useful information.
+// likely only min, 25th, 50th, 75th, 95th, 99th, and max will be used. It's assumed the metric
+// poller that is consuming this output will choose to only report to the metrics system what it
+// considers useful information.
 //
 // Slice layout:
 //  [0]: min (0th)
 //  [1]: 5th
 //  [n]: 5n
 //  [19]: 95th
-//  [20]: max (100th)
+//  [20]: 99th
+//  [21]: max (100th)
 func hdatPercentiles(dat *hdat) []uint64 {
 	buf := dat.buf
 	kept := *dat.kept
@@ -108,14 +117,17 @@ func hdatPercentiles(dat *hdat) []uint64 {
 
 	sort.Sort(uint64slice(buf))
 
-	pctls := make([]uint64, 21)
+	pctls := make([]uint64, 22)
 	pctls[0] = *dat.min
-	pctls[20] = *dat.max
+	pctls[21] = *dat.max
 
 	for i := 1; i < 20; i++ {
 		idx := len(buf) * i / 20
 		pctls[i] = buf[idx]
 	}
+
+	idx := len(buf) * 99 / 100
+	pctls[20] = buf[idx]
 
 	return pctls
 }
@@ -127,14 +139,17 @@ func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
 
 	sort.Sort(uint64slice(pauses))
 
-	pctls := make([]uint64, 21)
+	pctls := make([]uint64, 22)
 	pctls[0] = pauses[0]
-	pctls[20] = pauses[len(pauses)-1]
+	pctls[21] = pauses[len(pauses)-1]
 
 	for i := 1; i < 20; i++ {
 		idx := len(pauses) * i / 20
 		pctls[i] = pauses[idx]
 	}
+
+	idx := len(pauses) * 99 / 100
+	pctls[20] = pauses[idx]
 
 	return pctls
 }
