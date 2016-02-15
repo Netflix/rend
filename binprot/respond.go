@@ -114,15 +114,23 @@ func (b BinaryResponder) Set(opaque uint32) error {
 	return writeSuccessResponseHeader(b.writer, OpcodeSet, 0, 0, 0, opaque, true)
 }
 
-func (b BinaryResponder) Get(response common.GetResponse) error {
-	return getCommon(b.writer, response, OpcodeGet)
+func (b BinaryResponder) Add(opaque uint32, added bool) error {
+	if added {
+		return writeSuccessResponseHeader(b.writer, OpcodeAdd, 0, 0, 0, opaque, true)
+	} else {
+		return writeErrorResponseHeader(b.writer, OpcodeAdd, StatusKeyExists, opaque)
+	}
 }
 
-func (b BinaryResponder) GetMiss(response common.GetResponse) error {
-	if !response.Quiet {
-		return b.Error(response.Opaque, common.RequestGet, common.ErrKeyNotFound)
+func (b BinaryResponder) Get(response common.GetResponse) error {
+	if response.Miss {
+		if !response.Quiet {
+			return b.Error(response.Opaque, common.RequestGet, common.ErrKeyNotFound)
+		}
+		return nil
+	} else {
+		return getCommon(b.writer, response, OpcodeGet)
 	}
-	return nil
 }
 
 func (b BinaryResponder) GetEnd(opaque uint32, noopEnd bool) error {
@@ -136,14 +144,14 @@ func (b BinaryResponder) GetEnd(opaque uint32, noopEnd bool) error {
 }
 
 func (b BinaryResponder) GAT(response common.GetResponse) error {
-	return getCommon(b.writer, response, OpcodeGat)
-}
-
-func (b BinaryResponder) GATMiss(response common.GetResponse) error {
-	if !response.Quiet {
-		return b.Error(response.Opaque, common.RequestGat, common.ErrKeyNotFound)
+	if response.Miss {
+		if !response.Quiet {
+			return b.Error(response.Opaque, common.RequestGat, common.ErrKeyNotFound)
+		}
+		return nil
+	} else {
+		return getCommon(b.writer, response, OpcodeGat)
 	}
-	return nil
 }
 
 func (b BinaryResponder) Delete(opaque uint32) error {

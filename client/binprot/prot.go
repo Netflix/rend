@@ -80,6 +80,27 @@ func (b BinProt) Set(rw *bufio.ReadWriter, key, value []byte) error {
 	return consumeResponse(rw.Reader)
 }
 
+func (b BinProt) Add(rw *bufio.ReadWriter, key, value []byte) error {
+	// add packet contains the req header, flags, and expiration
+	// flags are irrelevant, and are thus zero.
+	// expiration could be important, so hammer with random values from 1 sec up to 1 hour
+
+	// Header
+	bodylen := 8 + len(key) + len(value)
+	writeReq(rw, Add, len(key), 8, bodylen)
+	// Extras
+	binary.Write(rw, binary.BigEndian, uint32(0))
+	binary.Write(rw, binary.BigEndian, common.Exp())
+	// Body / data
+	rw.Write(key)
+	rw.Write(value)
+
+	rw.Flush()
+
+	// consume all of the response and discard
+	return consumeResponse(rw.Reader)
+}
+
 func (b BinProt) Get(rw *bufio.ReadWriter, key []byte) error {
 	// Header
 	writeReq(rw, Get, len(key), 0, len(key))

@@ -94,6 +94,18 @@ var (
 	MetricCmdSetErrors              = metrics.AddCounter("cmd_set_errors")
 	MetricCmdSetErrorsL1            = metrics.AddCounter("cmd_set_errors_l1")
 	MetricCmdSetErrorsL2            = metrics.AddCounter("cmd_set_errors_l2")
+	MetricCmdAdd                    = metrics.AddCounter("cmd_add")
+	MetricCmdAddL1                  = metrics.AddCounter("cmd_add_l1")
+	MetricCmdAddL2                  = metrics.AddCounter("cmd_add_l2")
+	MetricCmdAddStored              = metrics.AddCounter("cmd_add_stored")
+	MetricCmdAddStoredL1            = metrics.AddCounter("cmd_add_stored_l1")
+	MetricCmdAddStoredL2            = metrics.AddCounter("cmd_add_stored_l2")
+	MetricCmdAddNotStored           = metrics.AddCounter("cmd_add_not_stored")
+	MetricCmdAddNotStoredL1         = metrics.AddCounter("cmd_add_not_stored_l1")
+	MetricCmdAddNotStoredL2         = metrics.AddCounter("cmd_add_not_stored_l2")
+	MetricCmdAddErrors              = metrics.AddCounter("cmd_add_errors")
+	MetricCmdAddErrorsL1            = metrics.AddCounter("cmd_add_errors_l1")
+	MetricCmdAddErrorsL2            = metrics.AddCounter("cmd_add_errors_l2")
 	MetricCmdDelete                 = metrics.AddCounter("cmd_delete")
 	MetricCmdDeleteL1               = metrics.AddCounter("cmd_delete_l1")
 	MetricCmdDeleteL2               = metrics.AddCounter("cmd_delete_l2")
@@ -135,6 +147,7 @@ var (
 	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
 
 	HistSet    = metrics.AddHistogram("set")
+	HistAdd    = metrics.AddHistogram("add")
 	HistDelete = metrics.AddHistogram("delete")
 	HistTouch  = metrics.AddHistogram("touch")
 	HistGet    = metrics.AddHistogram("get")
@@ -289,7 +302,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			//fmt.Println("set", string(req.Key))
 
 			metrics.IncCounter(MetricCmdSetL1)
-			err = l1.Set(req, remoteReader)
+			err = l1.Set(req)
 
 			if err == nil {
 				metrics.IncCounter(MetricCmdSetSuccessL1)
@@ -305,6 +318,37 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			}
 
 			// TODO: L2 metrics for sets, set success, set errors
+
+		case common.RequestAdd:
+			metrics.IncCounter(MetricCmdAdd)
+			req := request.(common.SetRequest)
+			opaque = req.Opaque
+			//fmt.Println("add", string(req.Key))
+
+			// TODO: L2 first, then L1
+
+			metrics.IncCounter(MetricCmdAddL1)
+			err = l1.Add(req)
+
+			if err == nil {
+				metrics.IncCounter(MetricCmdAddStoredL1)
+				// TODO: Account for L2
+				metrics.IncCounter(MetricCmdAddStored)
+
+				err = responder.Add(req.Opaque, true)
+
+			} else if err == common.ErrKeyExists {
+				metrics.IncCounter(MetricCmdAddNotStoredL1)
+				// TODO: Account for L2
+				metrics.IncCounter(MetricCmdAddNotStored)
+				err = responder.Add(req.Opaque, false)
+			} else {
+				metrics.IncCounter(MetricCmdAddErrorsL1)
+				// TODO: Account for L2
+				metrics.IncCounter(MetricCmdAddErrors)
+			}
+
+			// TODO: L2 metrics for adds, add stored, add not stored, add errors
 
 		case common.RequestDelete:
 			metrics.IncCounter(MetricCmdDelete)
@@ -394,12 +438,11 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 							metrics.IncCounter(MetricCmdGetMissesL1)
 							// TODO: Account for L2
 							metrics.IncCounter(MetricCmdGetMisses)
-							responder.GetMiss(res)
 						} else {
 							metrics.IncCounter(MetricCmdGetHits)
 							metrics.IncCounter(MetricCmdGetHitsL1)
-							responder.Get(res)
 						}
+						responder.Get(res)
 					}
 
 				case getErr, ok := <-errChan:
@@ -437,13 +480,15 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 					metrics.IncCounter(MetricCmdGatMissesL1)
 					// TODO: Account for L2
 					metrics.IncCounter(MetricCmdGatMisses)
-					responder.GATMiss(res)
 				} else {
 					metrics.IncCounter(MetricCmdGatHits)
 					metrics.IncCounter(MetricCmdGatHitsL1)
-					responder.GAT(res)
-					responder.GetEnd(0, false)
 				}
+				responder.GAT(res)
+				// There is no GetEnd call required here since this is only ever
+				// done in the binary protocol, where there's no END marker.
+				// Calling responder.GetEnd was a no-op here and is just useless.
+				//responder.GetEnd(0, false)
 			} else {
 				metrics.IncCounter(MetricCmdGatErrors)
 				metrics.IncCounter(MetricCmdGatErrorsL1)
@@ -474,6 +519,8 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		switch reqType {
 		case common.RequestSet:
 			metrics.ObserveHist(HistSet, dur)
+		case common.RequestAdd:
+			metrics.ObserveHist(HistAdd, dur)
 		case common.RequestDelete:
 			metrics.ObserveHist(HistDelete, dur)
 		case common.RequestTouch:

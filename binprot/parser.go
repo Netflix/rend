@@ -134,44 +134,10 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 
 	switch reqHeader.Opcode {
 	case OpcodeSet:
-		// flags, exptime, key, value
-		flags, err := readUInt32(b.reader)
-		if err != nil {
-			fmt.Println("Error reading flags")
-			return nil, common.RequestSet, err
-		}
+		return setRequest(b.reader, reqHeader, common.RequestSet)
 
-		exptime, err := readUInt32(b.reader)
-		if err != nil {
-			fmt.Println("Error reading exptime")
-			return nil, common.RequestSet, err
-		}
-
-		key, err := readString(b.reader, reqHeader.KeyLength)
-		if err != nil {
-			fmt.Println("Error reading key")
-			return nil, common.RequestSet, err
-		}
-
-		realLength := reqHeader.TotalBodyLength -
-			uint32(reqHeader.ExtraLength) -
-			uint32(reqHeader.KeyLength)
-
-		// Read in the body of the set request
-		dataBuf := make([]byte, realLength)
-		n, err := io.ReadFull(b.reader, dataBuf)
-		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
-		if err != nil {
-			return nil, common.RequestSet, err
-		}
-
-		return common.SetRequest{
-			Key:     key,
-			Flags:   flags,
-			Exptime: exptime,
-			Opaque:  reqHeader.OpaqueToken,
-			Data:    dataBuf,
-		}, common.RequestSet, nil
+	case OpcodeAdd:
+		return setRequest(b.reader, reqHeader, common.RequestAdd)
 
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
@@ -311,6 +277,47 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		NoopOpaque: noopOpaque,
 		NoopEnd:    noopEnd,
 	}, nil
+}
+
+func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType) (common.SetRequest, common.RequestType, error) {
+	// flags, exptime, key, value
+	flags, err := readUInt32(r)
+	if err != nil {
+		fmt.Println("Error reading flags")
+		return common.SetRequest{}, reqType, err
+	}
+
+	exptime, err := readUInt32(r)
+	if err != nil {
+		fmt.Println("Error reading exptime")
+		return common.SetRequest{}, reqType, err
+	}
+
+	key, err := readString(r, reqHeader.KeyLength)
+	if err != nil {
+		fmt.Println("Error reading key")
+		return common.SetRequest{}, reqType, err
+	}
+
+	realLength := reqHeader.TotalBodyLength -
+		uint32(reqHeader.ExtraLength) -
+		uint32(reqHeader.KeyLength)
+
+	// Read in the body of the set request
+	dataBuf := make([]byte, realLength)
+	n, err := io.ReadFull(r, dataBuf)
+	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+	if err != nil {
+		return common.SetRequest{}, reqType, err
+	}
+
+	return common.SetRequest{
+		Key:     key,
+		Flags:   flags,
+		Exptime: exptime,
+		Opaque:  reqHeader.OpaqueToken,
+		Data:    dataBuf,
+	}, reqType, nil
 }
 
 func readString(r io.Reader, l uint16) ([]byte, error) {

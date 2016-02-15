@@ -41,6 +41,7 @@ var (
 	ErrBadRequest = errors.New("CLIENT_ERROR bad request")
 	ErrBadLength  = errors.New("CLIENT_ERROR length is not a valid integer")
 	ErrBadFlags   = errors.New("CLIENT_ERROR flags is not a valid integer")
+	ErrBadExptime = errors.New("CLIENT_ERROR exptime is not a valid integer")
 
 	ErrNoError        = errors.New("Success")
 	ErrKeyNotFound    = errors.New("ERROR Key not found")
@@ -97,6 +98,9 @@ const (
 	// depending on L1 / L2 handling.
 	RequestSet
 
+	// RequestAdd will perform the same operations as set, but only if the key does not exist
+	RequestAdd
+
 	// RequestDelete deletes a piece of data from all levels of cache
 	RequestDelete
 
@@ -117,11 +121,10 @@ type RequestParser interface {
 // corresponding RequestParser.
 type Responder interface {
 	Set(opaque uint32) error
+	Add(opaque uint32, added bool) error
 	Get(response GetResponse) error
-	GetMiss(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
 	GAT(response GetResponse) error
-	GATMiss(response GetResponse) error
 	Delete(opaque uint32) error
 	Touch(opaque uint32) error
 	Error(opaque uint32, reqType RequestType, err error) error

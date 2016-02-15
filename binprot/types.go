@@ -67,7 +67,7 @@ const (
 
 	StatusSuccess        = uint16(0x00)
 	StatusKeyEnoent      = uint16(0x01)
-	StatusKeyEexists     = uint16(0x02)
+	StatusKeyExists      = uint16(0x02)
 	StatusE2big          = uint16(0x03)
 	StatusEinval         = uint16(0x04)
 	StatusNotStored      = uint16(0x05)
@@ -87,7 +87,7 @@ func DecodeError(header ResponseHeader) error {
 	switch header.Status {
 	case StatusKeyEnoent:
 		return common.ErrKeyNotFound
-	case StatusKeyEexists:
+	case StatusKeyExists:
 		return common.ErrKeyExists
 	case StatusE2big:
 		return common.ErrValueTooBig
@@ -120,7 +120,7 @@ func errorToCode(err error) uint16 {
 	case common.ErrKeyNotFound:
 		return StatusKeyEnoent
 	case common.ErrKeyExists:
-		return StatusKeyEexists
+		return StatusKeyExists
 	case common.ErrValueTooBig:
 		return StatusE2big
 	case common.ErrInvalidArgs:
