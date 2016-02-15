@@ -97,6 +97,9 @@ const (
 	// depending on L1 / L2 handling.
 	RequestSet
 
+	// RequestAdd will perform the same operations as set, but only if the key does not exist
+	RequestAdd
+
 	// RequestDelete deletes a piece of data from all levels of cache
 	RequestDelete
 
