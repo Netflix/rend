@@ -49,7 +49,37 @@ func (t TextResponder) Set(opaque uint32) error {
 	return nil
 }
 
+func (t TextResponder) Add(opaque uint32, added bool) error {
+	var n int
+	var err error
+
+	if added {
+		// TODO: Error handling for less bytes
+		//numWritten, err := writer.WriteString("STORED\r\n")
+		n, err = t.writer.WriteString("STORED\r\n")
+	} else {
+		n, err = t.writer.WriteString("NOT_STORED\r\n")
+	}
+
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
+	if err != nil {
+		return err
+	}
+
+	err = t.writer.Flush()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (t TextResponder) Get(response common.GetResponse) error {
+	if response.Miss {
+		// A miss is a no-op in the text world
+		return nil
+	}
+
 	// Write data out to client
 	// [VALUE <key> <flags> <bytes>\r\n
 	// <data block>\r\n]*
@@ -76,11 +106,6 @@ func (t TextResponder) Get(response common.GetResponse) error {
 	return nil
 }
 
-func (t TextResponder) GetMiss(response common.GetResponse) error {
-	// A miss is a no-op in the text world
-	return nil
-}
-
 func (t TextResponder) GetEnd(opaque uint32, noopEnd bool) error {
 	n, err := fmt.Fprintf(t.writer, "END\r\n")
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
@@ -100,10 +125,6 @@ func (t TextResponder) GAT(response common.GetResponse) error {
 	// I chose to panic, since this means we are in a bad state.
 	// The text parser will never return a GAT command because
 	// it does not exist in the text protocol.
-	panic("GAT command in text protocol")
-}
-
-func (t TextResponder) GATMiss(response common.GetResponse) error {
 	panic("GAT command in text protocol")
 }
 

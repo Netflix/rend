@@ -54,57 +54,10 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 
 	switch clParts[0] {
 	case "set":
-		// sanity check
-		if len(clParts) != 5 {
-			// TODO: standardize errors
-			return nil, common.RequestSet, common.ErrBadRequest
-		}
+		return setRequest(t.reader, clParts, common.RequestSet)
 
-		key := []byte(clParts[1])
-
-		flags, err := strconv.ParseUint(strings.TrimSpace(clParts[2]), 10, 32)
-
-		if err != nil {
-			fmt.Println(err.Error())
-			// TODO: standardize errors
-			return nil, common.RequestSet, common.ErrBadFlags
-		}
-
-		exptime, err := strconv.ParseUint(strings.TrimSpace(clParts[3]), 10, 32)
-
-		if err != nil {
-			fmt.Println(err.Error())
-			// TODO: standardize errors
-			return nil, common.RequestSet, errors.New("Bad exptime")
-		}
-
-		length, err := strconv.ParseUint(strings.TrimSpace(clParts[4]), 10, 32)
-
-		if err != nil {
-			fmt.Println(err.Error())
-			// TODO: standardize errors
-			return nil, common.RequestSet, common.ErrBadLength
-		}
-
-		// Read in data
-		dataBuf := make([]byte, length)
-		n, err := io.ReadFull(t.reader, dataBuf)
-		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
-		if err != nil {
-			return nil, common.RequestSet, common.ErrInternal
-		}
-
-		// Consume the last two bytes "\r\n"
-		t.reader.Discard(2)
-		metrics.IncCounterBy(common.MetricBytesReadRemote, 2)
-
-		return common.SetRequest{
-			Key:     key,
-			Flags:   uint32(flags),
-			Exptime: uint32(exptime),
-			Opaque:  uint32(0),
-			Data:    dataBuf,
-		}, common.RequestSet, nil
+	case "add":
+		return setRequest(t.reader, clParts, common.RequestAdd)
 
 	case "get":
 		if len(clParts) < 2 {
@@ -164,4 +117,52 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 	default:
 		return nil, common.RequestUnknown, nil
 	}
+}
+
+func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (common.SetRequest, common.RequestType, error) {
+	// sanity check
+	if len(clParts) != 5 {
+		// TODO: standardize errors
+		return common.SetRequest{}, reqType, common.ErrBadRequest
+	}
+
+	key := []byte(clParts[1])
+
+	flags, err := strconv.ParseUint(strings.TrimSpace(clParts[2]), 10, 32)
+	if err != nil {
+		fmt.Println(err.Error())
+		return common.SetRequest{}, reqType, common.ErrBadFlags
+	}
+
+	exptime, err := strconv.ParseUint(strings.TrimSpace(clParts[3]), 10, 32)
+	if err != nil {
+		fmt.Println(err.Error())
+		return common.SetRequest{}, reqType, common.ErrBadExptime
+	}
+
+	length, err := strconv.ParseUint(strings.TrimSpace(clParts[4]), 10, 32)
+	if err != nil {
+		fmt.Println(err.Error())
+		return common.SetRequest{}, reqType, common.ErrBadLength
+	}
+
+	// Read in data
+	dataBuf := make([]byte, length)
+	n, err := io.ReadFull(r, dataBuf)
+	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+	if err != nil {
+		return common.SetRequest{}, reqType, common.ErrInternal
+	}
+
+	// Consume the last two bytes "\r\n"
+	r.Discard(2)
+	metrics.IncCounterBy(common.MetricBytesReadRemote, 2)
+
+	return common.SetRequest{
+		Key:     key,
+		Flags:   uint32(flags),
+		Exptime: uint32(exptime),
+		Opaque:  uint32(0),
+		Data:    dataBuf,
+	}, reqType, nil
 }
