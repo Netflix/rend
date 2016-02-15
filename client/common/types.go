@@ -20,6 +20,7 @@ type Prot interface {
 	// Yes, the abstraction is a little bit leaky, but the code
 	// in other places benefits from the consistency.
 	Set(rw *bufio.ReadWriter, key []byte, value []byte) error
+	Add(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Get(rw *bufio.ReadWriter, key []byte) error
 	GAT(rw *bufio.ReadWriter, key []byte) error
 	BatchGet(rw *bufio.ReadWriter, keys [][]byte) error
@@ -34,20 +35,19 @@ const (
 	Bget
 	Gat
 	Set
+	Add
 	Touch
 	Delete
 )
 
-var AllOps []Op
-
-func init() {
-	AllOps = []Op{Get, Bget, Gat, Set, Touch, Delete}
-}
+var AllOps = []Op{Get, Bget, Gat, Set, Add, Touch, Delete}
 
 func (o Op) String() string {
 	switch o {
 	case Set:
 		return "Set"
+	case Add:
+		return "Add"
 	case Get:
 		return "Get"
 	case Gat:

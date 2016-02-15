@@ -55,14 +55,14 @@ func main() {
 	if f.Binary {
 		var b binprot.BinProt
 		prot = b
-		numCmds = 6
-		usedCmds = "get, batch get, get and touch, set, touch, delete"
+		numCmds = 7
+		usedCmds = "get, batch get, get and touch, set, add, touch, delete"
 		protString = "binary"
 	} else {
 		var t textprot.TextProt
 		prot = t
-		numCmds = 5
-		usedCmds = "get, batch get, set, touch, delete"
+		numCmds = 6
+		usedCmds = "get, batch get, set, add, touch, delete"
 		protString = "text"
 	}
 
@@ -82,6 +82,7 @@ func main() {
 	for i := 0; i < f.NumWorkers; i++ {
 		taskGens.Add(numCmds)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Set)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Add)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Get)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Bget)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Delete)
@@ -172,7 +173,7 @@ func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks 
 }
 
 func taskValue(r *rand.Rand, cmd common.Op) []byte {
-	if cmd == common.Set {
+	if cmd == common.Set || cmd == common.Add {
 		// Random length between 1k and 10k
 		valLen := r.Intn(9*1024) + 1024
 		return common.RandData(r, valLen, true)
@@ -192,6 +193,8 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		switch item.Cmd {
 		case common.Set:
 			err = prot.Set(rw, item.Key, item.Value)
+		case common.Add:
+			err = prot.Add(rw, item.Key, item.Value)
 		case common.Get:
 			err = prot.Get(rw, item.Key)
 		case common.Gat:
@@ -205,7 +208,7 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		}
 
 		if err != nil {
-			if err != binprot.ErrKeyNotFound {
+			if !(err == binprot.ErrKeyNotFound || err == binprot.ErrKeyExists) {
 				fmt.Printf("Error performing operation %s on key %s: %s\n", item.Cmd, item.Key, err.Error())
 			}
 			// if the socket was closed, stop. Otherwise keep on hammering.
