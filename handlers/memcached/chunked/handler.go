@@ -108,6 +108,14 @@ func (h Handler) Close() error {
 }
 
 func (h Handler) Set(cmd common.SetRequest) error {
+	return h.realHandleSet(cmd, common.RequestSet)
+}
+func (h Handler) Add(cmd common.SetRequest) error {
+	return h.realHandleSet(cmd, common.RequestAdd)
+}
+
+func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType) error {
+
 	// Specialized chunk reader to make the code here much simpler
 	limChunkReader := newChunkLimitedReader(bytes.NewBuffer(cmd.Data), int64(chunkSize), int64(len(cmd.Data)))
 	numChunks := int(math.Ceil(float64(len(cmd.Data)) / float64(chunkSize)))
@@ -124,9 +132,20 @@ func (h Handler) Set(cmd common.SetRequest) error {
 
 	// Write metadata key
 	// TODO: should there be a unique flags value for chunked data?
-	if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
-		return err
+	switch reqType {
+	case common.RequestSet:
+		if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
+			return err
+		}
+	case common.RequestAdd:
+		if err := binprot.WriteAddCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
+			return err
+		}
+	default:
+		// I know. It's all wrong. By rights we shouldn't even be here. But we are.
+		panic("Unrecognized request type in realHandleSet!")
 	}
+
 	// Write value
 	if err := binary.Write(h.rw, binary.BigEndian, metaData); err != nil {
 		return err
@@ -140,13 +159,6 @@ func (h Handler) Set(cmd common.SetRequest) error {
 	// Read server's response
 	resHeader, err := readResponseHeader(h.rw.Reader)
 	if err != nil {
-		// Discard request body (if using streaming sets)
-		/*n, ioerr := src.Discard(len(cmd.Data))
-		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
-		if ioerr != nil {
-			return ioerr
-		}*/
-
 		// Discard response body
 		n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
 		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
@@ -154,6 +166,10 @@ func (h Handler) Set(cmd common.SetRequest) error {
 			return ioerr
 		}
 
+		// For Add and Replace, the error here will be common.ErrKeyExists or common.ErrKeyNotFound
+		// respectively. For each, this is the right response to send to the requestor. The error
+		// here is overloaded because it would signal a true error for sets, but a normal "error"
+		// response for Add and Replace.
 		return err
 	}
 
@@ -178,8 +194,6 @@ func (h Handler) Set(cmd common.SetRequest) error {
 		}
 		// Write value
 		n2, err := io.Copy(h.rw.Writer, limChunkReader)
-		// If sets are streaming through, we'd be reading at the same time
-		//metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 		metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n2))
 		if err != nil {
 			return err
@@ -202,22 +216,6 @@ func (h Handler) Set(cmd common.SetRequest) error {
 			// probably just disconnect and reconnect to clear OS buffers
 			h.reset()
 
-			// Discard request body
-			// This is more complicated code but more straightforward than attempting to get at
-			// the underlying reader and discard directly, since we don't exactly know how many
-			// bytes were sent already
-			// This is only necessary when using streaming sets
-			/*for limChunkReader.More() {
-				_, ioerr := io.Copy(ioutil.Discard, limChunkReader)
-				// If sets are streaming through, we'd be reading at the same time
-				//metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
-				if ioerr != nil {
-					return ioerr
-				}
-
-				limChunkReader.NextChunk()
-			}*/
-
 			// Discard repsonse body
 			n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
 			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
@@ -233,11 +231,6 @@ func (h Handler) Set(cmd common.SetRequest) error {
 		chunkNum++
 	}
 
-	return nil
-}
-func (h Handler) Add(cmd common.SetRequest) error {
-	// be fancy here and check if the metadata exists. Try to "add" it, and if the response is a "already exists" then
-	// bail and return already exists
 	return nil
 }
 
