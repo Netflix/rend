@@ -21,6 +21,7 @@ type Prot interface {
 	// in other places benefits from the consistency.
 	Set(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Add(rw *bufio.ReadWriter, key []byte, value []byte) error
+	Replace(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Get(rw *bufio.ReadWriter, key []byte) error
 	GAT(rw *bufio.ReadWriter, key []byte) error
 	BatchGet(rw *bufio.ReadWriter, keys [][]byte) error
@@ -36,11 +37,12 @@ const (
 	Gat
 	Set
 	Add
+	Replace
 	Touch
 	Delete
 )
 
-var AllOps = []Op{Get, Bget, Gat, Set, Add, Touch, Delete}
+var AllOps = []Op{Get, Bget, Gat, Set, Add, Replace, Touch, Delete}
 
 func (o Op) String() string {
 	switch o {
@@ -48,6 +50,8 @@ func (o Op) String() string {
 		return "Set"
 	case Add:
 		return "Add"
+	case Replace:
+		return "Replace"
 	case Get:
 		return "Get"
 	case Gat:
