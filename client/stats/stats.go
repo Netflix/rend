@@ -33,6 +33,9 @@ const msFactor = 1000000
 // Accepts a sorted slice of durations in nanoseconds
 // Returns a Stats struct of millisecond statistics
 func Get(data []int) Stats {
+	if len(data) == 0 {
+		return Stats{}
+	}
 	min, max := minmax(data)
 
 	return Stats{
@@ -84,6 +87,9 @@ const maxHeight = 50
 // Accepts a sorted slice of durations in nanoseconds
 // Prints a histogram to stdout
 func PrintHist(data []int) {
+	if len(data) == 0 {
+		return
+	}
 	// Cut the data at the 99th percentile
 	p99Idx := pIdx(data, 0.99)
 	data = data[:p99Idx]
