@@ -110,8 +110,13 @@ func (h Handler) Close() error {
 func (h Handler) Set(cmd common.SetRequest) error {
 	return h.realHandleSet(cmd, common.RequestSet)
 }
+
 func (h Handler) Add(cmd common.SetRequest) error {
 	return h.realHandleSet(cmd, common.RequestAdd)
+}
+
+func (h Handler) Replace(cmd common.SetRequest) error {
+	return h.realHandleSet(cmd, common.RequestReplace)
 }
 
 func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType) error {
@@ -139,6 +144,10 @@ func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType
 		}
 	case common.RequestAdd:
 		if err := binprot.WriteAddCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
+			return err
+		}
+	case common.RequestReplace:
+		if err := binprot.WriteReplaceCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
 			return err
 		}
 	default:

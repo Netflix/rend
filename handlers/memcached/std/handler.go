@@ -56,49 +56,36 @@ func (h Handler) Close() error {
 }
 
 func (h Handler) Set(cmd common.SetRequest) error {
-	// TODO: should there be a unique flags value for regular data?
-	// Write command header
-	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-
-	// Write value
-	h.rw.Write(cmd.Data)
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(len(cmd.Data)))
-
-	if err := h.rw.Flush(); err != nil {
-		return err
-	}
-
-	// Read server's response
-	resHeader, err := readResponseHeader(h.rw.Reader)
-	if err != nil {
-		// Discard request body
-		/*/ only when using streaming sets
-		n, ioerr := src.Discard(len(cmd.Data))
-		metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
-		if ioerr != nil {
-			return ioerr
-		}*/
-
-		// Discard response body
-		n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
-		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-		if ioerr != nil {
-			return ioerr
-		}
-
-		return err
-	}
-
-	return nil
+	return h.realHandleSet(cmd, common.RequestSet)
 }
 
 func (h Handler) Add(cmd common.SetRequest) error {
+	return h.realHandleSet(cmd, common.RequestAdd)
+}
+
+func (h Handler) Replace(cmd common.SetRequest) error {
+	return h.realHandleSet(cmd, common.RequestReplace)
+}
+
+func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType) error {
 	// TODO: should there be a unique flags value for regular data?
 	// Write command header
-	if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
+	switch reqType {
+	case common.RequestSet:
+		if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+			return err
+		}
+	case common.RequestAdd:
+		if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+			return err
+		}
+	case common.RequestReplace:
+		if err := binprot.WriteReplaceCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+			return err
+		}
+	default:
+		// I know. It's all wrong. By rights we shouldn't even be here. But we are.
+		panic("Unrecognized request type in realHandleSet!")
 	}
 
 	// Write value
@@ -119,6 +106,10 @@ func (h Handler) Add(cmd common.SetRequest) error {
 			return ioerr
 		}
 
+		// For Add and Replace, the error here will be common.ErrKeyExists or common.ErrKeyNotFound
+		// respectively. For each, this is the right response to send to the requestor. The error
+		// here is overloaded because it would signal a true error for sets, but a normal "error"
+		// response for Add and Replace.
 		return err
 	}
 

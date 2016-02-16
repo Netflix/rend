@@ -59,6 +59,9 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 	case "add":
 		return setRequest(t.reader, clParts, common.RequestAdd)
 
+	case "replace":
+		return setRequest(t.reader, clParts, common.RequestReplace)
+
 	case "get":
 		if len(clParts) < 2 {
 			// TODO: standardize errors

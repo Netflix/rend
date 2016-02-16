@@ -139,6 +139,9 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	case OpcodeAdd:
 		return setRequest(b.reader, reqHeader, common.RequestAdd)
 
+	case OpcodeReplace:
+		return setRequest(b.reader, reqHeader, common.RequestReplace)
+
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
 		if err != nil {

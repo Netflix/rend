@@ -106,6 +106,18 @@ var (
 	MetricCmdAddErrors              = metrics.AddCounter("cmd_add_errors")
 	MetricCmdAddErrorsL1            = metrics.AddCounter("cmd_add_errors_l1")
 	MetricCmdAddErrorsL2            = metrics.AddCounter("cmd_add_errors_l2")
+	MetricCmdReplace                = metrics.AddCounter("cmd_replace")
+	MetricCmdReplaceL1              = metrics.AddCounter("cmd_replace_l1")
+	MetricCmdReplaceL2              = metrics.AddCounter("cmd_replace_l2")
+	MetricCmdReplaceStored          = metrics.AddCounter("cmd_replace_stored")
+	MetricCmdReplaceStoredL1        = metrics.AddCounter("cmd_replace_stored_l1")
+	MetricCmdReplaceStoredL2        = metrics.AddCounter("cmd_replace_stored_l2")
+	MetricCmdReplaceNotStored       = metrics.AddCounter("cmd_replace_not_stored")
+	MetricCmdReplaceNotStoredL1     = metrics.AddCounter("cmd_replace_not_stored_l1")
+	MetricCmdReplaceNotStoredL2     = metrics.AddCounter("cmd_replace_not_stored_l2")
+	MetricCmdReplaceErrors          = metrics.AddCounter("cmd_replace_errors")
+	MetricCmdReplaceErrorsL1        = metrics.AddCounter("cmd_replace_errors_l1")
+	MetricCmdReplaceErrorsL2        = metrics.AddCounter("cmd_replace_errors_l2")
 	MetricCmdDelete                 = metrics.AddCounter("cmd_delete")
 	MetricCmdDeleteL1               = metrics.AddCounter("cmd_delete_l1")
 	MetricCmdDeleteL2               = metrics.AddCounter("cmd_delete_l2")
@@ -146,12 +158,13 @@ var (
 	MetricErrAppError               = metrics.AddCounter("err_app_err")
 	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
 
-	HistSet    = metrics.AddHistogram("set")
-	HistAdd    = metrics.AddHistogram("add")
-	HistDelete = metrics.AddHistogram("delete")
-	HistTouch  = metrics.AddHistogram("touch")
-	HistGet    = metrics.AddHistogram("get")
-	HistGat    = metrics.AddHistogram("gat")
+	HistSet     = metrics.AddHistogram("set")
+	HistAdd     = metrics.AddHistogram("add")
+	HistReplace = metrics.AddHistogram("replace")
+	HistDelete  = metrics.AddHistogram("delete")
+	HistTouch   = metrics.AddHistogram("touch")
+	HistGet     = metrics.AddHistogram("get")
+	HistGat     = metrics.AddHistogram("gat")
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )
@@ -350,6 +363,37 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 
 			// TODO: L2 metrics for adds, add stored, add not stored, add errors
 
+		case common.RequestReplace:
+			metrics.IncCounter(MetricCmdReplace)
+			req := request.(common.SetRequest)
+			opaque = req.Opaque
+			//fmt.Println("replace", string(req.Key))
+
+			// TODO: L2 first, then L1
+
+			metrics.IncCounter(MetricCmdReplaceL1)
+			err = l1.Replace(req)
+
+			if err == nil {
+				metrics.IncCounter(MetricCmdReplaceStoredL1)
+				// TODO: Account for L2
+				metrics.IncCounter(MetricCmdReplaceStored)
+
+				err = responder.Replace(req.Opaque, true)
+
+			} else if err == common.ErrKeyNotFound {
+				metrics.IncCounter(MetricCmdReplaceNotStoredL1)
+				// TODO: Account for L2
+				metrics.IncCounter(MetricCmdReplaceNotStored)
+				err = responder.Replace(req.Opaque, false)
+			} else {
+				metrics.IncCounter(MetricCmdReplaceErrorsL1)
+				// TODO: Account for L2
+				metrics.IncCounter(MetricCmdReplaceErrors)
+			}
+
+			// TODO: L2 metrics for replaces, replace stored, replace not stored, replace errors
+
 		case common.RequestDelete:
 			metrics.IncCounter(MetricCmdDelete)
 			req := request.(common.DeleteRequest)
@@ -521,6 +565,8 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.ObserveHist(HistSet, dur)
 		case common.RequestAdd:
 			metrics.ObserveHist(HistAdd, dur)
+		case common.RequestReplace:
+			metrics.ObserveHist(HistReplace, dur)
 		case common.RequestDelete:
 			metrics.ObserveHist(HistDelete, dur)
 		case common.RequestTouch:

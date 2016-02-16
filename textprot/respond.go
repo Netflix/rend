@@ -74,6 +74,30 @@ func (t TextResponder) Add(opaque uint32, added bool) error {
 	return nil
 }
 
+func (t TextResponder) Replace(opaque uint32, replaced bool) error {
+	var n int
+	var err error
+
+	if replaced {
+		// TODO: Error handling for less bytes
+		n, err = t.writer.WriteString("STORED\r\n")
+	} else {
+		n, err = t.writer.WriteString("NOT_STORED\r\n")
+	}
+
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
+	if err != nil {
+		return err
+	}
+
+	err = t.writer.Flush()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (t TextResponder) Get(response common.GetResponse) error {
 	if response.Miss {
 		// A miss is a no-op in the text world

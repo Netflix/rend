@@ -55,14 +55,14 @@ func main() {
 	if f.Binary {
 		var b binprot.BinProt
 		prot = b
-		numCmds = 7
-		usedCmds = "get, batch get, get and touch, set, add, touch, delete"
+		numCmds = 8
+		usedCmds = "get, batch get, get and touch, set, add, replace, touch, delete"
 		protString = "binary"
 	} else {
 		var t textprot.TextProt
 		prot = t
-		numCmds = 6
-		usedCmds = "get, batch get, set, add, touch, delete"
+		numCmds = 7
+		usedCmds = "get, batch get, set, add, replace, touch, delete"
 		protString = "text"
 	}
 
@@ -83,6 +83,7 @@ func main() {
 		taskGens.Add(numCmds)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Set)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Add)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Replace)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Get)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Bget)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Delete)
@@ -173,7 +174,7 @@ func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks 
 }
 
 func taskValue(r *rand.Rand, cmd common.Op) []byte {
-	if cmd == common.Set || cmd == common.Add {
+	if cmd == common.Set || cmd == common.Add || cmd == common.Replace {
 		// Random length between 1k and 10k
 		valLen := r.Intn(9*1024) + 1024
 		return common.RandData(r, valLen, true)
@@ -195,6 +196,8 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 			err = prot.Set(rw, item.Key, item.Value)
 		case common.Add:
 			err = prot.Add(rw, item.Key, item.Value)
+		case common.Replace:
+			err = prot.Replace(rw, item.Key, item.Value)
 		case common.Get:
 			err = prot.Get(rw, item.Key)
 		case common.Gat:
@@ -208,6 +211,7 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		}
 
 		if err != nil {
+			// don't print get misses, adds not stored, and replaces not stored
 			if !(err == binprot.ErrKeyNotFound || err == binprot.ErrKeyExists) {
 				fmt.Printf("Error performing operation %s on key %s: %s\n", item.Cmd, item.Key, err.Error())
 			}

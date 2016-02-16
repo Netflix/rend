@@ -74,6 +74,31 @@ func (t TextProt) Add(rw *bufio.ReadWriter, key []byte, value []byte) error {
 	return nil
 }
 
+func (t TextProt) Replace(rw *bufio.ReadWriter, key []byte, value []byte) error {
+	strKey := string(key)
+	if VERBOSE {
+		fmt.Printf("Replacing key %s, value of length %v\n", strKey, len(value))
+	}
+
+	if _, err := fmt.Fprintf(rw, "replace %s 0 0 %v\r\n%s\r\n", strKey, len(value), string(value)); err != nil {
+		return err
+	}
+
+	rw.Flush()
+
+	response, err := rw.ReadString('\n')
+	if err != nil {
+		return err
+	}
+
+	if VERBOSE {
+		fmt.Println(response)
+		fmt.Printf("Replaced key %s\n", strKey)
+	}
+
+	return nil
+}
+
 func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) error {
 	strKey := string(key)
 	if VERBOSE {

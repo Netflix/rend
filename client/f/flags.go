@@ -62,4 +62,8 @@ func init() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	if !Binary && !Text {
+		Text = true
+	}
 }
