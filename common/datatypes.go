@@ -101,6 +101,9 @@ const (
 	// RequestAdd will perform the same operations as set, but only if the key does not exist
 	RequestAdd
 
+	// RequestReplace will perform the same operations as set, but only if the key already exists
+	RequestReplace
+
 	// RequestDelete deletes a piece of data from all levels of cache
 	RequestDelete
 
@@ -122,6 +125,7 @@ type RequestParser interface {
 type Responder interface {
 	Set(opaque uint32) error
 	Add(opaque uint32, added bool) error
+	Replace(opaque uint32, replaced bool) error
 	Get(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
 	GAT(response GetResponse) error

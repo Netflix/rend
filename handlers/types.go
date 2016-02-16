@@ -19,6 +19,7 @@ import "github.com/netflix/rend/common"
 type Handler interface {
 	Set(cmd common.SetRequest) error
 	Add(cmd common.SetRequest) error
+	Replace(cmd common.SetRequest) error
 	Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error)
 	GAT(cmd common.GATRequest) (common.GetResponse, error)
 	Delete(cmd common.DeleteRequest) error

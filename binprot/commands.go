@@ -62,6 +62,26 @@ func WriteAddCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	return err
 }
 
+func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+	// opcode, keyLength, extraLength, totalBodyLength
+	// key + extras + body
+	extrasLen := 8
+	totalBodyLength := len(key) + extrasLen + int(dataSize)
+	header := MakeRequestHeader(OpcodeReplace, len(key), extrasLen, totalBodyLength)
+
+	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, dataSize, totalBodyLength)
+
+	binary.Write(w, binary.BigEndian, header)
+	binary.Write(w, binary.BigEndian, flags)
+	binary.Write(w, binary.BigEndian, exptime)
+	err := binary.Write(w, binary.BigEndian, key)
+
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+
+	return err
+}
+
 func WriteGetCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := MakeRequestHeader(OpcodeGet, len(key), 0, len(key))

@@ -122,6 +122,14 @@ func (b BinaryResponder) Add(opaque uint32, added bool) error {
 	}
 }
 
+func (b BinaryResponder) Replace(opaque uint32, replaced bool) error {
+	if replaced {
+		return writeSuccessResponseHeader(b.writer, OpcodeReplace, 0, 0, 0, opaque, true)
+	} else {
+		return writeErrorResponseHeader(b.writer, OpcodeReplace, StatusKeyEnoent, opaque)
+	}
+}
+
 func (b BinaryResponder) Get(response common.GetResponse) error {
 	if response.Miss {
 		if !response.Quiet {
