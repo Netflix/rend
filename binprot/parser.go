@@ -220,7 +220,7 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 		}, common.RequestTouch, nil
 	}
 
-	return nil, common.RequestGet, nil
+	return nil, common.RequestUnknown, common.ErrUnknownCmd
 }
 
 func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {
