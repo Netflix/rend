@@ -197,7 +197,7 @@ func (t TextResponder) Error(opaque uint32, reqType common.RequestType, err erro
 	case common.ErrNoMem:
 		fallthrough
 	default:
-		n, err = fmt.Fprintf(t.writer, "ERROR\r\n")
+		n, err = fmt.Fprintf(t.writer, err.Error()+"\r\n")
 	}
 
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))

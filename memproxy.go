@@ -300,8 +300,16 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 
 		request, reqType, err = reqParser.Parse()
 		if err != nil {
-			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
-			return
+			if err == common.ErrBadRequest ||
+				err == common.ErrBadLength ||
+				err == common.ErrBadFlags ||
+				err == common.ErrBadExptime {
+				responder.Error(0, common.RequestUnknown, err)
+				continue
+			} else {
+				abort([]io.Closer{remoteConn, l1, l2}, err, binary)
+				return
+			}
 		}
 
 		metrics.IncCounter(MetricCmdTotal)
