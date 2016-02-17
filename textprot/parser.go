@@ -16,7 +16,6 @@ package textprot
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -64,8 +63,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 
 	case "get":
 		if len(clParts) < 2 {
-			// TODO: standardize errors
-			return nil, common.RequestGet, errors.New("Bad get")
+			return nil, common.RequestGet, common.ErrBadRequest
 		}
 
 		keys := make([][]byte, 0)
@@ -85,8 +83,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 
 	case "delete":
 		if len(clParts) != 2 {
-			// TODO: standardize errors
-			return nil, common.RequestDelete, errors.New("Bad delete")
+			return nil, common.RequestDelete, common.ErrBadRequest
 		}
 
 		return common.DeleteRequest{
@@ -97,8 +94,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 	// TODO: Error handling for invalid cmd line
 	case "touch":
 		if len(clParts) != 3 {
-			// TODO: standardize errors
-			return nil, common.RequestTouch, errors.New("Bad touch")
+			return nil, common.RequestTouch, common.ErrBadRequest
 		}
 
 		key := []byte(clParts[1])
@@ -107,8 +103,7 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 
 		if err != nil {
 			fmt.Println(err.Error())
-			// TODO: standardize errors
-			return nil, common.RequestSet, errors.New("Bad exptime")
+			return nil, common.RequestSet, common.ErrBadRequest
 		}
 
 		return common.TouchRequest{
@@ -142,7 +137,6 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (common.SetRequest, common.RequestType, error) {
 	// sanity check
 	if len(clParts) != 5 {
-		// TODO: standardize errors
 		return common.SetRequest{}, reqType, common.ErrBadRequest
 	}
 
