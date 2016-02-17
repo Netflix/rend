@@ -218,6 +218,22 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			Exptime: exptime,
 			Opaque:  reqHeader.OpaqueToken,
 		}, common.RequestTouch, nil
+
+	case OpcodeQuit:
+		return common.QuitRequest{
+			Opaque: reqHeader.OpaqueToken,
+			Quiet:  false,
+		}, common.RequestQuit, nil
+	case OpcodeQuitQ:
+		return common.QuitRequest{
+			Opaque: reqHeader.OpaqueToken,
+			Quiet:  true,
+		}, common.RequestQuit, nil
+
+	case OpcodeVersion:
+		return common.VersionRequest{
+			Opaque: reqHeader.OpaqueToken,
+		}, common.RequestVersion, nil
 	}
 
 	return nil, common.RequestUnknown, common.ErrUnknownCmd

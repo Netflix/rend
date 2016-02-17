@@ -170,6 +170,22 @@ func (b BinaryResponder) Touch(opaque uint32) error {
 	return writeSuccessResponseHeader(b.writer, OpcodeTouch, 0, 0, 0, opaque, true)
 }
 
+func (b BinaryResponder) Quit(opaque uint32, quiet bool) error {
+	if !quiet {
+		return writeSuccessResponseHeader(b.writer, OpcodeQuit, 0, 0, 0, opaque, true)
+	}
+	return nil
+}
+
+func (b BinaryResponder) Version(opaque uint32) error {
+	if err := writeSuccessResponseHeader(b.writer, OpcodeVersion, 0, 0, len(common.VersionString), opaque, false); err != nil {
+		return err
+	}
+	n, _ := b.writer.WriteString(common.VersionString)
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
+	return b.writer.Flush()
+}
+
 func (b BinaryResponder) Error(opaque uint32, reqType common.RequestType, err error) error {
 	// TODO: proper opcode
 	return writeErrorResponseHeader(b.writer, reqTypeToOpcode(reqType), errorToCode(err), opaque)

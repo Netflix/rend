@@ -33,69 +33,23 @@ func NewTextResponder(writer *bufio.Writer) TextResponder {
 }
 
 func (t TextResponder) Set(opaque uint32) error {
-	// TODO: Error handling for less bytes
-	//numWritten, err := writer.WriteString("STORED\r\n")
-	n, err := t.writer.WriteString("STORED\r\n")
-	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
-	if err != nil {
-		return err
-	}
-
-	err = t.writer.Flush()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return t.resp("STORED")
 }
 
 func (t TextResponder) Add(opaque uint32, added bool) error {
-	var n int
-	var err error
-
 	if added {
-		// TODO: Error handling for less bytes
-		//numWritten, err := writer.WriteString("STORED\r\n")
-		n, err = t.writer.WriteString("STORED\r\n")
+		return t.resp("STORED")
 	} else {
-		n, err = t.writer.WriteString("NOT_STORED\r\n")
+		return t.resp("NOT_STORED")
 	}
-
-	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
-	if err != nil {
-		return err
-	}
-
-	err = t.writer.Flush()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (t TextResponder) Replace(opaque uint32, replaced bool) error {
-	var n int
-	var err error
-
 	if replaced {
-		// TODO: Error handling for less bytes
-		n, err = t.writer.WriteString("STORED\r\n")
+		return t.resp("STORED")
 	} else {
-		n, err = t.writer.WriteString("NOT_STORED\r\n")
+		return t.resp("NOT_STORED")
 	}
-
-	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
-	if err != nil {
-		return err
-	}
-
-	err = t.writer.Flush()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (t TextResponder) Get(response common.GetResponse) error {
@@ -131,14 +85,7 @@ func (t TextResponder) Get(response common.GetResponse) error {
 }
 
 func (t TextResponder) GetEnd(opaque uint32, noopEnd bool) error {
-	n, err := fmt.Fprintf(t.writer, "END\r\n")
-	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
-	if err != nil {
-		return err
-	}
-
-	t.writer.Flush()
-	return nil
+	return t.resp("END")
 }
 
 func (t TextResponder) GAT(response common.GetResponse) error {
@@ -153,58 +100,55 @@ func (t TextResponder) GAT(response common.GetResponse) error {
 }
 
 func (t TextResponder) Delete(opaque uint32) error {
-	n, err := fmt.Fprintf(t.writer, "DELETED\r\n")
-	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
-	if err != nil {
-		return err
-	}
-
-	t.writer.Flush()
-	return nil
+	return t.resp("DELETED")
 }
 
 func (t TextResponder) Touch(opaque uint32) error {
-	n, err := fmt.Fprintf(t.writer, "TOUCHED\r\n")
-	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
-	if err != nil {
-		return err
-	}
+	return t.resp("TOUCHED")
+}
 
-	t.writer.Flush()
+func (t TextResponder) Quit(opaque uint32, quiet bool) error {
+	if !quiet {
+		return t.resp("Bye")
+	}
 	return nil
 }
 
-func (t TextResponder) Error(opaque uint32, reqType common.RequestType, err error) error {
-	var n int
+func (t TextResponder) Version(opaque uint32) error {
+	return t.resp("VERSION " + common.VersionString)
+}
 
+func (t TextResponder) Error(opaque uint32, reqType common.RequestType, err error) error {
 	switch err {
 	case common.ErrKeyNotFound:
-		n, err = fmt.Fprintf(t.writer, "NOT_FOUND\r\n")
+		return t.resp("NOT_FOUND")
 	case common.ErrKeyExists:
-		n, err = fmt.Fprintf(t.writer, "EXISTS\r\n")
+		return t.resp("EXISTS")
 	case common.ErrItemNotStored:
-		n, err = fmt.Fprintf(t.writer, "NOT_STORED\r\n")
+		return t.resp("NOT_STORED")
 	case common.ErrValueTooBig:
 		fallthrough
 	case common.ErrInvalidArgs:
-		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR bad command line\r\n")
+		return t.resp("CLIENT_ERROR bad command line")
 	case common.ErrBadIncDecValue:
-		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR invalid numeric delta argument\r\n")
+		return t.resp("CLIENT_ERROR invalid numeric delta argument")
 	case common.ErrAuth:
-		n, err = fmt.Fprintf(t.writer, "CLIENT_ERROR\r\n")
+		return t.resp("CLIENT_ERROR")
 	case common.ErrUnknownCmd:
 		fallthrough
 	case common.ErrNoMem:
 		fallthrough
 	default:
-		n, err = fmt.Fprintf(t.writer, err.Error()+"\r\n")
+		return t.resp(err.Error())
 	}
+}
 
+func (t TextResponder) resp(s string) error {
+	n, err := fmt.Fprintf(t.writer, s+"\r\n")
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(n))
-
 	if err != nil {
 		return err
 	}
-	t.writer.Flush()
-	return nil
+
+	return t.writer.Flush()
 }

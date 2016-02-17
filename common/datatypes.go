@@ -26,6 +26,8 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
+const VersionString = "Rend 0.1"
+
 // Common metrics used across packages
 var (
 	MetricBytesReadRemote     = metrics.AddCounter("bytes_read_remote")
@@ -109,6 +111,12 @@ const (
 
 	// RequestTouch updates the TTL for the item specified to a new TTL
 	RequestTouch
+
+	// RequestQuit closes the connection
+	RequestQuit
+
+	// RequestVersion replies with a string designating the current software version
+	RequestVersion
 )
 
 // RequestParser represents an interface to parse incoming requests. Each protocol provides its own
@@ -131,6 +139,8 @@ type Responder interface {
 	GAT(response GetResponse) error
 	Delete(opaque uint32) error
 	Touch(opaque uint32) error
+	Quit(opaque uint32, quiet bool) error
+	Version(opaque uint32) error
 	Error(opaque uint32, reqType RequestType, err error) error
 }
 
@@ -176,6 +186,19 @@ type GATRequest struct {
 	Key     []byte
 	Exptime uint32
 	Opaque  uint32
+}
+
+// QuitRequest corresponds to common.RequestQuit. It contains all the information required to
+// fulfill a quit request.
+type QuitRequest struct {
+	Opaque uint32
+	Quiet  bool
+}
+
+// VersionRequest corresponds to common.RequestQuit. It contains all the information required to
+// fulfill a version request.
+type VersionRequest struct {
+	Opaque uint32
 }
 
 // GetResponse is used in both RequestGet and RequestGat handling. Both respond in the same manner

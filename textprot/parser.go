@@ -117,6 +117,23 @@ func (t TextParser) Parse() (interface{}, common.RequestType, error) {
 			Opaque:  uint32(0),
 		}, common.RequestTouch, nil
 
+	case "quit":
+		if len(clParts) != 1 {
+			return nil, common.RequestQuit, common.ErrBadRequest
+		}
+		return common.QuitRequest{
+			Opaque: 0,
+			Quiet:  false,
+		}, common.RequestQuit, nil
+
+	case "version":
+		if len(clParts) != 1 {
+			return nil, common.RequestQuit, common.ErrBadRequest
+		}
+		return common.VersionRequest{
+			Opaque: 0,
+		}, common.RequestVersion, nil
+
 	default:
 		return nil, common.RequestUnknown, nil
 	}
