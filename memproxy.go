@@ -155,6 +155,8 @@ var (
 	MetricCmdGatErrorsL1            = metrics.AddCounter("cmd_gat_errors_l1")
 	MetricCmdGatErrorsL2            = metrics.AddCounter("cmd_gat_errors_l2")
 	MetricCmdUnknown                = metrics.AddCounter("cmd_unknown")
+	MetricCmdQuit                   = metrics.AddCounter("cmd_quit")
+	MetricCmdVersion                = metrics.AddCounter("cmd_version")
 	MetricErrAppError               = metrics.AddCounter("err_app_err")
 	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
 
@@ -226,7 +228,7 @@ func main() {
 }
 
 func abort(toClose []io.Closer, err error, binary bool) {
-	if err != io.EOF {
+	if err != nil && err != io.EOF {
 		fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
 	}
 	// use proper serializer to respond here
@@ -547,6 +549,18 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			}
 
 			//TODO: L2 metrics for gats, gat hits, gat misses, gat errors
+
+		case common.RequestQuit:
+			metrics.IncCounter(MetricCmdQuit)
+			req := request.(common.QuitRequest)
+			responder.Quit(req.Opaque, req.Quiet)
+			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
+			return
+
+		case common.RequestVersion:
+			metrics.IncCounter(MetricCmdVersion)
+			req := request.(common.VersionRequest)
+			err = responder.Version(req.Opaque)
 
 		case common.RequestUnknown:
 			metrics.IncCounter(MetricCmdUnknown)
