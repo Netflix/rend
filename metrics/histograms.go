@@ -48,6 +48,7 @@ type hist struct {
 type hdat struct {
 	count *uint64
 	kept  *uint64
+	total *uint64
 	min   *uint64
 	max   *uint64
 	buf   []uint64
@@ -55,6 +56,7 @@ type hdat struct {
 
 func newHist() *hist {
 	return &hist{
+		// read: primary and secondary data structures
 		prim: newHdat(),
 		sec:  newHdat(),
 	}
@@ -63,6 +65,7 @@ func newHdat() *hdat {
 	ret := &hdat{
 		count: new(uint64),
 		kept:  new(uint64),
+		total: new(uint64),
 		min:   new(uint64),
 		max:   new(uint64),
 		buf:   make([]uint64, buflen+1),
@@ -90,9 +93,12 @@ func ObserveHist(id uint32, value uint64) {
 	// We lock here to ensure that the min and max values are true to this time
 	// period, meaning extractAndReset won't pull the data out from under us
 	// while the current observation is being compared. Otherwise, min and max
-	// could come from the previous period on the next read.
+	// could come from the previous period on the next read. Same with average.
 	h.lock.RLock()
 	defer h.lock.RUnlock()
+
+	// Keep a running total for average
+	atomic.AddUint64(h.prim.total, value)
 
 	// Set max and min (if needed) in an atomic fashion
 	for {
@@ -136,12 +142,11 @@ func extractAndReset(h *hist) *hdat {
 	h.lock.Lock()
 
 	// flip and reset the count
-	temp := h.prim
-	h.prim = h.sec
-	h.sec = temp
+	h.prim, h.sec = h.sec, h.prim
 
 	atomic.StoreUint64(h.prim.count, 0)
 	atomic.StoreUint64(h.prim.kept, 0)
+	atomic.StoreUint64(h.prim.total, 0)
 	atomic.StoreUint64(h.prim.max, 0)
 	atomic.StoreUint64(h.prim.min, math.MaxUint64)
 
