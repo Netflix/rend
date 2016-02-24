@@ -91,8 +91,10 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, *dat.count)
 		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, *dat.kept)
 
-		avg := float64(*dat.total) / float64(*dat.count)
-		fmt.Fprintf(w, "%shist_%s_avg %f\n", prefix, name, avg)
+		if *dat.total > 0 && *dat.count > 0 {
+			avg := float64(*dat.total) / float64(*dat.count)
+			fmt.Fprintf(w, "%shist_%s_avg %f\n", prefix, name, avg)
+		}
 
 		pctls := hdatPercentiles(dat)
 		if len(pctls) == 0 {
