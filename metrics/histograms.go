@@ -95,7 +95,6 @@ func ObserveHist(id uint32, value uint64) {
 	// while the current observation is being compared. Otherwise, min and max
 	// could come from the previous period on the next read. Same with average.
 	h.lock.RLock()
-	defer h.lock.RUnlock()
 
 	// Keep a running total for average
 	atomic.AddUint64(h.prim.total, value)
@@ -116,6 +115,7 @@ func ObserveHist(id uint32, value uint64) {
 
 	// Sample, keep every 4th observation
 	if c := atomic.AddUint64(h.prim.count, 1) & 0x3; c > 0 {
+		h.lock.RUnlock()
 		return
 	}
 
@@ -124,6 +124,9 @@ func ObserveHist(id uint32, value uint64) {
 
 	// Add observation
 	h.prim.buf[idx] = value
+
+	// No longer "reading"
+	h.lock.RUnlock()
 }
 
 func getAllHistograms() map[string]*hdat {
