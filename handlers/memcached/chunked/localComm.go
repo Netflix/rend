@@ -24,6 +24,9 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
+// TODO: replace sending new empty metadata on miss with emptyMeta
+var emptyMeta = metadata{}
+
 func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
 	if err := binprot.WriteGATCmd(rw, metaKey, exptime); err != nil {
@@ -51,6 +54,7 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	if err != nil {
 		return metadata{}, err
 	}
+	defer binprot.PutResponseHeader(resHeader)
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
@@ -89,6 +93,7 @@ func simpleCmdLocal(rw *bufio.ReadWriter, flush bool) error {
 	if err != nil {
 		return err
 	}
+	defer binprot.PutResponseHeader(resHeader)
 
 	n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
@@ -104,6 +109,7 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 	if err != nil {
 		return false, err
 	}
+	defer binprot.PutResponseHeader(resHeader)
 
 	// it feels a bit dirty knowing about batch gets here, but it's the most logical place to put
 	// a check for an opcode that signals the end of a batch get or GAT. This code is a bit too big

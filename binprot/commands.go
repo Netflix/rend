@@ -27,7 +27,8 @@ func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	// key + extras + body
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
-	header := MakeRequestHeader(OpcodeSet, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(OpcodeSet, len(key), extrasLen, totalBodyLength)
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
@@ -47,7 +48,8 @@ func WriteAddCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	// key + extras + body
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
-	header := MakeRequestHeader(OpcodeAdd, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(OpcodeAdd, len(key), extrasLen, totalBodyLength)
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
@@ -67,7 +69,8 @@ func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) e
 	// key + extras + body
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
-	header := MakeRequestHeader(OpcodeReplace, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(OpcodeReplace, len(key), extrasLen, totalBodyLength)
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
@@ -84,7 +87,8 @@ func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) e
 
 func WriteGetCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OpcodeGet, len(key), 0, len(key))
+	header := makeRequestHeader(OpcodeGet, len(key), 0, len(key))
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
@@ -98,7 +102,8 @@ func WriteGetCmd(w io.Writer, key []byte) error {
 
 func WriteGetQCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OpcodeGetQ, len(key), 0, len(key))
+	header := makeRequestHeader(OpcodeGetQ, len(key), 0, len(key))
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GetQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
@@ -114,7 +119,8 @@ func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
-	header := MakeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
@@ -132,7 +138,8 @@ func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
-	header := MakeRequestHeader(OpcodeGatQ, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(OpcodeGatQ, len(key), extrasLen, totalBodyLength)
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
@@ -148,7 +155,8 @@ func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
 
 func WriteDeleteCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OpcodeDelete, len(key), 0, len(key))
+	header := makeRequestHeader(OpcodeDelete, len(key), 0, len(key))
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
@@ -165,7 +173,8 @@ func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
 	// key + extras + body
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
-	header := MakeRequestHeader(OpcodeTouch, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(OpcodeTouch, len(key), extrasLen, totalBodyLength)
+	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, totalBodyLength)
@@ -181,7 +190,8 @@ func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
 
 func WriteNoopCmd(w io.Writer) error {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := MakeRequestHeader(OpcodeNoop, 0, 0, 0)
+	header := makeRequestHeader(OpcodeNoop, 0, 0, 0)
+	defer reqHeadPool.Put(header)
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
 	err := writeRequestHeader(w, header)

@@ -33,6 +33,7 @@ func simpleCmdLocal(rw *bufio.ReadWriter) error {
 	if err != nil {
 		return err
 	}
+	defer binprot.PutResponseHeader(resHeader)
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
@@ -63,6 +64,7 @@ func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
 	if err != nil {
 		return nil, 0, err
 	}
+	defer binprot.PutResponseHeader(resHeader)
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {

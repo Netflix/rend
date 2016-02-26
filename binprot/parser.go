@@ -126,7 +126,8 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
 
 func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 	// read in the full header before any variable length fields
-	reqHeader, err := ReadRequestHeader(b.reader)
+	reqHeader, err := readRequestHeader(b.reader)
+	defer reqHeadPool.Put(reqHeader)
 
 	if err != nil {
 		return nil, common.RequestUnknown, err
@@ -260,7 +261,9 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		quiet = append(quiet, true)
 
 		// read in the next header
-		header, err = ReadRequestHeader(r)
+		header, err = readRequestHeader(r)
+		// TODO: A way to defer only once per batch get
+		defer reqHeadPool.Put(header)
 		if err != nil {
 			return common.GetRequest{}, err
 		}
