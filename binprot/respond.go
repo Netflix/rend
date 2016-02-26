@@ -234,7 +234,6 @@ func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraL
 	totalBodyLength int, opaque uint32, flush bool) error {
 
 	header := resHeadPool.Get().(ResponseHeader)
-	defer resHeadPool.Put(header)
 
 	header.Magic = MagicResponse
 	header.Opcode = uint8(opcode)
@@ -247,23 +246,25 @@ func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraL
 	header.CASToken = uint64(0)
 
 	if err := writeResponseHeader(w, header); err != nil {
+		resHeadPool.Put(header)
 		return err
 	}
 
 	if flush {
 		if err := w.Flush(); err != nil {
+			resHeadPool.Put(header)
 			return err
 		}
 	}
 
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, resHeaderLen)
+	resHeadPool.Put(header)
 
 	return nil
 }
 
 func writeErrorResponseHeader(w *bufio.Writer, opcode uint8, status uint16, opaque uint32) error {
 	header := resHeadPool.Get().(ResponseHeader)
-	defer resHeadPool.Put(header)
 
 	header.Magic = MagicResponse
 	header.Opcode = opcode
@@ -276,14 +277,17 @@ func writeErrorResponseHeader(w *bufio.Writer, opcode uint8, status uint16, opaq
 	header.CASToken = uint64(0)
 
 	if err := writeResponseHeader(w, header); err != nil {
+		resHeadPool.Put(header)
 		return err
 	}
 
 	if err := w.Flush(); err != nil {
+		resHeadPool.Put(header)
 		return err
 	}
 
 	metrics.IncCounterBy(common.MetricBytesWrittenRemote, resHeaderLen)
+	resHeadPool.Put(header)
 
 	return nil
 }

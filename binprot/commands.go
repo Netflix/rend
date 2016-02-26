@@ -28,7 +28,6 @@ func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
 	header := makeRequestHeader(OpcodeSet, len(key), extrasLen, totalBodyLength)
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
@@ -40,6 +39,8 @@ func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
 
+	reqHeadPool.Put(header)
+
 	return err
 }
 
@@ -49,7 +50,6 @@ func WriteAddCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
 	header := makeRequestHeader(OpcodeAdd, len(key), extrasLen, totalBodyLength)
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
@@ -60,6 +60,8 @@ func WriteAddCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	err := binary.Write(w, binary.BigEndian, key)
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+
+	reqHeadPool.Put(header)
 
 	return err
 }
@@ -70,7 +72,6 @@ func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) e
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
 	header := makeRequestHeader(OpcodeReplace, len(key), extrasLen, totalBodyLength)
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
@@ -82,13 +83,14 @@ func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) e
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
 
+	reqHeadPool.Put(header)
+
 	return err
 }
 
 func WriteGetCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := makeRequestHeader(OpcodeGet, len(key), 0, len(key))
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
@@ -97,13 +99,14 @@ func WriteGetCmd(w io.Writer, key []byte) error {
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
 
+	reqHeadPool.Put(header)
+
 	return err
 }
 
 func WriteGetQCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := makeRequestHeader(OpcodeGetQ, len(key), 0, len(key))
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GetQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
@@ -111,6 +114,8 @@ func WriteGetQCmd(w io.Writer, key []byte) error {
 	err := binary.Write(w, binary.BigEndian, key)
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
+
+	reqHeadPool.Put(header)
 
 	return err
 }
@@ -120,7 +125,6 @@ func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
 	header := makeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
@@ -130,6 +134,8 @@ func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
 	err := binary.Write(w, binary.BigEndian, key)
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+
+	reqHeadPool.Put(header)
 
 	return err
 }
@@ -139,7 +145,6 @@ func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
 	header := makeRequestHeader(OpcodeGatQ, len(key), extrasLen, totalBodyLength)
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
@@ -150,13 +155,14 @@ func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
 
+	reqHeadPool.Put(header)
+
 	return err
 }
 
 func WriteDeleteCmd(w io.Writer, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := makeRequestHeader(OpcodeDelete, len(key), 0, len(key))
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
@@ -164,6 +170,8 @@ func WriteDeleteCmd(w io.Writer, key []byte) error {
 	err := binary.Write(w, binary.BigEndian, key)
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
+
+	reqHeadPool.Put(header)
 
 	return err
 }
@@ -174,7 +182,6 @@ func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
 	header := makeRequestHeader(OpcodeTouch, len(key), extrasLen, totalBodyLength)
-	defer reqHeadPool.Put(header)
 
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, totalBodyLength)
@@ -185,18 +192,21 @@ func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
 
+	reqHeadPool.Put(header)
+
 	return err
 }
 
 func WriteNoopCmd(w io.Writer) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := makeRequestHeader(OpcodeNoop, 0, 0, 0)
-	defer reqHeadPool.Put(header)
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
 	err := writeRequestHeader(w, header)
 
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen))
+
+	reqHeadPool.Put(header)
 
 	return err
 }
