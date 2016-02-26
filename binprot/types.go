@@ -15,12 +15,9 @@
 package binprot
 
 import (
-	"encoding/binary"
 	"errors"
-	"io"
 
 	"github.com/netflix/rend/common"
-	"github.com/netflix/rend/metrics"
 )
 
 var ErrBadMagic = errors.New("Bad magic value")
@@ -175,21 +172,6 @@ func MakeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int
 	}
 }
 
-func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
-	var reqHeader RequestHeader
-	if err := binary.Read(reader, binary.BigEndian, &reqHeader); err != nil {
-		return RequestHeader{}, err
-	}
-
-	metrics.IncCounterBy(common.MetricBytesReadRemote, ReqHeaderLen)
-
-	if reqHeader.Magic != MagicRequest {
-		return RequestHeader{}, ErrBadMagic
-	}
-
-	return reqHeader, nil
-}
-
 const resHeaderLen = 24
 
 type ResponseHeader struct {
@@ -202,19 +184,4 @@ type ResponseHeader struct {
 	TotalBodyLength uint32
 	OpaqueToken     uint32 // same as the user passed in
 	CASToken        uint64
-}
-
-func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
-	var resHeader ResponseHeader
-	if err := binary.Read(reader, binary.BigEndian, &resHeader); err != nil {
-		return ResponseHeader{}, err
-	}
-
-	metrics.IncCounterBy(common.MetricBytesReadLocal, resHeaderLen)
-
-	if resHeader.Magic != MagicResponse {
-		return ResponseHeader{}, ErrBadMagic
-	}
-
-	return resHeader, nil
 }

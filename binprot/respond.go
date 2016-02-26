@@ -109,7 +109,6 @@ func NewBinaryResponder(writer *bufio.Writer) BinaryResponder {
 	}
 }
 
-// TODO: CAS?
 func (b BinaryResponder) Set(opaque uint32) error {
 	return writeSuccessResponseHeader(b.writer, OpcodeSet, 0, 0, 0, opaque, true)
 }
@@ -234,19 +233,20 @@ func getCommon(w *bufio.Writer, response common.GetResponse, opcode uint8) error
 func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraLength,
 	totalBodyLength int, opaque uint32, flush bool) error {
 
-	header := ResponseHeader{
-		Magic:           MagicResponse,
-		Opcode:          uint8(opcode),
-		KeyLength:       uint16(keyLength),
-		ExtraLength:     uint8(extraLength),
-		DataType:        uint8(0),
-		Status:          uint16(StatusSuccess),
-		TotalBodyLength: uint32(totalBodyLength),
-		OpaqueToken:     opaque,
-		CASToken:        uint64(0),
-	}
+	header := resHeadPool.Get().(ResponseHeader)
+	defer resHeadPool.Put(header)
 
-	if err := binary.Write(w, binary.BigEndian, header); err != nil {
+	header.Magic = MagicResponse
+	header.Opcode = uint8(opcode)
+	header.KeyLength = uint16(keyLength)
+	header.ExtraLength = uint8(extraLength)
+	header.DataType = uint8(0)
+	header.Status = uint16(StatusSuccess)
+	header.TotalBodyLength = uint32(totalBodyLength)
+	header.OpaqueToken = opaque
+	header.CASToken = uint64(0)
+
+	if err := writeResponseHeader(w, header); err != nil {
 		return err
 	}
 
@@ -262,19 +262,20 @@ func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraL
 }
 
 func writeErrorResponseHeader(w *bufio.Writer, opcode uint8, status uint16, opaque uint32) error {
-	header := ResponseHeader{
-		Magic:           MagicResponse,
-		Opcode:          opcode,
-		KeyLength:       uint16(0),
-		ExtraLength:     uint8(0),
-		DataType:        uint8(0),
-		Status:          status,
-		TotalBodyLength: uint32(0),
-		OpaqueToken:     opaque,
-		CASToken:        uint64(0),
-	}
+	header := resHeadPool.Get().(ResponseHeader)
+	defer resHeadPool.Put(header)
 
-	if err := binary.Write(w, binary.BigEndian, header); err != nil {
+	header.Magic = MagicResponse
+	header.Opcode = opcode
+	header.KeyLength = uint16(0)
+	header.ExtraLength = uint8(0)
+	header.DataType = uint8(0)
+	header.Status = status
+	header.TotalBodyLength = uint32(0)
+	header.OpaqueToken = opaque
+	header.CASToken = uint64(0)
+
+	if err := writeResponseHeader(w, header); err != nil {
 		return err
 	}
 
