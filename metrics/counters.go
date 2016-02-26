@@ -20,7 +20,7 @@ const numMetrics = 1024
 
 var (
 	cnames       = make([]string, numMetrics)
-	counters     = make([]*uint64, numMetrics)
+	counters     = make([]uint64, numMetrics)
 	curCounterID = new(uint32)
 )
 
@@ -33,17 +33,21 @@ func init() {
 // There is a maximum of 1024 metrics, after which adding a new one will panic
 func AddCounter(name string) uint32 {
 	id := atomic.AddUint32(curCounterID, 1)
+
+	if id >= numMetrics {
+		panic("Too many counters")
+	}
+
 	cnames[id] = name
-	counters[id] = new(uint64)
 	return id
 }
 
 func IncCounter(id uint32) {
-	atomic.AddUint64(counters[id], 1)
+	atomic.AddUint64(&counters[id], 1)
 }
 
 func IncCounterBy(id uint32, amount uint64) {
-	atomic.AddUint64(counters[id], amount)
+	atomic.AddUint64(&counters[id], amount)
 }
 
 func getAllCounters() map[string]uint64 {
@@ -51,7 +55,7 @@ func getAllCounters() map[string]uint64 {
 	numIDs := int(atomic.LoadUint32(curCounterID))
 
 	for i := 0; i < numIDs; i++ {
-		ret[cnames[i]] = atomic.LoadUint64(counters[i])
+		ret[cnames[i]] = atomic.LoadUint64(&counters[i])
 	}
 
 	return ret
