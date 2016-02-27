@@ -30,7 +30,7 @@ var emptyMeta = metadata{}
 func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
 	if err := binprot.WriteGATCmd(rw, metaKey, exptime); err != nil {
-		return nil, metadata{}, err
+		return nil, emptyMeta, err
 	}
 	metadata, err := getMetadataCommon(rw)
 	return metaKey, metadata, err
@@ -39,7 +39,7 @@ func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]by
 func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
 	if err := binprot.WriteGetCmd(rw, metaKey); err != nil {
-		return nil, metadata{}, err
+		return nil, emptyMeta, err
 	}
 	metadata, err := getMetadataCommon(rw)
 	return metaKey, metadata, err
@@ -47,12 +47,12 @@ func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 
 func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	if err := rw.Flush(); err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
 	defer binprot.PutResponseHeader(resHeader)
 
@@ -62,19 +62,19 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
 		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 		if ioerr != nil {
-			return metadata{}, ioerr
+			return emptyMeta, ioerr
 		}
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	var serverFlags uint32
 	if err := binary.Read(rw, binary.BigEndian, &serverFlags); err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	var metaData metadata
 	if err := binary.Read(rw, binary.BigEndian, &metaData); err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(metadataSize+4))
