@@ -1,6 +1,7 @@
 package binprot
 
 import (
+	"fmt"
 	"io"
 	"sync"
 
@@ -81,7 +82,7 @@ var (
 func readRequestHeader(r io.Reader) (RequestHeader, error) {
 	buf := bufPool.Get().([]byte)
 
-	br, err := io.ReadFull(r, buf)
+	br, err := io.ReadAtLeast(r, buf, ReqHeaderLen)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
 		bufPool.Put(buf)
@@ -151,7 +152,7 @@ func writeRequestHeader(w io.Writer, rh RequestHeader) error {
 func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	buf := bufPool.Get().([]byte)
 
-	br, err := io.ReadFull(r, buf)
+	br, err := io.ReadAtLeast(r, buf, resHeaderLen)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
 		bufPool.Put(buf)
@@ -159,6 +160,7 @@ func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	}
 
 	if buf[0] != MagicResponse {
+		fmt.Println(buf[0])
 		bufPool.Put(buf)
 		return emptyResHeader, ErrBadMagic
 	}

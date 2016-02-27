@@ -162,7 +162,7 @@ func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (
 
 	// Read in data
 	dataBuf := make([]byte, length)
-	n, err := io.ReadFull(r, dataBuf)
+	n, err := io.ReadAtLeast(r, dataBuf, int(length))
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
 		return common.SetRequest{}, reqType, common.ErrInternal

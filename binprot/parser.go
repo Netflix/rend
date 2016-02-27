@@ -261,9 +261,8 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		quiet = append(quiet, true)
 
 		// read in the next header
+		reqHeadPool.Put(header)
 		header, err = readRequestHeader(r)
-		// TODO: A way to defer only once per batch get
-		defer reqHeadPool.Put(header)
 		if err != nil {
 			return common.GetRequest{}, err
 		}
@@ -291,6 +290,9 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		// unexpected patterns shouldn't come over the wire, so maybe it will
 		// be OK to simply discount this situation. Probably not.
 	}
+
+	// Regardless of the header, we want to put it back here
+	reqHeadPool.Put(header)
 
 	return common.GetRequest{
 		Keys:       keys,
@@ -327,7 +329,7 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 
 	// Read in the body of the set request
 	dataBuf := make([]byte, realLength)
-	n, err := io.ReadFull(r, dataBuf)
+	n, err := io.ReadAtLeast(r, dataBuf, int(realLength))
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
 		return common.SetRequest{}, reqType, err
@@ -344,7 +346,7 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 
 func readString(r io.Reader, l uint16) ([]byte, error) {
 	buf := make([]byte, l)
-	n, err := io.ReadFull(r, buf)
+	n, err := io.ReadAtLeast(r, buf, int(l))
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
 		return nil, err

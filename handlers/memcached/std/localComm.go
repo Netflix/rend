@@ -85,7 +85,7 @@ func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
 	buf := make([]byte, dataLen)
 
 	// Read in value
-	n, err := io.ReadFull(rw, buf)
+	n, err := io.ReadAtLeast(rw, buf, int(dataLen))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 	if err != nil {
 		return nil, 0, err

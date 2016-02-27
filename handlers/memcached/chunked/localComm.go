@@ -138,7 +138,7 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 
 	// Read in token if requested
 	if tokenBuf != nil {
-		n, err := io.ReadFull(rw, tokenBuf)
+		n, err := io.ReadAtLeast(rw, tokenBuf, tokenSize)
 		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 		if err != nil {
 			return false, err
@@ -151,7 +151,7 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 	chunkBuf := dataBuf[start:end]
 
 	// Read in value
-	n, err := io.ReadFull(rw, chunkBuf)
+	n, err := io.ReadAtLeast(rw, chunkBuf, len(chunkBuf))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 	if err != nil {
 		return false, err
