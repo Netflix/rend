@@ -75,12 +75,13 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	if err != nil {
 		return binprot.ResponseHeader{}, err
 	}
-	defer binprot.PutResponseHeader(resHeader)
 
 	if err := binprot.DecodeError(resHeader); err != nil {
+		binprot.PutResponseHeader(resHeader)
 		return resHeader, err
 	}
 
+	binprot.PutResponseHeader(resHeader)
 	return resHeader, nil
 }
 

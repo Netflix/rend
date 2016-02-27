@@ -93,14 +93,15 @@ func simpleCmdLocal(rw *bufio.ReadWriter, flush bool) error {
 	if err != nil {
 		return err
 	}
-	defer binprot.PutResponseHeader(resHeader)
 
 	n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 	if ioerr != nil {
+		binprot.PutResponseHeader(resHeader)
 		return ioerr
 	}
 
+	binprot.PutResponseHeader(resHeader)
 	return binprot.DecodeError(resHeader)
 }
 

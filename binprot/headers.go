@@ -80,15 +80,16 @@ var (
 
 func readRequestHeader(r io.Reader) (RequestHeader, error) {
 	buf := bufPool.Get().([]byte)
-	defer bufPool.Put(buf)
 
 	br, err := io.ReadFull(r, buf)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
+		bufPool.Put(buf)
 		return emptyReqHeader, err
 	}
 
 	if buf[0] != MagicRequest {
+		bufPool.Put(buf)
 		return emptyReqHeader, ErrBadMagic
 	}
 
@@ -110,12 +111,13 @@ func readRequestHeader(r io.Reader) (RequestHeader, error) {
 	//              uint64(buf[20]) << 24 | uint64(buf[21]) << 16 | uint64(buf[22]) << 8 | uint64(buf[23])
 	rh.CASToken = 0
 
+	bufPool.Put(buf)
+
 	return rh, nil
 }
 
 func writeRequestHeader(w io.Writer, rh RequestHeader) error {
 	buf := bufPool.Get().([]byte)
-	defer bufPool.Put(buf)
 
 	buf[0] = rh.Magic
 	buf[1] = rh.Opcode
@@ -142,20 +144,22 @@ func writeRequestHeader(w io.Writer, rh RequestHeader) error {
 
 	n, err := w.Write(buf)
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+	bufPool.Put(buf)
 	return err
 }
 
 func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	buf := bufPool.Get().([]byte)
-	defer bufPool.Put(buf)
 
 	br, err := io.ReadFull(r, buf)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
+		bufPool.Put(buf)
 		return emptyResHeader, err
 	}
 
 	if buf[0] != MagicResponse {
+		bufPool.Put(buf)
 		return emptyResHeader, ErrBadMagic
 	}
 
@@ -175,12 +179,13 @@ func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	//                     uint64(buf[20]) << 24 | uint64(buf[21]) << 16 | uint64(buf[22]) << 8 | uint64(buf[23])
 	rh.CASToken = 0
 
+	bufPool.Put(buf)
+
 	return rh, nil
 }
 
 func writeResponseHeader(w io.Writer, rh ResponseHeader) error {
 	buf := bufPool.Get().([]byte)
-	defer bufPool.Put(buf)
 
 	buf[0] = rh.Magic
 	buf[1] = rh.Opcode
@@ -207,5 +212,6 @@ func writeResponseHeader(w io.Writer, rh ResponseHeader) error {
 
 	n, err := w.Write(buf)
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+	bufPool.Put(buf)
 	return err
 }
