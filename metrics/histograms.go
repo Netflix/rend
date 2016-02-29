@@ -46,11 +46,11 @@ type hist struct {
 	sec  *hdat
 }
 type hdat struct {
-	count *uint64
-	kept  *uint64
-	total *uint64
-	min   *uint64
-	max   *uint64
+	count uint64
+	kept  uint64
+	total uint64
+	min   uint64
+	max   uint64
 	buf   []uint64
 }
 
@@ -63,14 +63,9 @@ func newHist() *hist {
 }
 func newHdat() *hdat {
 	ret := &hdat{
-		count: new(uint64),
-		kept:  new(uint64),
-		total: new(uint64),
-		min:   new(uint64),
-		max:   new(uint64),
-		buf:   make([]uint64, buflen+1),
+		buf: make([]uint64, buflen+1),
 	}
-	atomic.StoreUint64(ret.min, math.MaxUint64)
+	atomic.StoreUint64(&ret.min, math.MaxUint64)
 	return ret
 }
 
@@ -97,30 +92,30 @@ func ObserveHist(id uint32, value uint64) {
 	h.lock.RLock()
 
 	// Keep a running total for average
-	atomic.AddUint64(h.prim.total, value)
+	atomic.AddUint64(&h.prim.total, value)
 
 	// Set max and min (if needed) in an atomic fashion
 	for {
-		max := atomic.LoadUint64(h.prim.max)
-		if value < max || atomic.CompareAndSwapUint64(h.prim.max, max, value) {
+		max := atomic.LoadUint64(&h.prim.max)
+		if value < max || atomic.CompareAndSwapUint64(&h.prim.max, max, value) {
 			break
 		}
 	}
 	for {
-		min := atomic.LoadUint64(h.prim.min)
-		if value > min || atomic.CompareAndSwapUint64(h.prim.min, min, value) {
+		min := atomic.LoadUint64(&h.prim.min)
+		if value > min || atomic.CompareAndSwapUint64(&h.prim.min, min, value) {
 			break
 		}
 	}
 
 	// Sample, keep every 4th observation
-	if c := atomic.AddUint64(h.prim.count, 1) & 0x3; c > 0 {
+	if c := atomic.AddUint64(&h.prim.count, 1) & 0x3; c > 0 {
 		h.lock.RUnlock()
 		return
 	}
 
 	// Get the current index as the count % buflen
-	idx := atomic.AddUint64(h.prim.kept, 1) & buflen
+	idx := atomic.AddUint64(&h.prim.kept, 1) & buflen
 
 	// Add observation
 	h.prim.buf[idx] = value
@@ -147,11 +142,11 @@ func extractAndReset(h *hist) *hdat {
 	// flip and reset the count
 	h.prim, h.sec = h.sec, h.prim
 
-	atomic.StoreUint64(h.prim.count, 0)
-	atomic.StoreUint64(h.prim.kept, 0)
-	atomic.StoreUint64(h.prim.total, 0)
-	atomic.StoreUint64(h.prim.max, 0)
-	atomic.StoreUint64(h.prim.min, math.MaxUint64)
+	atomic.StoreUint64(&h.prim.count, 0)
+	atomic.StoreUint64(&h.prim.kept, 0)
+	atomic.StoreUint64(&h.prim.total, 0)
+	atomic.StoreUint64(&h.prim.max, 0)
+	atomic.StoreUint64(&h.prim.min, math.MaxUint64)
 
 	h.lock.Unlock()
 
