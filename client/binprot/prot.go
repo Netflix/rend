@@ -32,6 +32,8 @@ func consumeResponse(r *bufio.Reader) error {
 	// read body in regardless of the error in the header
 	r.Discard(int(res.BodyLen))
 
+	resPool.Put(res)
+
 	if apperr != nil && srsErr(apperr) {
 		return apperr
 	}

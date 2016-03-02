@@ -14,41 +14,45 @@
 
 package binprot
 
-import "encoding/binary"
-import "errors"
-import "io"
+import (
+	"errors"
+	"io"
+	"sync"
+)
 
-const Get = 0x00
-const Set = 0x01
-const Add = 0x02
-const Replace = 0x03
-const Delete = 0x04
-const Increment = 0x05
-const Decrement = 0x06
-const Quit = 0x07
-const Flush = 0x08
-const GetQ = 0x09
-const Noop = 0x0a
-const Version = 0x0b
-const GetK = 0x0c
-const GetKQ = 0x0d
-const Append = 0x0e
-const Prepend = 0x0f
-const Stat = 0x10
-const SetQ = 0x11
-const AddQ = 0x12
-const ReplaceQ = 0x13
-const DeleteQ = 0x14
-const IncrementQ = 0x15
-const DecrementQ = 0x16
-const QuitQ = 0x17
-const FlushQ = 0x18
-const AppendQ = 0x19
-const PrependQ = 0x1a
-const Verbosity = 0x1b
-const Touch = 0x1c
-const GAT = 0x1d
-const GATQ = 0x1e
+const (
+	Get        = 0x00
+	Set        = 0x01
+	Add        = 0x02
+	Replace    = 0x03
+	Delete     = 0x04
+	Increment  = 0x05
+	Decrement  = 0x06
+	Quit       = 0x07
+	Flush      = 0x08
+	GetQ       = 0x09
+	Noop       = 0x0a
+	Version    = 0x0b
+	GetK       = 0x0c
+	GetKQ      = 0x0d
+	Append     = 0x0e
+	Prepend    = 0x0f
+	Stat       = 0x10
+	SetQ       = 0x11
+	AddQ       = 0x12
+	ReplaceQ   = 0x13
+	DeleteQ    = 0x14
+	IncrementQ = 0x15
+	DecrementQ = 0x16
+	QuitQ      = 0x17
+	FlushQ     = 0x18
+	AppendQ    = 0x19
+	PrependQ   = 0x1a
+	Verbosity  = 0x1b
+	Touch      = 0x1c
+	GAT        = 0x1d
+	GATQ       = 0x1e
+)
 
 type req struct {
 	Magic    uint8
@@ -62,20 +66,43 @@ type req struct {
 	CAS      uint64
 }
 
-func writeReq(w io.Writer, opcode int, keylen, extralen, bodylen int) error {
-	req := req{
-		Magic:    0x80,
-		Opcode:   uint8(opcode),
-		KeyLen:   uint16(keylen),
-		ExtraLen: uint8(extralen),
-		DataType: 0,
-		VBucket:  0,
-		BodyLen:  uint32(bodylen),
-		Opaque:   0,
-		CAS:      0,
+var bufPool = &sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 24, 24)
+	},
+}
+
+var resPool = &sync.Pool{
+	New: func() interface{} {
+		return res{}
+	},
+}
+
+func writeReq(w io.Writer, opcode, keylen, extralen, bodylen int) error {
+	buf := bufPool.Get().([]byte)
+
+	buf[0] = 0x80
+	buf[1] = uint8(opcode)
+	buf[2] = uint8(keylen >> 8)
+	buf[3] = uint8(keylen)
+	buf[4] = uint8(extralen)
+	// DataType and VBucket are unused
+	buf[5] = 0
+	buf[6] = 0
+	buf[7] = 0
+	buf[8] = uint8(bodylen >> 24)
+	buf[9] = uint8(bodylen >> 16)
+	buf[10] = uint8(bodylen >> 8)
+	buf[11] = uint8(bodylen)
+
+	// zero Opaque and CAS region
+	for i := 12; i < 24; i++ {
+		buf[i] = 0
 	}
 
-	return binary.Write(w, binary.BigEndian, req)
+	_, err := w.Write(buf)
+	bufPool.Put(buf)
+	return err
 }
 
 type res struct {
@@ -90,48 +117,54 @@ type res struct {
 	CAS      uint64
 }
 
-func readRes(r io.Reader) (*res, error) {
-	res := new(res)
-	err := binary.Read(r, binary.BigEndian, res)
-	if err != nil {
-		return nil, err
+func readRes(r io.Reader) (res, error) {
+	buf := bufPool.Get().([]byte)
+
+	if _, err := io.ReadAtLeast(r, buf, 24); err != nil {
+		bufPool.Put(buf)
+		return res{}, err
 	}
+
+	if buf[0] != 0x81 {
+		bufPool.Put(buf)
+		return res{}, errors.New("Bad Magic")
+	}
+
+	res := resPool.Get().(res)
+	res.Magic = buf[0]
+	res.Opcode = buf[1]
+	res.KeyLen = uint16(buf[2])<<8 | uint16(buf[3])
+	res.ExtraLen = buf[4]
+	// ignore DataType
+	//res.DataType = 0
+	res.Status = uint16(buf[6])<<8 | uint16(buf[7])
+	res.BodyLen = uint32(buf[8])<<24 | uint32(buf[9])<<16 | uint32(buf[10])<<8 | uint32(buf[11])
+	// Ignore Opaque and CAS
+	//res.Opaque = 0
+	//res.CASToken = 0
+
+	bufPool.Put(buf)
+
 	return res, nil
 }
 
-var ErrKeyNotFound error
-var ErrKeyExists error
-var ErrValTooLarge error
-var ErrInvalidArgs error
-var ErrItemNotStored error
-var ErrIncDecInval error
-var ErrVBucket error
-var ErrAuth error
-var ErrAuthCont error
-var ErrUnknownCmd error
-var ErrNoMem error
-var ErrNotSupported error
-var ErrInternal error
-var ErrBusy error
-var ErrTemp error
-
-func init() {
-	ErrKeyNotFound = errors.New("Key not found")
-	ErrKeyExists = errors.New("Key exists")
-	ErrValTooLarge = errors.New("Value too large")
-	ErrInvalidArgs = errors.New("Invalid arguments")
+var (
+	ErrKeyNotFound   = errors.New("Key not found")
+	ErrKeyExists     = errors.New("Key exists")
+	ErrValTooLarge   = errors.New("Value too large")
+	ErrInvalidArgs   = errors.New("Invalid arguments")
 	ErrItemNotStored = errors.New("Item not stored")
-	ErrIncDecInval = errors.New("Incr/Decr on non-numeric value.")
-	ErrVBucket = errors.New("The vbucket belongs to another server")
-	ErrAuth = errors.New("Authentication error")
-	ErrAuthCont = errors.New("Authentication continue")
-	ErrUnknownCmd = errors.New("Unknown command")
-	ErrNoMem = errors.New("Out of memory")
-	ErrNotSupported = errors.New("Not supported")
-	ErrInternal = errors.New("Internal error")
-	ErrBusy = errors.New("Busy")
-	ErrTemp = errors.New("Temporary failure")
-}
+	ErrIncDecInval   = errors.New("Incr/Decr on non-numeric value.")
+	ErrVBucket       = errors.New("The vbucket belongs to another server")
+	ErrAuth          = errors.New("Authentication error")
+	ErrAuthCont      = errors.New("Authentication continue")
+	ErrUnknownCmd    = errors.New("Unknown command")
+	ErrNoMem         = errors.New("Out of memory")
+	ErrNotSupported  = errors.New("Not supported")
+	ErrInternal      = errors.New("Internal error")
+	ErrBusy          = errors.New("Busy")
+	ErrTemp          = errors.New("Temporary failure")
+)
 
 func statusToError(status uint16) error {
 	switch status {

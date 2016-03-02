@@ -14,27 +14,55 @@
 
 package main
 
-import "bufio"
-import "fmt"
-import "io"
-import "math/rand"
-import "net"
-import "os"
-import "runtime/pprof"
-import "sort"
-import "sync"
-import "time"
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"math/rand"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"runtime/pprof"
+	"sort"
+	"sync"
+	"time"
 
-import "github.com/netflix/rend/client/common"
-import "github.com/netflix/rend/client/f"
-import _ "github.com/netflix/rend/client/sigs"
-import "github.com/netflix/rend/client/stats"
-import "github.com/netflix/rend/client/binprot"
-import "github.com/netflix/rend/client/textprot"
+	"github.com/netflix/rend/client/binprot"
+	"github.com/netflix/rend/client/common"
+	"github.com/netflix/rend/client/f"
+	_ "github.com/netflix/rend/client/sigs"
+	"github.com/netflix/rend/client/stats"
+	"github.com/netflix/rend/client/textprot"
+)
 
 type metric struct {
 	d  time.Duration
 	op common.Op
+}
+
+var (
+	taskPool = &sync.Pool{
+		New: func() interface{} {
+			return &common.Task{}
+		},
+	}
+
+	metricPool = &sync.Pool{
+		New: func() interface{} {
+			return metric{}
+		},
+	}
+
+	bkpool = &sync.Pool{
+		New: func() interface{} {
+			return make([][]byte, 0, 26)
+		},
+	}
+)
+
+func init() {
+	go http.ListenAndServe("localhost:11337", nil)
 }
 
 func main() {
@@ -108,6 +136,49 @@ func main() {
 		go communicator(prot, conn, tasks, metrics, comms)
 	}
 
+	summaries := &sync.WaitGroup{}
+	summaries.Add(1)
+	go func() {
+		// consolidate some metrics
+		// bucketize the timings based on operation
+		// print min, max, average, 50%, 90%
+		cons := make(map[common.Op][]int)
+		for m := range metrics {
+			if _, ok := cons[m.op]; ok {
+				cons[m.op] = append(cons[m.op], int(m.d.Nanoseconds()))
+			} else {
+				cons[m.op] = []int{int(m.d.Nanoseconds())}
+			}
+
+			metricPool.Put(m)
+		}
+
+		for _, op := range common.AllOps {
+			if f.Text && op == common.Gat {
+				continue
+			}
+
+			times := cons[op]
+			sort.Ints(times)
+			s := stats.Get(times)
+
+			fmt.Println()
+			fmt.Println(op.String())
+			fmt.Printf("Min: %fms\n", s.Min)
+			fmt.Printf("Max: %fms\n", s.Max)
+			fmt.Printf("Avg: %fms\n", s.Avg)
+			fmt.Printf("p50: %fms\n", s.P50)
+			fmt.Printf("p75: %fms\n", s.P75)
+			fmt.Printf("p90: %fms\n", s.P90)
+			fmt.Printf("p95: %fms\n", s.P95)
+			fmt.Printf("p99: %fms\n", s.P99)
+			fmt.Println()
+
+			stats.PrintHist(times)
+		}
+		summaries.Done()
+	}()
+
 	// First wait for all the tasks to be generated,
 	// then close the channel so the comm threads complete
 	fmt.Println("Waiting for taskGens.")
@@ -122,52 +193,18 @@ func main() {
 	fmt.Println("Comms done.")
 	close(metrics)
 
-	// consolidate some metrics
-	// bucketize the timings based on operation
-	// print min, max, average, 50%, 90%
-	cons := make(map[common.Op][]int)
-	for m := range metrics {
-		if _, ok := cons[m.op]; ok {
-			cons[m.op] = append(cons[m.op], int(m.d.Nanoseconds()))
-		} else {
-			cons[m.op] = []int{int(m.d.Nanoseconds())}
-		}
-	}
-
-	for _, op := range common.AllOps {
-		if f.Text && op == common.Gat {
-			continue
-		}
-
-		times := cons[op]
-		sort.Ints(times)
-		s := stats.Get(times)
-
-		fmt.Println()
-		fmt.Println(op.String())
-		fmt.Printf("Min: %fms\n", s.Min)
-		fmt.Printf("Max: %fms\n", s.Max)
-		fmt.Printf("Avg: %fms\n", s.Avg)
-		fmt.Printf("p50: %fms\n", s.P50)
-		fmt.Printf("p75: %fms\n", s.P75)
-		fmt.Printf("p90: %fms\n", s.P90)
-		fmt.Printf("p95: %fms\n", s.P95)
-		fmt.Printf("p99: %fms\n", s.P99)
-		fmt.Println()
-
-		stats.PrintHist(times)
-	}
+	summaries.Wait()
 }
 
 func cmdGenerator(tasks chan<- *common.Task, taskGens *sync.WaitGroup, numTasks int, cmd common.Op) {
 	r := rand.New(rand.NewSource(common.RandSeed()))
 
 	for i := 0; i < numTasks; i++ {
-		tasks <- &common.Task{
-			Cmd:   cmd,
-			Key:   common.RandData(r, f.KeyLength, false),
-			Value: taskValue(r, cmd),
-		}
+		task := taskPool.Get().(*common.Task)
+		task.Cmd = cmd
+		task.Key = common.RandData(r, f.KeyLength, false)
+		task.Value = taskValue(r, cmd)
+		tasks <- task
 	}
 
 	taskGens.Done()
@@ -203,7 +240,9 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		case common.Gat:
 			err = prot.GAT(rw, item.Key)
 		case common.Bget:
-			err = prot.BatchGet(rw, batchkeys(r, item.Key))
+			bk := batchkeys(r, item.Key)
+			err = prot.BatchGet(rw, bk)
+			bkpool.Put(bk)
 		case common.Delete:
 			err = prot.Delete(rw, item.Key)
 		case common.Touch:
@@ -221,10 +260,12 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 			}
 		}
 
-		metrics <- metric{
-			d:  time.Since(start),
-			op: item.Cmd,
-		}
+		m := metricPool.Get().(metric)
+		m.d = time.Since(start)
+		m.op = item.Cmd
+		metrics <- m
+
+		taskPool.Put(item)
 	}
 
 	conn.Close()
@@ -233,11 +274,12 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 
 func batchkeys(r *rand.Rand, key []byte) [][]byte {
 	key = key[1:]
-	retval := make([][]byte, 0)
-	numKeys := r.Intn(25) + 2 + int('A')
+	retval := bkpool.Get().([][]byte)
+	retval = retval[:0]
+	numKeys := byte(r.Intn(24) + 2 + int('A'))
 
-	for i := int('A'); i < numKeys; i++ {
-		retval = append(retval, append([]byte{byte(i)}, key...))
+	for i := byte('A'); i < numKeys; i++ {
+		retval = append(retval, append([]byte{i}, key...))
 	}
 
 	return retval
