@@ -15,12 +15,9 @@
 package binprot
 
 import (
-	"encoding/binary"
 	"errors"
-	"io"
 
 	"github.com/netflix/rend/common"
-	"github.com/netflix/rend/metrics"
 )
 
 var ErrBadMagic = errors.New("Bad magic value")
@@ -145,76 +142,4 @@ func errorToCode(err error) uint16 {
 		return StatusTempFailure
 	}
 	return StatusInvalid
-}
-
-const ReqHeaderLen = 24
-
-type RequestHeader struct {
-	Magic           uint8 // Already known, since we're here
-	Opcode          uint8
-	KeyLength       uint16
-	ExtraLength     uint8
-	DataType        uint8  // Always 0
-	VBucket         uint16 // Not used
-	TotalBodyLength uint32
-	OpaqueToken     uint32 // Echoed to the client
-	CASToken        uint64 // Unused in current implementation
-}
-
-func MakeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int) RequestHeader {
-	return RequestHeader{
-		Magic:           MagicRequest,
-		Opcode:          uint8(opcode),
-		KeyLength:       uint16(keyLength),
-		ExtraLength:     uint8(extraLength),
-		DataType:        uint8(0),
-		VBucket:         uint16(0),
-		TotalBodyLength: uint32(totalBodyLength),
-		OpaqueToken:     uint32(0),
-		CASToken:        uint64(0),
-	}
-}
-
-func ReadRequestHeader(reader io.Reader) (RequestHeader, error) {
-	var reqHeader RequestHeader
-	if err := binary.Read(reader, binary.BigEndian, &reqHeader); err != nil {
-		return RequestHeader{}, err
-	}
-
-	metrics.IncCounterBy(common.MetricBytesReadRemote, ReqHeaderLen)
-
-	if reqHeader.Magic != MagicRequest {
-		return RequestHeader{}, ErrBadMagic
-	}
-
-	return reqHeader, nil
-}
-
-const resHeaderLen = 24
-
-type ResponseHeader struct {
-	Magic           uint8 // always 0x81
-	Opcode          uint8
-	KeyLength       uint16
-	ExtraLength     uint8
-	DataType        uint8 // unused, always 0
-	Status          uint16
-	TotalBodyLength uint32
-	OpaqueToken     uint32 // same as the user passed in
-	CASToken        uint64
-}
-
-func ReadResponseHeader(reader io.Reader) (ResponseHeader, error) {
-	var resHeader ResponseHeader
-	if err := binary.Read(reader, binary.BigEndian, &resHeader); err != nil {
-		return ResponseHeader{}, err
-	}
-
-	metrics.IncCounterBy(common.MetricBytesReadLocal, resHeaderLen)
-
-	if resHeader.Magic != MagicResponse {
-		return ResponseHeader{}, ErrBadMagic
-	}
-
-	return resHeader, nil
 }

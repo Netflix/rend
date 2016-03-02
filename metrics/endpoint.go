@@ -88,11 +88,11 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	// Histograms
 	hists := getAllHistograms()
 	for name, dat := range hists {
-		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, *dat.count)
-		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, *dat.kept)
+		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, dat.count)
+		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, dat.kept)
 
-		if *dat.total > 0 && *dat.count > 0 {
-			avg := float64(*dat.total) / float64(*dat.count)
+		if dat.total > 0 && dat.count > 0 {
+			avg := float64(dat.total) / float64(dat.count)
 			fmt.Fprintf(w, "%shist_%s_avg %f\n", prefix, name, avg)
 		}
 
@@ -129,7 +129,7 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 //  [21]: max (100th)
 func hdatPercentiles(dat *hdat) []uint64 {
 	buf := dat.buf
-	kept := *dat.kept
+	kept := dat.kept
 
 	if kept == 0 {
 		return nil
@@ -141,8 +141,8 @@ func hdatPercentiles(dat *hdat) []uint64 {
 	sort.Sort(uint64slice(buf))
 
 	pctls := make([]uint64, 22)
-	pctls[0] = *dat.min
-	pctls[21] = *dat.max
+	pctls[0] = dat.min
+	pctls[21] = dat.max
 
 	for i := 1; i < 20; i++ {
 		idx := len(buf) * i / 20

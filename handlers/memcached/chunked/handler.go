@@ -77,9 +77,11 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	}
 
 	if err := binprot.DecodeError(resHeader); err != nil {
+		binprot.PutResponseHeader(resHeader)
 		return resHeader, err
 	}
 
+	binprot.PutResponseHeader(resHeader)
 	return resHeader, nil
 }
 
@@ -331,7 +333,6 @@ outer:
 					}
 					continue
 				} else {
-					println(chunk)
 					lastErr = err
 				}
 			}

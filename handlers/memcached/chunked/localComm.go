@@ -24,10 +24,13 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
+// TODO: replace sending new empty metadata on miss with emptyMeta
+var emptyMeta = metadata{}
+
 func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
 	if err := binprot.WriteGATCmd(rw, metaKey, exptime); err != nil {
-		return nil, metadata{}, err
+		return nil, emptyMeta, err
 	}
 	metadata, err := getMetadataCommon(rw)
 	return metaKey, metadata, err
@@ -36,7 +39,7 @@ func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]by
 func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 	metaKey := metaKey(key)
 	if err := binprot.WriteGetCmd(rw, metaKey); err != nil {
-		return nil, metadata{}, err
+		return nil, emptyMeta, err
 	}
 	metadata, err := getMetadataCommon(rw)
 	return metaKey, metadata, err
@@ -44,13 +47,14 @@ func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 
 func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	if err := rw.Flush(); err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
+	defer binprot.PutResponseHeader(resHeader)
 
 	err = binprot.DecodeError(resHeader)
 	if err != nil {
@@ -58,19 +62,19 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
 		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 		if ioerr != nil {
-			return metadata{}, ioerr
+			return emptyMeta, ioerr
 		}
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	var serverFlags uint32
 	if err := binary.Read(rw, binary.BigEndian, &serverFlags); err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	var metaData metadata
 	if err := binary.Read(rw, binary.BigEndian, &metaData); err != nil {
-		return metadata{}, err
+		return emptyMeta, err
 	}
 
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(metadataSize+4))
@@ -93,9 +97,11 @@ func simpleCmdLocal(rw *bufio.ReadWriter, flush bool) error {
 	n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 	if ioerr != nil {
+		binprot.PutResponseHeader(resHeader)
 		return ioerr
 	}
 
+	binprot.PutResponseHeader(resHeader)
 	return binprot.DecodeError(resHeader)
 }
 
@@ -104,6 +110,7 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 	if err != nil {
 		return false, err
 	}
+	defer binprot.PutResponseHeader(resHeader)
 
 	// it feels a bit dirty knowing about batch gets here, but it's the most logical place to put
 	// a check for an opcode that signals the end of a batch get or GAT. This code is a bit too big
@@ -131,7 +138,7 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 
 	// Read in token if requested
 	if tokenBuf != nil {
-		n, err := io.ReadFull(rw, tokenBuf)
+		n, err := io.ReadAtLeast(rw, tokenBuf, tokenSize)
 		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 		if err != nil {
 			return false, err
@@ -144,7 +151,7 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 	chunkBuf := dataBuf[start:end]
 
 	// Read in value
-	n, err := io.ReadFull(rw, chunkBuf)
+	n, err := io.ReadAtLeast(rw, chunkBuf, len(chunkBuf))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 	if err != nil {
 		return false, err
