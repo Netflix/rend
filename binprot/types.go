@@ -62,6 +62,9 @@ const (
 	OpcodeGatKQ      = uint8(0x24)
 	OpcodeInvalid    = uint8(0xFF)
 
+	OpcodeGetE  = uint8(0x40)
+	OpcodeGetEQ = uint8(0x41)
+
 	StatusSuccess        = uint16(0x00)
 	StatusKeyEnoent      = uint16(0x01)
 	StatusKeyExists      = uint16(0x02)
