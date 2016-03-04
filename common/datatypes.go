@@ -96,6 +96,9 @@ const (
 	// RequestGat is a get-and-touch operation that retrieves the information while updating the TTL
 	RequestGat
 
+	// RequestGetE is a custom get which returns the TTL remaining with the data
+	RequestGetE
+
 	// RequestSet is to insert a new piece of data unconditionally. What that means is different
 	// depending on L1 / L2 handling.
 	RequestSet
@@ -136,6 +139,7 @@ type Responder interface {
 	Replace(opaque uint32, replaced bool) error
 	Get(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
+	GetE(response GetEResponse) error
 	GAT(response GetResponse) error
 	Delete(opaque uint32) error
 	Touch(opaque uint32) error
@@ -211,4 +215,15 @@ type GetResponse struct {
 	Flags  uint32
 	Miss   bool
 	Quiet  bool
+}
+
+// GetEResponse is used in the GetE protocol extension
+type GetEResponse struct {
+	Key     []byte
+	Data    []byte
+	Opaque  uint32
+	Flags   uint32
+	Exptime uint32
+	Miss    bool
+	Quiet   bool
 }

@@ -38,6 +38,23 @@ import (
 //     Key                 : None
 //     Value        (28-32): The textual string "World"
 
+// Sample GetE response
+// Field        (offset) (value)
+//     Magic        (0)    : 0x81
+//     Opcode       (1)    : 0x00
+//     Key length   (2,3)  : 0x0000
+//     Extra length (4)    : 0x08
+//     Data type    (5)    : 0x00
+//     Status       (6,7)  : 0x0000
+//     Total body   (8-11) : 0x00000009
+//     Opaque       (12-15): 0x00000000
+//     CAS          (16-23): 0x00000000000001234
+//     Extras              :
+//       Flags      (24-27): 0xdeadbeef
+//       Exptime    (28-31): 0xcafebabe
+//     Key                 : None
+//     Value        (32-36): The textual string "World"
+
 // Sample GAT response
 // Field        (offset) (value)
 //     Magic        (0)    : 0x81
@@ -161,6 +178,27 @@ func (b BinaryResponder) GAT(response common.GetResponse) error {
 	}
 }
 
+func (b BinaryResponder) GetE(response common.GetEResponse) error {
+	if response.Miss {
+		if !response.Quiet {
+			return b.Error(response.Opaque, common.RequestGetE, common.ErrKeyNotFound)
+		}
+		return nil
+	} else {
+		// total body length = extras (flags & exptime, 8 bytes) + data length
+		totalBodyLength := len(response.Data) + 8
+		writeSuccessResponseHeader(b.writer, common.RequestGetE, 0, 8, totalBodyLength, response.Opaque, false)
+		binary.Write(b.writer, binary.BigEndian, response.Flags)
+		binary.Write(b.writer, binary.BigEndian, response.Exptime)
+		b.writer.Write(response.Data)
+		if err := b.writer.Flush(); err != nil {
+			return err
+		}
+		metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(totalBodyLength))
+		return nil
+	}
+}
+
 func (b BinaryResponder) Delete(opaque uint32) error {
 	return writeSuccessResponseHeader(b.writer, OpcodeDelete, 0, 0, 0, opaque, true)
 }
@@ -197,8 +235,14 @@ func reqTypeToOpcode(reqType common.RequestType) uint8 {
 		return OpcodeGet
 	case common.RequestGat:
 		return OpcodeGat
+	case common.RequestGetE:
+		return OpcodeGetE
 	case common.RequestSet:
 		return OpcodeSet
+	case common.RequestAdd:
+		return OpcodeAdd
+	case common.RequestReplace:
+		return OpcodeReplace
 	case common.RequestDelete:
 		return OpcodeDelete
 	case common.RequestTouch:
@@ -208,21 +252,15 @@ func reqTypeToOpcode(reqType common.RequestType) uint8 {
 	default:
 		return OpcodeInvalid
 	}
-	// TODO: add, replace, append...
+	// TODO: append...
 }
 
 func getCommon(w *bufio.Writer, response common.GetResponse, opcode uint8) error {
 	// total body length = extras (flags, 4 bytes) + data length
 	totalBodyLength := len(response.Data) + 4
-	if err := writeSuccessResponseHeader(w, opcode, 0, 4, totalBodyLength, response.Opaque, false); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.BigEndian, response.Flags); err != nil {
-		return err
-	}
-	if _, err := w.Write(response.Data); err != nil {
-		return err
-	}
+	writeSuccessResponseHeader(w, opcode, 0, 4, totalBodyLength, response.Opaque, false)
+	binary.Write(w, binary.BigEndian, response.Flags)
+	w.Write(response.Data)
 	if err := w.Flush(); err != nil {
 		return err
 	}
