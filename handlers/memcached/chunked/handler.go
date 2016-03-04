@@ -375,6 +375,10 @@ outer:
 	}
 }
 
+func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
+	panic("GetE not supported in Rend")
+}
+
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	missResponse := common.GetResponse{
 		Miss:   true,

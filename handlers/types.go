@@ -21,6 +21,7 @@ type Handler interface {
 	Add(cmd common.SetRequest) error
 	Replace(cmd common.SetRequest) error
 	Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error)
+	GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error)
 	GAT(cmd common.GATRequest) (common.GetResponse, error)
 	Delete(cmd common.DeleteRequest) error
 	Touch(cmd common.TouchRequest) error
