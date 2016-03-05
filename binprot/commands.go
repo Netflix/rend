@@ -22,15 +22,13 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+// Data commands are those that send a header, key, exptime, and data
+func writeDataCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, dataSize uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
-	header := makeRequestHeader(OpcodeSet, len(key), extrasLen, totalBodyLength)
-
-	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
-	//string(key), flags, exptime, dataSize, totalBodyLength)
+	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength)
 
 	writeRequestHeader(w, header)
 	binary.Write(w, binary.BigEndian, flags)
@@ -42,134 +40,78 @@ func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error
 	reqHeadPool.Put(header)
 
 	return err
+}
+
+func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, dataSize, totalBodyLength)
+	return writeDataCmdCommon(w, OpcodeSet, key, flags, exptime, dataSize)
 }
 
 func WriteAddCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	// key + extras + body
-	extrasLen := 8
-	totalBodyLength := len(key) + extrasLen + int(dataSize)
-	header := makeRequestHeader(OpcodeAdd, len(key), extrasLen, totalBodyLength)
-
 	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
-
-	writeRequestHeader(w, header)
-	binary.Write(w, binary.BigEndian, flags)
-	binary.Write(w, binary.BigEndian, exptime)
-	err := binary.Write(w, binary.BigEndian, key)
-
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
-
-	reqHeadPool.Put(header)
-
-	return err
+	return writeDataCmdCommon(w, OpcodeAdd, key, flags, exptime, dataSize)
 }
 
 func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	// key + extras + body
-	extrasLen := 8
-	totalBodyLength := len(key) + extrasLen + int(dataSize)
-	header := makeRequestHeader(OpcodeReplace, len(key), extrasLen, totalBodyLength)
-
-	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//fmt.Printf("Replace: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
+	return writeDataCmdCommon(w, OpcodeReplace, key, flags, exptime, dataSize)
+}
 
+// Key commands send the header and key only
+func writeKeyCmd(w io.Writer, opcode uint8, key []byte) error {
+	// opcode, keyLength, extraLength, totalBodyLength
+	header := makeRequestHeader(opcode, len(key), 0, len(key))
 	writeRequestHeader(w, header)
-	binary.Write(w, binary.BigEndian, flags)
-	binary.Write(w, binary.BigEndian, exptime)
-	err := binary.Write(w, binary.BigEndian, key)
 
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+	n, err := w.Write(key)
 
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+n))
 	reqHeadPool.Put(header)
 
 	return err
 }
 
 func WriteGetCmd(w io.Writer, key []byte) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	header := makeRequestHeader(OpcodeGet, len(key), 0, len(key))
-
 	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
-
-	writeRequestHeader(w, header)
-	err := binary.Write(w, binary.BigEndian, key)
-
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
-
-	reqHeadPool.Put(header)
-
-	return err
+	return writeKeyCmd(w, OpcodeGet, key)
 }
 
 func WriteGetQCmd(w io.Writer, key []byte) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	header := makeRequestHeader(OpcodeGetQ, len(key), 0, len(key))
-
 	//fmt.Printf("GetQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
-
-	writeRequestHeader(w, header)
-	err := binary.Write(w, binary.BigEndian, key)
-
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
-
-	reqHeadPool.Put(header)
-
-	return err
+	return writeKeyCmd(w, OpcodeGetQ, key)
 }
 
-func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	extrasLen := 4
-	totalBodyLength := len(key) + extrasLen
-	header := makeRequestHeader(OpcodeGat, len(key), extrasLen, totalBodyLength)
-
-	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
-	//exptime, len(key))
-
-	writeRequestHeader(w, header)
-	binary.Write(w, binary.BigEndian, exptime)
-	err := binary.Write(w, binary.BigEndian, key)
-
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
-
-	reqHeadPool.Put(header)
-
-	return err
+func WriteGetECmd(w io.Writer, key []byte) error {
+	//fmt.Printf("GetE: key: %v | totalBodyLength: %v\n", string(key), len(key))
+	return writeKeyCmd(w, OpcodeGetE, key)
 }
 
-func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	extrasLen := 4
-	totalBodyLength := len(key) + extrasLen
-	header := makeRequestHeader(OpcodeGatQ, len(key), extrasLen, totalBodyLength)
-
-	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
-	//exptime, len(key))
-
-	writeRequestHeader(w, header)
-	binary.Write(w, binary.BigEndian, exptime)
-	err := binary.Write(w, binary.BigEndian, key)
-
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
-
-	reqHeadPool.Put(header)
-
-	return err
+func WriteGetEQCmd(w io.Writer, key []byte) error {
+	//fmt.Printf("GetEQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
+	return writeKeyCmd(w, OpcodeGetEQ, key)
 }
 
 func WriteDeleteCmd(w io.Writer, key []byte) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	header := makeRequestHeader(OpcodeDelete, len(key), 0, len(key))
-
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
+	return writeKeyCmd(w, OpcodeDelete, key)
+}
+
+// Key Exptime commands send the header, key, and an exptime
+func writeKeyExptimeCmd(w io.Writer, opcode uint8, key []byte, exptime uint32) error {
+	// opcode, keyLength, extraLength, totalBodyLength
+	// key + extras + body
+	extrasLen := 4
+	totalBodyLength := len(key) + extrasLen
+	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength)
 
 	writeRequestHeader(w, header)
+	binary.Write(w, binary.BigEndian, exptime)
 	err := binary.Write(w, binary.BigEndian, key)
 
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+len(key)))
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
 
 	reqHeadPool.Put(header)
 
@@ -177,26 +119,24 @@ func WriteDeleteCmd(w io.Writer, key []byte) error {
 }
 
 func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
-	// opcode, keyLength, extraLength, totalBodyLength
-	// key + extras + body
-	extrasLen := 4
-	totalBodyLength := len(key) + extrasLen
-	header := makeRequestHeader(OpcodeTouch, len(key), extrasLen, totalBodyLength)
-
-	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
+	//fmt.Printf("Touch: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, totalBodyLength)
-
-	writeRequestHeader(w, header)
-	binary.Write(w, binary.BigEndian, exptime)
-	err := binary.Write(w, binary.BigEndian, key)
-
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
-
-	reqHeadPool.Put(header)
-
-	return err
+	return writeKeyExptimeCmd(w, OpcodeTouch, key, exptime)
 }
 
+func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
+	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
+	//exptime, len(key))
+	return writeKeyExptimeCmd(w, OpcodeGat, key, exptime)
+}
+
+func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
+	//fmt.Printf("GATQ: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
+	//exptime, len(key))
+	return writeKeyExptimeCmd(w, OpcodeGatQ, key, exptime)
+}
+
+// And the noop command is just a header
 func WriteNoopCmd(w io.Writer) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	header := makeRequestHeader(OpcodeNoop, 0, 0, 0)

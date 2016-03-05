@@ -88,6 +88,10 @@ func (t TextResponder) GetEnd(opaque uint32, noopEnd bool) error {
 	return t.resp("END")
 }
 
+func (t TextResponder) GetE(response common.GetEResponse) error {
+	panic("GetE command in text protocol")
+}
+
 func (t TextResponder) GAT(response common.GetResponse) error {
 	// There's two options here.
 	// 1) panic() because this is never supposed to be called
