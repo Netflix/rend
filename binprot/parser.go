@@ -167,6 +167,32 @@ func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
 			NoopEnd: false,
 		}, common.RequestGet, nil
 
+	// Expected only in applications behind Rend that reuse this parsing code
+	case OpcodeGetEQ:
+		req, err := readBatchGetE(b.reader, reqHeader)
+		if err != nil {
+			fmt.Println("Error reading batch get")
+			return nil, common.RequestGetE, err
+		}
+
+		return req, common.RequestGetE, nil
+
+	// Expected only in applications behind Rend that reuse this parsing code
+	case OpcodeGetE:
+		// key
+		key, err := readString(b.reader, reqHeader.KeyLength)
+		if err != nil {
+			fmt.Println("Error reading key")
+			return nil, common.RequestGetE, err
+		}
+
+		return common.GetRequest{
+			Keys:    [][]byte{key},
+			Opaques: []uint32{reqHeader.OpaqueToken},
+			Quiet:   []bool{false},
+			NoopEnd: false,
+		}, common.RequestGetE, nil
+
 	case OpcodeGat:
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
@@ -269,6 +295,69 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	}
 
 	if header.Opcode == OpcodeGet {
+		// key
+		key, err := readString(r, header.KeyLength)
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+
+		keys = append(keys, key)
+		opaques = append(opaques, header.OpaqueToken)
+		quiet = append(quiet, false)
+		noopEnd = false
+
+	} else if header.Opcode == OpcodeNoop {
+		// nothing to do, header is read already
+		noopEnd = true
+		noopOpaque = header.OpaqueToken
+
+	} else {
+		// no idea... this is a problem though.
+		// unexpected patterns shouldn't come over the wire, so maybe it will
+		// be OK to simply discount this situation. Probably not.
+	}
+
+	// Regardless of the header, we want to put it back here
+	reqHeadPool.Put(header)
+
+	return common.GetRequest{
+		Keys:       keys,
+		Opaques:    opaques,
+		Quiet:      quiet,
+		NoopOpaque: noopOpaque,
+		NoopEnd:    noopEnd,
+	}, nil
+}
+
+func readBatchGetE(r io.Reader, header RequestHeader) (common.GetRequest, error) {
+	keys := make([][]byte, 0)
+	opaques := make([]uint32, 0)
+	quiet := make([]bool, 0)
+	var noopOpaque uint32
+	var noopEnd bool
+
+	// while GETQ
+	// read key, read header
+	for header.Opcode == OpcodeGetEQ {
+		// key
+		key, err := readString(r, header.KeyLength)
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+
+		keys = append(keys, key)
+		opaques = append(opaques, header.OpaqueToken)
+		quiet = append(quiet, true)
+
+		// read in the next header
+		reqHeadPool.Put(header)
+		header, err = readRequestHeader(r)
+		if err != nil {
+			return common.GetRequest{}, err
+		}
+	}
+
+	if header.Opcode == OpcodeGetE {
 		// key
 		key, err := readString(r, header.KeyLength)
 		if err != nil {
