@@ -239,17 +239,15 @@ func main() {
 	}
 }
 
-func abort(toClose []io.Closer, err error, binary bool) {
+func abort(toClose []io.Closer, err error) {
 	if err != nil && err != io.EOF {
 		fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
 	}
-	// use proper serializer to respond here
 	for _, c := range toClose {
 		if c != nil {
 			c.Close()
 		}
 	}
-	//panic(err)
 }
 
 func identifyPanic() string {
@@ -296,7 +294,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	// This is the way memcached handles protocols, so it can be as strict here.
 	binary, err := isBinaryRequest(remoteReader)
 	if err != nil {
-		abort([]io.Closer{remoteConn, l1, l2}, err, binary)
+		abort([]io.Closer{remoteConn, l1, l2}, err)
 		return
 	}
 
@@ -321,7 +319,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				responder.Error(0, common.RequestUnknown, err)
 				continue
 			} else {
-				abort([]io.Closer{remoteConn, l1, l2}, err, binary)
+				abort([]io.Closer{remoteConn, l1, l2}, err)
 				return
 			}
 		}
@@ -566,7 +564,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.IncCounter(MetricCmdQuit)
 			req := request.(common.QuitRequest)
 			responder.Quit(req.Opaque, req.Quiet)
-			abort([]io.Closer{remoteConn, l1, l2}, err, binary)
+			abort([]io.Closer{remoteConn, l1, l2}, err)
 			return
 
 		case common.RequestVersion:
@@ -588,7 +586,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				responder.Error(opaque, reqType, err)
 			} else {
 				metrics.IncCounter(MetricErrUnrecoverable)
-				abort([]io.Closer{remoteConn, l1, l2}, err, binary)
+				abort([]io.Closer{remoteConn, l1, l2}, err)
 				return
 			}
 		}
