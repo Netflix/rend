@@ -241,7 +241,7 @@ func main() {
 
 func abort(toClose []io.Closer, err error) {
 	if err != nil && err != io.EOF {
-		fmt.Println("Error while processing request. Closing connection. Error:", err.Error())
+		log.Println("Error while processing request. Closing connection. Error:", err.Error())
 	}
 	for _, c := range toClose {
 		if c != nil {
@@ -275,8 +275,8 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
 			if r != io.EOF {
-				fmt.Println("Recovered from runtime panic:", r)
-				fmt.Println("Panic location: ", identifyPanic())
+				log.Println("Recovered from runtime panic:", r)
+				log.Println("Panic location: ", identifyPanic())
 			}
 		}
 	}()
@@ -332,7 +332,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.IncCounter(MetricCmdSet)
 			req := request.(common.SetRequest)
 			opaque = req.Opaque
-			//fmt.Println("set", string(req.Key))
+			//log.Println("set", string(req.Key))
 
 			metrics.IncCounter(MetricCmdSetL1)
 			err = l1.Set(req)
@@ -356,7 +356,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.IncCounter(MetricCmdAdd)
 			req := request.(common.SetRequest)
 			opaque = req.Opaque
-			//fmt.Println("add", string(req.Key))
+			//log.Println("add", string(req.Key))
 
 			// TODO: L2 first, then L1
 
@@ -387,7 +387,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.IncCounter(MetricCmdReplace)
 			req := request.(common.SetRequest)
 			opaque = req.Opaque
-			//fmt.Println("replace", string(req.Key))
+			//log.Println("replace", string(req.Key))
 
 			// TODO: L2 first, then L1
 
@@ -418,7 +418,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.IncCounter(MetricCmdDelete)
 			req := request.(common.DeleteRequest)
 			opaque = req.Opaque
-			//fmt.Println("delete", string(req.Key))
+			//log.Println("delete", string(req.Key))
 
 			metrics.IncCounter(MetricCmdDeleteL1)
 			err = l1.Delete(req)
