@@ -196,27 +196,35 @@ func main() {
 
 	for {
 		remote, err := server.Accept()
-
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Println("Error accepting connection from remote:", err.Error())
 			remote.Close()
 			continue
 		}
-
 		metrics.IncCounter(MetricConnectionsEstablishedExt)
 
 		l1conn, err := net.Dial("unix", l1sock)
-
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Println("Error opening connection to L1:", err.Error())
 			if l1conn != nil {
 				l1conn.Close()
 			}
 			remote.Close()
 			continue
 		}
-
 		metrics.IncCounter(MetricConnectionsEstablishedL1)
+
+		l2conn, err := net.Dial("unix", l2sock)
+		if err != nil {
+			log.Println("Error opening connection to L2:", err.Error())
+			if l2conn != nil {
+				l2conn.Close()
+			}
+			l1conn.Close()
+			remote.Close()
+			continue
+		}
+		metrics.IncCounter(MetricConnectionsEstablishedL2)
 
 		var l1 handlers.Handler
 		if chunked {
@@ -225,7 +233,9 @@ func main() {
 			l1 = memcached.NewHandler(l1conn)
 		}
 
-		go handleConnection(remote, l1, nil)
+		l2 := memcached.NewHandler(l2conn)
+
+		go handleConnection(remote, l1, l2)
 	}
 }
 
