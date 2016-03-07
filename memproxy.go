@@ -179,7 +179,7 @@ var l2sock string
 func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
 	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
-	flag.StringVar(&l1sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2")
+	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2")
 	flag.Parse()
 }
 
