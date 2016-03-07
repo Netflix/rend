@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -175,20 +176,21 @@ var (
 var chunked bool
 var l1sock string
 var l2sock string
+var port int
 
 func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
 	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
 	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2")
+	flag.IntVar(&port, "p", 11211, "External port to listen on")
 	flag.Parse()
 }
 
 // And away we go
 func main() {
-	server, err := net.Listen("tcp", ":11211")
-
+	server, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Printf("Error binding to port %d\n", port)
 		return
 	}
 
