@@ -470,111 +470,21 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			// TODO: L2 metrics for touches, touch hits, touch misses, touch errors
 
 		case common.RequestGet:
-			metrics.IncCounter(MetricCmdGet)
-			req := request.(common.GetRequest)
-			metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
-			//debugString := "get"
-			//for _, k := range req.Keys {
-			//	debugString += " "
-			//	debugString += string(k)
-			//}
-			//println(debugString)
-
-			metrics.IncCounter(MetricCmdGetL1)
-			metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
-			resChan, errChan := l1.Get(req)
-
-			// note to self later: gather misses from L1 into a slice and send as gets to L2 in a batch
-			// The L2 handler will be able to send it in a batch to L2, which will internally parallelize
-
-			// Read all the responses back from L1.
-			// The contract is that the resChan will have GetResponse's for get hits and misses,
-			// and the errChan will have any other errors, such as an out of memory error from
-			// memcached. If any receive happens from errChan, there will be no more responses
-			// from resChan.
-			for {
-				select {
-				case res, ok := <-resChan:
-					if !ok {
-						resChan = nil
-					} else {
-						if res.Miss {
-							metrics.IncCounter(MetricCmdGetMissesL1)
-							// TODO: Account for L2
-							metrics.IncCounter(MetricCmdGetMisses)
-						} else {
-							metrics.IncCounter(MetricCmdGetHits)
-							metrics.IncCounter(MetricCmdGetHitsL1)
-						}
-						responder.Get(res)
-					}
-
-				case getErr, ok := <-errChan:
-					if !ok {
-						errChan = nil
-					} else {
-						metrics.IncCounter(MetricCmdGetErrors)
-						metrics.IncCounter(MetricCmdGetErrorsL1)
-						err = getErr
-					}
-				}
-
-				if resChan == nil && errChan == nil {
-					break
-				}
-			}
-
-			if err == nil {
-				responder.GetEnd(req.NoopOpaque, req.NoopEnd)
-			}
-
-			// TODO: L2 metrics for gets, get hits, get misses, get errors
+			err = handleGet(request, l1, l2, responder)
 
 		case common.RequestGat:
-			metrics.IncCounter(MetricCmdGat)
-			req := request.(common.GATRequest)
-			opaque = req.Opaque
-			//fmt.Println("gat", string(req.Key))
-
-			metrics.IncCounter(MetricCmdGatL1)
-			res, err := l1.GAT(req)
-
-			if err == nil {
-				if res.Miss {
-					metrics.IncCounter(MetricCmdGatMissesL1)
-					// TODO: Account for L2
-					metrics.IncCounter(MetricCmdGatMisses)
-				} else {
-					metrics.IncCounter(MetricCmdGatHits)
-					metrics.IncCounter(MetricCmdGatHitsL1)
-				}
-				responder.GAT(res)
-				// There is no GetEnd call required here since this is only ever
-				// done in the binary protocol, where there's no END marker.
-				// Calling responder.GetEnd was a no-op here and is just useless.
-				//responder.GetEnd(0, false)
-			} else {
-				metrics.IncCounter(MetricCmdGatErrors)
-				metrics.IncCounter(MetricCmdGatErrorsL1)
-			}
-
-			//TODO: L2 metrics for gats, gat hits, gat misses, gat errors
+			err = handleGat(request, l1, l2, responder)
 
 		case common.RequestQuit:
-			metrics.IncCounter(MetricCmdQuit)
-			req := request.(common.QuitRequest)
-			responder.Quit(req.Opaque, req.Quiet)
+			handleQuit(request)
 			abort([]io.Closer{remoteConn, l1, l2}, err)
 			return
 
 		case common.RequestVersion:
-			metrics.IncCounter(MetricCmdVersion)
-			req := request.(common.VersionRequest)
-			err = responder.Version(req.Opaque)
+			err = handleVersion(request, l1, l2, responder)
 
 		case common.RequestUnknown:
-			metrics.IncCounter(MetricCmdUnknown)
-			err = common.ErrUnknownCmd
+			err = handleUnknown(request, l1, l2, responder)
 		}
 
 		// TODO: distinguish fatal errors from non-fatal
@@ -609,6 +519,120 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			metrics.ObserveHist(HistGat, dur)
 		}
 	}
+}
+
+func handleGet(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdGet)
+	req := request.(common.GetRequest)
+	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
+	//debugString := "get"
+	//for _, k := range req.Keys {
+	//	debugString += " "
+	//	debugString += string(k)
+	//}
+	//println(debugString)
+
+	metrics.IncCounter(MetricCmdGetL1)
+	metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
+	resChan, errChan := l1.Get(req)
+
+	// note to self later: gather misses from L1 into a slice and send as gets to L2 in a batch
+	// The L2 handler will be able to send it in a batch to L2, which will internally parallelize
+
+	// Read all the responses back from L1.
+	// The contract is that the resChan will have GetResponse's for get hits and misses,
+	// and the errChan will have any other errors, such as an out of memory error from
+	// memcached. If any receive happens from errChan, there will be no more responses
+	// from resChan.
+	for {
+		select {
+		case res, ok := <-resChan:
+			if !ok {
+				resChan = nil
+			} else {
+				if res.Miss {
+					metrics.IncCounter(MetricCmdGetMissesL1)
+					// TODO: Account for L2
+					metrics.IncCounter(MetricCmdGetMisses)
+				} else {
+					metrics.IncCounter(MetricCmdGetHits)
+					metrics.IncCounter(MetricCmdGetHitsL1)
+				}
+				responder.Get(res)
+			}
+
+		case getErr, ok := <-errChan:
+			if !ok {
+				errChan = nil
+			} else {
+				metrics.IncCounter(MetricCmdGetErrors)
+				metrics.IncCounter(MetricCmdGetErrorsL1)
+				err = getErr
+			}
+		}
+
+		if resChan == nil && errChan == nil {
+			break
+		}
+	}
+
+	if err == nil {
+		responder.GetEnd(req.NoopOpaque, req.NoopEnd)
+	}
+
+	// TODO: L2 metrics for gets, get hits, get misses, get errors
+
+	return err
+}
+
+func handleGat(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdGat)
+	req := request.(common.GATRequest)
+	opaque = req.Opaque
+	//fmt.Println("gat", string(req.Key))
+
+	metrics.IncCounter(MetricCmdGatL1)
+	res, err := l1.GAT(req)
+
+	if err == nil {
+		if res.Miss {
+			metrics.IncCounter(MetricCmdGatMissesL1)
+			// TODO: Account for L2
+			metrics.IncCounter(MetricCmdGatMisses)
+		} else {
+			metrics.IncCounter(MetricCmdGatHits)
+			metrics.IncCounter(MetricCmdGatHitsL1)
+		}
+		responder.GAT(res)
+		// There is no GetEnd call required here since this is only ever
+		// done in the binary protocol, where there's no END marker.
+		// Calling responder.GetEnd was a no-op here and is just useless.
+		//responder.GetEnd(0, false)
+	} else {
+		metrics.IncCounter(MetricCmdGatErrors)
+		metrics.IncCounter(MetricCmdGatErrorsL1)
+	}
+
+	//TODO: L2 metrics for gats, gat hits, gat misses, gat errors
+
+	return err
+}
+
+func handleQuit(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdQuit)
+	req := request.(common.QuitRequest)
+	return responder.Quit(req.Opaque, req.Quiet)
+}
+
+func handleVersion(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdVersion)
+	req := request.(common.VersionRequest)
+	return responder.Version(req.Opaque)
+}
+
+func handleUnknown(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdUnknown)
+	return common.ErrUnknownCmd
 }
 
 func isBinaryRequest(reader *bufio.Reader) (bool, error) {
