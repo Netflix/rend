@@ -203,6 +203,10 @@ func main() {
 
 		metrics.IncCounter(MetricConnectionsEstablishedExt)
 
+		tcpRemote := remote.(*net.TCPConn)
+		tcpRemote.SetKeepAlive(true)
+		tcpRemote.SetKeepAlivePeriod(30 * time.Second)
+
 		l1conn, err := net.Dial("unix", l1sock)
 
 		if err != nil {
