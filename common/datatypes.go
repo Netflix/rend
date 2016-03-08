@@ -126,7 +126,7 @@ const (
 // implementation. The return value is an interface{}, but not all hope is lost. The return result
 // is guaranteed by implementations to be castable to the type that matches the RequestType returned.
 type RequestParser interface {
-	Parse() (interface{}, RequestType, error)
+	Parse() (Request, RequestType, error)
 }
 
 // Responder is the interface for a protocol to respond to different commands. It responds in
@@ -148,6 +148,10 @@ type Responder interface {
 	Error(opaque uint32, reqType RequestType, err error) error
 }
 
+type Request interface {
+	Opq() uint32
+}
+
 // SetRequest corresponds to common.RequestSet. It contains all the information required to fulfill
 // a set request.
 type SetRequest struct {
@@ -156,6 +160,10 @@ type SetRequest struct {
 	Flags   uint32
 	Exptime uint32
 	Opaque  uint32
+}
+
+func (r SetRequest) Opq() uint32 {
+	return r.Opaque
 }
 
 // GetRequest corresponds to common.RequestGet. It contains all the information required to fulfill
@@ -169,11 +177,22 @@ type GetRequest struct {
 	NoopEnd    bool
 }
 
+func (r GetRequest) Opq() uint32 {
+	// TODO: better implementation?
+	// It's nonsensical but the best way to react in this case since it's a bad situation already.
+	// Typically if this method was needed we're already in a fatal error sitation.
+	return 0
+}
+
 // DeleteRequest corresponds to common.RequestDelete. It contains all the information required to
 // fulfill a delete request.
 type DeleteRequest struct {
 	Key    []byte
 	Opaque uint32
+}
+
+func (r DeleteRequest) Opq() uint32 {
+	return r.Opaque
 }
 
 // TouchRequest corresponds to common.RequestTouch. It contains all the information required to
@@ -184,12 +203,20 @@ type TouchRequest struct {
 	Opaque  uint32
 }
 
+func (r TouchRequest) Opq() uint32 {
+	return r.Opaque
+}
+
 // GATRequest corresponds to common.RequestGat. It contains all the information required to fulfill
 // a get-and-touch request.
 type GATRequest struct {
 	Key     []byte
 	Exptime uint32
 	Opaque  uint32
+}
+
+func (r GATRequest) Opq() uint32 {
+	return r.Opaque
 }
 
 // QuitRequest corresponds to common.RequestQuit. It contains all the information required to
@@ -199,10 +226,18 @@ type QuitRequest struct {
 	Quiet  bool
 }
 
+func (r QuitRequest) Opq() uint32 {
+	return r.Opaque
+}
+
 // VersionRequest corresponds to common.RequestQuit. It contains all the information required to
 // fulfill a version request.
 type VersionRequest struct {
 	Opaque uint32
+}
+
+func (r VersionRequest) Opq() uint32 {
+	return r.Opaque
 }
 
 // GetResponse is used in both RequestGet and RequestGat handling. Both respond in the same manner

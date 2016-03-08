@@ -291,8 +291,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	var reqParser common.RequestParser
 	var responder common.Responder
 	var reqType common.RequestType
-	var request interface{}
-	var opaque uint32
+	var request common.Request
 
 	// A connection is either binary protocol or text. It cannot switch between the two.
 	// This is the way memcached handles protocols, so it can be as strict here.
@@ -311,7 +310,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	}
 
 	for {
-		opaque = 0
 		start := time.Now()
 
 		request, reqType, err = reqParser.Parse()
@@ -335,7 +333,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestSet:
 			metrics.IncCounter(MetricCmdSet)
 			req := request.(common.SetRequest)
-			opaque = req.Opaque
 			//log.Println("set", string(req.Key))
 
 			metrics.IncCounter(MetricCmdSetL1)
@@ -359,7 +356,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestAdd:
 			metrics.IncCounter(MetricCmdAdd)
 			req := request.(common.SetRequest)
-			opaque = req.Opaque
 			//log.Println("add", string(req.Key))
 
 			// TODO: L2 first, then L1
@@ -390,7 +386,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestReplace:
 			metrics.IncCounter(MetricCmdReplace)
 			req := request.(common.SetRequest)
-			opaque = req.Opaque
 			//log.Println("replace", string(req.Key))
 
 			// TODO: L2 first, then L1
@@ -421,7 +416,6 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestDelete:
 			metrics.IncCounter(MetricCmdDelete)
 			req := request.(common.DeleteRequest)
-			opaque = req.Opaque
 			//log.Println("delete", string(req.Key))
 
 			metrics.IncCounter(MetricCmdDeleteL1)
@@ -448,8 +442,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestTouch:
 			metrics.IncCounter(MetricCmdTouch)
 			req := request.(common.TouchRequest)
-			opaque = req.Opaque
-			//fmt.Println("touch", string(req.Key))
+			//log.Println("touch", string(req.Key))
 
 			metrics.IncCounter(MetricCmdTouchL1)
 			err = l1.Touch(req)
@@ -480,7 +473,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			err = handleGat(request, l1, l2, responder)
 
 		case common.RequestQuit:
-			handleQuit(request)
+			handleQuit(request, l1, l2, responder)
 			abort([]io.Closer{remoteConn, l1, l2}, err)
 			return
 
@@ -497,7 +490,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				if err != common.ErrKeyNotFound {
 					metrics.IncCounter(MetricErrAppError)
 				}
-				responder.Error(opaque, reqType, err)
+				responder.Error(request.Opq(), reqType, err)
 			} else {
 				metrics.IncCounter(MetricErrUnrecoverable)
 				abort([]io.Closer{remoteConn, l1, l2}, err)
@@ -525,7 +518,7 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	}
 }
 
-func handleGet(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+func handleGet(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdGet)
 	req := request.(common.GetRequest)
 	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
@@ -539,6 +532,8 @@ func handleGet(request interface{}, l1, l2 handler.Handler, responder common.Res
 	metrics.IncCounter(MetricCmdGetL1)
 	metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
 	resChan, errChan := l1.Get(req)
+
+	var err error
 
 	// note to self later: gather misses from L1 into a slice and send as gets to L2 in a batch
 	// The L2 handler will be able to send it in a batch to L2, which will internally parallelize
@@ -589,11 +584,10 @@ func handleGet(request interface{}, l1, l2 handler.Handler, responder common.Res
 	return err
 }
 
-func handleGat(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+func handleGat(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdGat)
 	req := request.(common.GATRequest)
-	opaque = req.Opaque
-	//fmt.Println("gat", string(req.Key))
+	//log.Println("gat", string(req.Key))
 
 	metrics.IncCounter(MetricCmdGatL1)
 	res, err := l1.GAT(req)
@@ -622,19 +616,19 @@ func handleGat(request interface{}, l1, l2 handler.Handler, responder common.Res
 	return err
 }
 
-func handleQuit(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+func handleQuit(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdQuit)
 	req := request.(common.QuitRequest)
 	return responder.Quit(req.Opaque, req.Quiet)
 }
 
-func handleVersion(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+func handleVersion(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdVersion)
 	req := request.(common.VersionRequest)
 	return responder.Version(req.Opaque)
 }
 
-func handleUnknown(request interface{}, l1, l2 handler.Handler, responder common.Responder) error {
+func handleUnknown(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdUnknown)
 	return common.ErrUnknownCmd
 }

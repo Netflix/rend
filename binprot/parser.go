@@ -124,7 +124,7 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
 // https://github.com/couchbase/spymemcached/blob/master/src/main/java/net/spy/memcached/protocol/binary/MultiGetOperationImpl.java#L88
 // spymemcached's implementation ^^^
 
-func (b BinaryParser) Parse() (interface{}, common.RequestType, error) {
+func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 	// read in the full header before any variable length fields
 	reqHeader, err := readRequestHeader(b.reader)
 	defer reqHeadPool.Put(reqHeader)
