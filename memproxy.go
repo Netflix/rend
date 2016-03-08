@@ -331,140 +331,19 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		// TODO: handle nil
 		switch reqType {
 		case common.RequestSet:
-			metrics.IncCounter(MetricCmdSet)
-			req := request.(common.SetRequest)
-			//log.Println("set", string(req.Key))
-
-			metrics.IncCounter(MetricCmdSetL1)
-			err = l1.Set(req)
-
-			if err == nil {
-				metrics.IncCounter(MetricCmdSetSuccessL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdSetSuccess)
-
-				err = responder.Set(req.Opaque)
-
-			} else {
-				metrics.IncCounter(MetricCmdSetErrorsL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdSetErrors)
-			}
-
-			// TODO: L2 metrics for sets, set success, set errors
+			err = handleSet(request, l1, l2, responder)
 
 		case common.RequestAdd:
-			metrics.IncCounter(MetricCmdAdd)
-			req := request.(common.SetRequest)
-			//log.Println("add", string(req.Key))
-
-			// TODO: L2 first, then L1
-
-			metrics.IncCounter(MetricCmdAddL1)
-			err = l1.Add(req)
-
-			if err == nil {
-				metrics.IncCounter(MetricCmdAddStoredL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdAddStored)
-
-				err = responder.Add(req.Opaque, true)
-
-			} else if err == common.ErrKeyExists {
-				metrics.IncCounter(MetricCmdAddNotStoredL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdAddNotStored)
-				err = responder.Add(req.Opaque, false)
-			} else {
-				metrics.IncCounter(MetricCmdAddErrorsL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdAddErrors)
-			}
-
-			// TODO: L2 metrics for adds, add stored, add not stored, add errors
+			err = handleAdd(request, l1, l2, responder)
 
 		case common.RequestReplace:
-			metrics.IncCounter(MetricCmdReplace)
-			req := request.(common.SetRequest)
-			//log.Println("replace", string(req.Key))
-
-			// TODO: L2 first, then L1
-
-			metrics.IncCounter(MetricCmdReplaceL1)
-			err = l1.Replace(req)
-
-			if err == nil {
-				metrics.IncCounter(MetricCmdReplaceStoredL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdReplaceStored)
-
-				err = responder.Replace(req.Opaque, true)
-
-			} else if err == common.ErrKeyNotFound {
-				metrics.IncCounter(MetricCmdReplaceNotStoredL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdReplaceNotStored)
-				err = responder.Replace(req.Opaque, false)
-			} else {
-				metrics.IncCounter(MetricCmdReplaceErrorsL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdReplaceErrors)
-			}
-
-			// TODO: L2 metrics for replaces, replace stored, replace not stored, replace errors
+			err = handleReplace(request, l1, l2, responder)
 
 		case common.RequestDelete:
-			metrics.IncCounter(MetricCmdDelete)
-			req := request.(common.DeleteRequest)
-			//log.Println("delete", string(req.Key))
-
-			metrics.IncCounter(MetricCmdDeleteL1)
-			err = l1.Delete(req)
-
-			if err == nil {
-				metrics.IncCounter(MetricCmdDeleteHits)
-				metrics.IncCounter(MetricCmdDeleteHitsL1)
-
-				responder.Delete(req.Opaque)
-
-			} else if err == common.ErrKeyNotFound {
-				metrics.IncCounter(MetricCmdDeleteMissesL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdDeleteMisses)
-			} else {
-				metrics.IncCounter(MetricCmdDeleteErrorsL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdDeleteErrors)
-			}
-
-			// TODO: L2 metrics for deletes, delete hits, delete misses, delete errors
+			err = handleDelete(request, l1, l2, responder)
 
 		case common.RequestTouch:
-			metrics.IncCounter(MetricCmdTouch)
-			req := request.(common.TouchRequest)
-			//log.Println("touch", string(req.Key))
-
-			metrics.IncCounter(MetricCmdTouchL1)
-			err = l1.Touch(req)
-
-			if err == nil {
-				metrics.IncCounter(MetricCmdTouchHitsL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdTouchHits)
-
-				responder.Touch(req.Opaque)
-
-			} else if err == common.ErrKeyNotFound {
-				metrics.IncCounter(MetricCmdTouchMissesL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdTouchMisses)
-			} else {
-				metrics.IncCounter(MetricCmdTouchMissesL1)
-				// TODO: Account for L2
-				metrics.IncCounter(MetricCmdTouchMisses)
-			}
-
-			// TODO: L2 metrics for touches, touch hits, touch misses, touch errors
+			err = handleTouch(request, l1, l2, responder)
 
 		case common.RequestGet:
 			err = handleGet(request, l1, l2, responder)
@@ -518,7 +397,158 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	}
 }
 
-func handleGet(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
+func handleSet(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdSet)
+	req := request.(common.SetRequest)
+	//log.Println("set", string(req.Key))
+
+	metrics.IncCounter(MetricCmdSetL1)
+	err := l1.Set(req)
+
+	if err == nil {
+		metrics.IncCounter(MetricCmdSetSuccessL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdSetSuccess)
+
+		err = responder.Set(req.Opaque)
+
+	} else {
+		metrics.IncCounter(MetricCmdSetErrorsL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdSetErrors)
+	}
+
+	// TODO: L2 metrics for sets, set success, set errors
+
+	return err
+}
+
+func handleAdd(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdAdd)
+	req := request.(common.SetRequest)
+	//log.Println("add", string(req.Key))
+
+	// TODO: L2 first, then L1
+
+	metrics.IncCounter(MetricCmdAddL1)
+	err := l1.Add(req)
+
+	if err == nil {
+		metrics.IncCounter(MetricCmdAddStoredL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdAddStored)
+
+		err = responder.Add(req.Opaque, true)
+
+	} else if err == common.ErrKeyExists {
+		metrics.IncCounter(MetricCmdAddNotStoredL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdAddNotStored)
+		err = responder.Add(req.Opaque, false)
+	} else {
+		metrics.IncCounter(MetricCmdAddErrorsL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdAddErrors)
+	}
+
+	// TODO: L2 metrics for adds, add stored, add not stored, add errors
+
+	return err
+}
+
+func handleReplace(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdReplace)
+	req := request.(common.SetRequest)
+	//log.Println("replace", string(req.Key))
+
+	// TODO: L2 first, then L1
+
+	metrics.IncCounter(MetricCmdReplaceL1)
+	err := l1.Replace(req)
+
+	if err == nil {
+		metrics.IncCounter(MetricCmdReplaceStoredL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdReplaceStored)
+
+		err = responder.Replace(req.Opaque, true)
+
+	} else if err == common.ErrKeyNotFound {
+		metrics.IncCounter(MetricCmdReplaceNotStoredL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdReplaceNotStored)
+		err = responder.Replace(req.Opaque, false)
+	} else {
+		metrics.IncCounter(MetricCmdReplaceErrorsL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdReplaceErrors)
+	}
+
+	// TODO: L2 metrics for replaces, replace stored, replace not stored, replace errors
+
+	return err
+}
+
+func handleDelete(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdDelete)
+	req := request.(common.DeleteRequest)
+	//log.Println("delete", string(req.Key))
+
+	metrics.IncCounter(MetricCmdDeleteL1)
+	err := l1.Delete(req)
+
+	if err == nil {
+		metrics.IncCounter(MetricCmdDeleteHits)
+		metrics.IncCounter(MetricCmdDeleteHitsL1)
+
+		responder.Delete(req.Opaque)
+
+	} else if err == common.ErrKeyNotFound {
+		metrics.IncCounter(MetricCmdDeleteMissesL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdDeleteMisses)
+	} else {
+		metrics.IncCounter(MetricCmdDeleteErrorsL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdDeleteErrors)
+	}
+
+	// TODO: L2 metrics for deletes, delete hits, delete misses, delete errors
+
+	return err
+}
+
+func handleTouch(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdTouch)
+	req := request.(common.TouchRequest)
+	//log.Println("touch", string(req.Key))
+
+	metrics.IncCounter(MetricCmdTouchL1)
+	err := l1.Touch(req)
+
+	if err == nil {
+		metrics.IncCounter(MetricCmdTouchHitsL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdTouchHits)
+
+		responder.Touch(req.Opaque)
+
+	} else if err == common.ErrKeyNotFound {
+		metrics.IncCounter(MetricCmdTouchMissesL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdTouchMisses)
+	} else {
+		metrics.IncCounter(MetricCmdTouchMissesL1)
+		// TODO: Account for L2
+		metrics.IncCounter(MetricCmdTouchMisses)
+	}
+
+	// TODO: L2 metrics for touches, touch hits, touch misses, touch errors
+
+	return err
+}
+
+func handleGet(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdGet)
 	req := request.(common.GetRequest)
 	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
@@ -584,7 +614,7 @@ func handleGet(request interface{}, l1, l2 handlers.Handler, responder common.Re
 	return err
 }
 
-func handleGat(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
+func handleGat(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdGat)
 	req := request.(common.GATRequest)
 	//log.Println("gat", string(req.Key))
@@ -616,19 +646,19 @@ func handleGat(request interface{}, l1, l2 handlers.Handler, responder common.Re
 	return err
 }
 
-func handleQuit(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
+func handleQuit(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdQuit)
 	req := request.(common.QuitRequest)
 	return responder.Quit(req.Opaque, req.Quiet)
 }
 
-func handleVersion(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
+func handleVersion(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdVersion)
 	req := request.(common.VersionRequest)
 	return responder.Version(req.Opaque)
 }
 
-func handleUnknown(request interface{}, l1, l2 handlers.Handler, responder common.Responder) error {
+func handleUnknown(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
 	metrics.IncCounter(MetricCmdUnknown)
 	return common.ErrUnknownCmd
 }
