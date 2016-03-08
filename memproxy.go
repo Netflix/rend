@@ -38,10 +38,10 @@ import (
 	"github.com/netflix/rend/textprot"
 )
 
-// Set up more sane GOGC default
+// Set GOGC default explicitly
 func init() {
 	if _, set := os.LookupEnv("GOGC"); !set {
-		debug.SetGCPercent(200)
+		debug.SetGCPercent(100)
 	}
 }
 
