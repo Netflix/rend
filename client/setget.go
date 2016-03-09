@@ -14,31 +14,31 @@
 
 package main
 
-import "fmt"
-import "io"
-import "math/rand"
-import "time"
-import "sync"
+import (
+	"bufio"
+	"log"
+	"math/rand"
+	"net/http"
+	_ "net/http/pprof"
+	"sync"
+	"time"
 
-import "./common"
-import "./f"
-import _ "./sigs"
-import "./binprot"
-import "./textprot"
+	"github.com/netflix/rend/client/binprot"
+	"github.com/netflix/rend/client/common"
+	"github.com/netflix/rend/client/f"
+	"github.com/netflix/rend/client/textprot"
+)
 
-// Package init
 func init() {
-	rand.Seed(time.Now().UTC().UnixNano())
+	go http.ListenAndServe("localhost:11337", nil)
 }
 
 func main() {
 	var prot common.Prot
 	if f.Binary {
-		var b binprot.BinProt
-		prot = b
+		prot = binprot.BinProt{}
 	} else {
-		var t textprot.TextProt
-		prot = t
+		prot = textprot.TextProt{}
 	}
 
 	tasks := make(chan *common.Task)
@@ -47,26 +47,27 @@ func main() {
 
 	// spawn worker goroutines
 	for i := 0; i < f.NumWorkers; i++ {
-		conn, err := common.Connect("localhost", f.Port)
+		conn, err := common.Connect(f.Host, f.Port)
 		if err != nil {
-			fmt.Println("Error:", err.Error())
+			panic(err.Error())
 		}
-		go worker(prot, conn, tasks, wg)
+		rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+		go worker(prot, rw, tasks, wg)
 	}
 
-	source := common.RandData(10240)
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	for i := 0; i < f.NumOps; i++ {
 		// Random length between 1k and 10k
-		valLen := rand.Intn(9*1024) + 1024
+		valLen := r.Intn(9*1024) + 1024
 
 		tasks <- &common.Task{
-			Key:   common.RandData(f.KeyLength),
-			Value: source[:valLen],
+			Key:   common.RandData(r, f.KeyLength, false),
+			Value: common.RandData(nil, valLen, true),
 		}
 
 		if i%10000 == 0 {
-			fmt.Printf("%v\r\n", i)
+			log.Printf("%v\r\n", i)
 		}
 	}
 
@@ -74,7 +75,7 @@ func main() {
 	wg.Wait()
 }
 
-func worker(prot common.Prot, rw io.ReadWriter, tasks chan *common.Task, wg *sync.WaitGroup) {
+func worker(prot common.Prot, rw *bufio.ReadWriter, tasks chan *common.Task, wg *sync.WaitGroup) {
 	for item := range tasks {
 		prot.Set(rw, item.Key, item.Value)
 		prot.Get(rw, item.Key)

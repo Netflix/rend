@@ -22,9 +22,9 @@ type Prot interface {
 	Set(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Add(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Replace(rw *bufio.ReadWriter, key []byte, value []byte) error
-	Get(rw *bufio.ReadWriter, key []byte) error
-	GAT(rw *bufio.ReadWriter, key []byte) error
-	BatchGet(rw *bufio.ReadWriter, keys [][]byte) error
+	Get(rw *bufio.ReadWriter, key []byte) ([]byte, error)
+	GAT(rw *bufio.ReadWriter, key []byte) ([]byte, error)
+	BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error)
 	Delete(rw *bufio.ReadWriter, key []byte) error
 	Touch(rw *bufio.ReadWriter, key []byte) error
 }

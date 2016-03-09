@@ -236,12 +236,12 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		case common.Replace:
 			err = prot.Replace(rw, item.Key, item.Value)
 		case common.Get:
-			err = prot.Get(rw, item.Key)
+			_, err = prot.Get(rw, item.Key)
 		case common.Gat:
-			err = prot.GAT(rw, item.Key)
+			_, err = prot.GAT(rw, item.Key)
 		case common.Bget:
 			bk := batchkeys(r, item.Key)
-			err = prot.BatchGet(rw, bk)
+			_, err = prot.BatchGet(rw, bk)
 			bkpool.Put(bk)
 		case common.Delete:
 			err = prot.Delete(rw, item.Key)
