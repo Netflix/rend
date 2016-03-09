@@ -36,6 +36,9 @@ func consumeResponse(r *bufio.Reader) ([]byte, error) {
 	buf := make([]byte, res.BodyLen)
 	io.ReadFull(r, buf)
 
+	// ignore extras for now
+	buf = buf[res.ExtraLen:]
+
 	resPool.Put(res)
 
 	if apperr != nil && srsErr(apperr) {
