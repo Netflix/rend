@@ -175,13 +175,15 @@ var (
 // Flags
 var chunked bool
 var l1sock string
+var l2enabled bool
 var l2sock string
 var port int
 
 func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
 	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
-	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2")
+	flag.BoolVar(&l2enabled, "l2-enabled", false, "Specifies if l2 is enabled")
+	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2. Only used if --l2-enabled is true.")
 	flag.IntVar(&port, "p", 11211, "External port to listen on")
 	flag.Parse()
 }
@@ -218,18 +220,6 @@ func main() {
 		}
 		metrics.IncCounter(MetricConnectionsEstablishedL1)
 
-		l2conn, err := net.Dial("unix", l2sock)
-		if err != nil {
-			log.Println("Error opening connection to L2:", err.Error())
-			if l2conn != nil {
-				l2conn.Close()
-			}
-			l1conn.Close()
-			remote.Close()
-			continue
-		}
-		metrics.IncCounter(MetricConnectionsEstablishedL2)
-
 		var l1 handlers.Handler
 		if chunked {
 			l1 = memcached.NewChunkedHandler(l1conn)
@@ -237,7 +227,23 @@ func main() {
 			l1 = memcached.NewHandler(l1conn)
 		}
 
-		l2 := memcached.NewHandler(l2conn)
+		var l2 handlers.Handler
+
+		if l2enabled {
+			l2conn, err := net.Dial("unix", l2sock)
+			if err != nil {
+				log.Println("Error opening connection to L2:", err.Error())
+				if l2conn != nil {
+					l2conn.Close()
+				}
+				l1conn.Close()
+				remote.Close()
+				continue
+			}
+			metrics.IncCounter(MetricConnectionsEstablishedL2)
+
+			l2 = memcached.NewHandler(l2conn)
+		}
 
 		go handleConnection(remote, l1, l2)
 	}
