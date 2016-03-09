@@ -35,8 +35,7 @@ func NewTextParser(reader *bufio.Reader) TextParser {
 	}
 }
 
-func (t TextParser) Parse() (interface{}, common.RequestType, error) {
-
+func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 	data, err := t.reader.ReadString('\n')
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(len(data)))
 
