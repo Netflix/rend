@@ -16,6 +16,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"log"
 	"math/rand"
 	"net/http"
@@ -77,8 +78,23 @@ func main() {
 
 func worker(prot common.Prot, rw *bufio.ReadWriter, tasks chan *common.Task, wg *sync.WaitGroup) {
 	for item := range tasks {
-		prot.Set(rw, item.Key, item.Value)
-		prot.Get(rw, item.Key)
+		// continue on even if there's errors here
+		if err := prot.Set(rw, item.Key, item.Value); err != nil {
+			log.Println("Error during set:", err.Error())
+		}
+
+		// pass the test if the data matches
+		ret, err := prot.Get(rw, item.Key)
+		if err != nil {
+			log.Println("Error getting data for key", string(item.Key), ":", err.Error())
+			continue
+		}
+
+		if !bytes.Equal(item.Value, ret) {
+			log.Println("Data returned from server does not match!",
+				"\nData len sent:", len(item.Value),
+				"\nData len recv:", len(ret))
+		}
 	}
 
 	wg.Done()
