@@ -18,15 +18,18 @@ import (
 	"bufio"
 	"bytes"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	_ "net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/netflix/rend/client/binprot"
 	"github.com/netflix/rend/client/common"
 	"github.com/netflix/rend/client/f"
+	_ "github.com/netflix/rend/client/sigs"
 	"github.com/netflix/rend/client/textprot"
 )
 
@@ -42,10 +45,20 @@ func main() {
 		prot = textprot.TextProt{}
 	}
 
-	tasks := make(chan *common.Task)
 	wg := new(sync.WaitGroup)
 	wg.Add(f.NumWorkers)
 
+	// create and fill key channels to drive workers
+	perChan := int(math.Ceil(float64(f.NumOps) / float64(f.NumWorkers)))
+	chans := make([]chan []byte, f.NumWorkers)
+	for i, _ := range chans {
+		chans[i] = make(chan []byte, perChan)
+	}
+	fillKeys(chans)
+
+	log.Println("Done generating keys")
+
+	start := time.Now()
 	// spawn worker goroutines
 	for i := 0; i < f.NumWorkers; i++ {
 		conn, err := common.Connect(f.Host, f.Port)
@@ -53,47 +66,96 @@ func main() {
 			panic(err.Error())
 		}
 		rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
-		go worker(prot, rw, tasks, wg)
+		go worker(prot, rw, chans[i], wg)
 	}
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	for i := 0; i < f.NumOps; i++ {
-		// Random length between 1k and 10k
-		valLen := r.Intn(9*1024) + 1024
-
-		tasks <- &common.Task{
-			Key:   common.RandData(r, f.KeyLength, false),
-			Value: common.RandData(nil, valLen, true),
-		}
-
-		if i%10000 == 0 {
-			log.Printf("%v\r\n", i)
-		}
-	}
-
-	close(tasks)
 	wg.Wait()
+
+	log.Println("Total comm time:", time.Since(start))
 }
 
-func worker(prot common.Prot, rw *bufio.ReadWriter, tasks chan *common.Task, wg *sync.WaitGroup) {
-	for item := range tasks {
+// fills a bunch of channels round robin with keys
+func fillKeys(chans []chan []byte) {
+	totalCap := 0
+	for _, c := range chans {
+		totalCap += cap(c)
+	}
+	if totalCap < f.NumOps {
+		panic("Channels cannot hold all the ops. Deadlock guaranteed.")
+	}
+
+	ci := 0
+	key := bytes.Repeat([]byte{byte('A')}, f.KeyLength)
+	for i := 0; i < f.NumOps; i++ {
+		key = nextKey(key)
+		chans[ci] <- key
+		ci = (ci + 1) % len(chans)
+	}
+
+	// close them as they have all the data they need
+	for _, c := range chans {
+		close(c)
+	}
+}
+
+func nextKey(key []byte) []byte {
+	// make a copy to avoid touching keys in use
+	temp := make([]byte, len(key))
+	copy(temp, key)
+	key = temp
+
+	for i := 0; i < len(key); i++ {
+		key[i] -= byte('A')
+	}
+
+	// ripple carry adder anyone?
+	i := 0
+	carry := true
+	for carry {
+		key[i] = key[i] + 1%26
+		carry = key[i] == 0
+		i++
+	}
+
+	for i := 0; i < len(key); i++ {
+		key[i] += byte('A')
+	}
+
+	return key
+}
+
+var opCount = new(uint64)
+
+func worker(prot common.Prot, rw *bufio.ReadWriter, keys chan []byte, wg *sync.WaitGroup) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for key := range keys {
+		curOpCount := atomic.AddUint64(opCount, 1)
+		if curOpCount%10000 == 0 {
+			log.Println(curOpCount)
+		}
+
+		valLen := r.Intn(9*1024) + 1024
+		value := common.RandData(nil, valLen, true)
+
 		// continue on even if there's errors here
-		if err := prot.Set(rw, item.Key, item.Value); err != nil {
+		if err := prot.Set(rw, key, value); err != nil {
 			log.Println("Error during set:", err.Error())
 		}
 
 		// pass the test if the data matches
-		ret, err := prot.Get(rw, item.Key)
+		ret, err := prot.Get(rw, key)
 		if err != nil {
-			log.Println("Error getting data for key", string(item.Key), ":", err.Error())
+			log.Println("Error getting data for key", string(key), ":", err.Error())
 			continue
 		}
 
-		if !bytes.Equal(item.Value, ret) {
+		if !bytes.Equal(value, ret) {
 			log.Println("Data returned from server does not match!",
-				"\nData len sent:", len(item.Value),
+				"\nData len sent:", len(value),
 				"\nData len recv:", len(ret))
+			//log.Println("sent:", string(value))
+			//log.Println("got:", string(ret))
 		}
 	}
 
