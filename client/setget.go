@@ -121,7 +121,6 @@ func nextKey(key []byte) []byte {
 		key[i] += byte('A')
 	}
 
-	log.Println(string(key))
 	return key
 }
 
