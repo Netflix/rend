@@ -109,18 +109,19 @@ func nextKey(key []byte) []byte {
 	}
 
 	// ripple carry adder anyone?
-	i := 0
+	i := len(key) - 1
 	carry := true
-	for carry {
-		key[i] = key[i] + 1%26
+	for carry && i >= 0 {
+		key[i] = (key[i] + 1) % 26
 		carry = key[i] == 0
-		i++
+		i--
 	}
 
 	for i := 0; i < len(key); i++ {
 		key[i] += byte('A')
 	}
 
+	log.Println(string(key))
 	return key
 }
 
