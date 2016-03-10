@@ -65,6 +65,10 @@ func consumeBatchResponse(r *bufio.Reader) ([][]byte, error) {
 		// read body in regardless of the error in the header
 		buf := make([]byte, res.BodyLen)
 		io.ReadFull(r, buf)
+
+		// ignore extras for now
+		buf = buf[res.ExtraLen:]
+
 		ret = append(ret, buf)
 	}
 
