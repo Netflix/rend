@@ -108,12 +108,20 @@ func (b BinProt) Set(rw *bufio.ReadWriter, key, value []byte) error {
 	// flags are irrelevant, and are thus zero.
 	// expiration could be important, so hammer with random values from 1 sec up to 1 hour
 
+	return b.SetE(rw, key, value, common.Exp())
+}
+
+func (b BinProt) SetE(rw *bufio.ReadWriter, key, value []byte, expiration uint32) error {
+	// set packet contains the req header, flags, and expiration
+	// flags are irrelevant, and are thus zero.
+	// expiration could be important, so hammer with random values from 1 sec up to 1 hour
+
 	// Header
 	bodylen := 8 + len(key) + len(value)
 	writeReq(rw, Set, len(key), 8, bodylen, 0)
 	// Extras
 	binary.Write(rw, binary.BigEndian, uint32(0))
-	binary.Write(rw, binary.BigEndian, common.Exp())
+	binary.Write(rw, binary.BigEndian, expiration)
 	// Body / data
 	rw.Write(key)
 	rw.Write(value)
