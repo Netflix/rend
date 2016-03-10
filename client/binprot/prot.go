@@ -14,51 +14,65 @@
 
 package binprot
 
-import "bufio"
-import "encoding/binary"
+import (
+	"bufio"
+	"encoding/binary"
+	"io"
 
-import "github.com/netflix/rend/client/common"
+	"github.com/netflix/rend/client/common"
+)
 
 type BinProt struct{}
 
-func consumeResponse(r *bufio.Reader) error {
+func consumeResponse(r *bufio.Reader) ([]byte, error) {
 	res, err := readRes(r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	apperr := statusToError(res.Status)
 
 	// read body in regardless of the error in the header
-	r.Discard(int(res.BodyLen))
+	buf := make([]byte, res.BodyLen)
+	io.ReadFull(r, buf)
+
+	// ignore extras for now
+	buf = buf[res.ExtraLen:]
 
 	resPool.Put(res)
 
 	if apperr != nil && srsErr(apperr) {
-		return apperr
+		return buf, apperr
 	}
 
-	return err
+	return buf, err
 }
 
-func consumeBatchResponse(r *bufio.Reader) error {
+func consumeBatchResponse(r *bufio.Reader) ([][]byte, error) {
 	opcode := uint8(Get)
 	var apperr error
+	ret := make([][]byte, 0)
 
 	for opcode != Noop {
 		res, err := readRes(r)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		opcode = res.Opcode
 		apperr = statusToError(res.Status)
 
 		// read body in regardless of the error in the header
-		r.Discard(int(res.BodyLen))
+		buf := make([]byte, res.BodyLen)
+		io.ReadFull(r, buf)
+
+		// ignore extras for now
+		buf = buf[res.ExtraLen:]
+
+		ret = append(ret, buf)
 	}
 
-	return apperr
+	return ret, apperr
 }
 
 func (b BinProt) Set(rw *bufio.ReadWriter, key, value []byte) error {
@@ -79,7 +93,8 @@ func (b BinProt) Set(rw *bufio.ReadWriter, key, value []byte) error {
 	rw.Flush()
 
 	// consume all of the response and discard
-	return consumeResponse(rw.Reader)
+	_, err := consumeResponse(rw.Reader)
+	return err
 }
 
 func (b BinProt) Add(rw *bufio.ReadWriter, key, value []byte) error {
@@ -100,7 +115,8 @@ func (b BinProt) Add(rw *bufio.ReadWriter, key, value []byte) error {
 	rw.Flush()
 
 	// consume all of the response and discard
-	return consumeResponse(rw.Reader)
+	_, err := consumeResponse(rw.Reader)
+	return err
 }
 
 func (b BinProt) Replace(rw *bufio.ReadWriter, key, value []byte) error {
@@ -121,10 +137,11 @@ func (b BinProt) Replace(rw *bufio.ReadWriter, key, value []byte) error {
 	rw.Flush()
 
 	// consume all of the response and discard
-	return consumeResponse(rw.Reader)
+	_, err := consumeResponse(rw.Reader)
+	return err
 }
 
-func (b BinProt) Get(rw *bufio.ReadWriter, key []byte) error {
+func (b BinProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	// Header
 	writeReq(rw, Get, len(key), 0, len(key))
 	// Body
@@ -132,11 +149,11 @@ func (b BinProt) Get(rw *bufio.ReadWriter, key []byte) error {
 
 	rw.Flush()
 
-	// consume all of the response and discard
+	// consume all of the response and return
 	return consumeResponse(rw.Reader)
 }
 
-func (b BinProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) error {
+func (b BinProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error) {
 	for _, key := range keys {
 		// Header
 		writeReq(rw, GetQ, len(key), 0, len(key))
@@ -148,11 +165,11 @@ func (b BinProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) error {
 
 	rw.Flush()
 
-	// consume all of the responses
+	// consume all of the responses and return
 	return consumeBatchResponse(rw.Reader)
 }
 
-func (b BinProt) GAT(rw *bufio.ReadWriter, key []byte) error {
+func (b BinProt) GAT(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	// Header
 	writeReq(rw, GAT, len(key), 4, len(key))
 	// Extras
@@ -162,7 +179,7 @@ func (b BinProt) GAT(rw *bufio.ReadWriter, key []byte) error {
 
 	rw.Flush()
 
-	// consume all of the response and discard
+	// consume all of the response and return
 	return consumeResponse(rw.Reader)
 }
 
@@ -175,7 +192,8 @@ func (b BinProt) Delete(rw *bufio.ReadWriter, key []byte) error {
 	rw.Flush()
 
 	// consume all of the response and discard
-	return consumeResponse(rw.Reader)
+	_, err := consumeResponse(rw.Reader)
+	return err
 }
 
 func (b BinProt) Touch(rw *bufio.ReadWriter, key []byte) error {
@@ -189,5 +207,6 @@ func (b BinProt) Touch(rw *bufio.ReadWriter, key []byte) error {
 	rw.Flush()
 
 	// consume all of the response and discard
-	return consumeResponse(rw.Reader)
+	_, err := consumeResponse(rw.Reader)
+	return err
 }

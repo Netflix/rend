@@ -99,14 +99,14 @@ func (t TextProt) Replace(rw *bufio.ReadWriter, key []byte, value []byte) error 
 	return nil
 }
 
-func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) error {
+func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	strKey := string(key)
 	if VERBOSE {
 		fmt.Printf("Getting key %s\n", strKey)
 	}
 
 	if _, err := fmt.Fprintf(rw, "get %s\r\n", strKey); err != nil {
-		return err
+		return nil, err
 	}
 
 	rw.Flush()
@@ -114,7 +114,7 @@ func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) error {
 	// read the header line
 	response, err := rw.ReadString('\n')
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if VERBOSE {
 		fmt.Println(response)
@@ -124,13 +124,13 @@ func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) error {
 		if VERBOSE {
 			fmt.Println("Empty response / cache miss")
 		}
-		return nil
+		return []byte{}, nil
 	}
 
 	// then read the value
 	response, err = rw.ReadString('\n')
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if VERBOSE {
 		fmt.Println(response)
@@ -139,16 +139,16 @@ func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) error {
 	// then read the END
 	response, err = rw.ReadString('\n')
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if VERBOSE {
 		fmt.Println(response)
 		fmt.Printf("Got key %s\n", key)
 	}
-	return nil
+	return []byte(response), nil
 }
 
-func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) error {
+func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error) {
 	if VERBOSE {
 		fmt.Printf("Getting keys %v\n", keys)
 	}
@@ -165,16 +165,18 @@ func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) error {
 	cmd = append(cmd, end...)
 
 	if _, err := fmt.Fprint(rw, string(cmd)); err != nil {
-		return err
+		return nil, err
 	}
 
 	rw.Flush()
+
+	ret := make([][]byte, 0)
 
 	for {
 		// read the header line
 		response, err := rw.ReadString('\n')
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if VERBOSE {
 			fmt.Println(response)
@@ -184,21 +186,25 @@ func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) error {
 			if VERBOSE {
 				fmt.Println("End of batch response")
 			}
-			return nil
+			return [][]byte{}, nil
 		}
 
 		// then read the value
 		response, err = rw.ReadString('\n')
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if VERBOSE {
 			fmt.Println(response)
 		}
+
+		ret = append(ret, []byte(response))
 	}
+
+	return ret, nil
 }
 
-func (t TextProt) GAT(rw *bufio.ReadWriter, key []byte) error {
+func (t TextProt) GAT(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	// Yes, the abstraction is a little bit leaky, but the code
 	// in other places benefits from the consistency.
 	panic("GAT in text protocol")
