@@ -135,13 +135,19 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 
 	switch reqHeader.Opcode {
 	case OpcodeSet:
-		return setRequest(b.reader, reqHeader, common.RequestSet)
+		return setRequest(b.reader, reqHeader, common.RequestSet, false)
+	case OpcodeSetQ:
+		return setRequest(b.reader, reqHeader, common.RequestSet, true)
 
 	case OpcodeAdd:
-		return setRequest(b.reader, reqHeader, common.RequestAdd)
+		return setRequest(b.reader, reqHeader, common.RequestAdd, false)
+	case OpcodeAddQ:
+		return setRequest(b.reader, reqHeader, common.RequestAdd, true)
 
 	case OpcodeReplace:
-		return setRequest(b.reader, reqHeader, common.RequestReplace)
+		return setRequest(b.reader, reqHeader, common.RequestReplace, false)
+	case OpcodeReplaceQ:
+		return setRequest(b.reader, reqHeader, common.RequestReplace, true)
 
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
@@ -394,7 +400,7 @@ func readBatchGetE(r io.Reader, header RequestHeader) (common.GetRequest, error)
 	}, nil
 }
 
-func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType) (common.SetRequest, common.RequestType, error) {
+func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool) (common.SetRequest, common.RequestType, error) {
 	// flags, exptime, key, value
 	flags, err := readUInt32(r)
 	if err != nil {
@@ -427,6 +433,7 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 	}
 
 	return common.SetRequest{
+		Quiet:   quiet,
 		Key:     key,
 		Flags:   flags,
 		Exptime: exptime,

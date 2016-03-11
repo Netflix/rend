@@ -32,11 +32,11 @@ func NewTextResponder(writer *bufio.Writer) TextResponder {
 	}
 }
 
-func (t TextResponder) Set(opaque uint32) error {
+func (t TextResponder) Set(opaque uint32, quiet bool) error {
 	return t.resp("STORED")
 }
 
-func (t TextResponder) Add(opaque uint32, added bool) error {
+func (t TextResponder) Add(opaque uint32, added bool, quiet bool) error {
 	if added {
 		return t.resp("STORED")
 	} else {
@@ -44,7 +44,7 @@ func (t TextResponder) Add(opaque uint32, added bool) error {
 	}
 }
 
-func (t TextResponder) Replace(opaque uint32, replaced bool) error {
+func (t TextResponder) Replace(opaque uint32, replaced bool, quiet bool) error {
 	if replaced {
 		return t.resp("STORED")
 	} else {

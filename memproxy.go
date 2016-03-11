@@ -416,7 +416,7 @@ func handleSet(request common.Request, l1, l2 handlers.Handler, responder common
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdSetSuccess)
 
-		err = responder.Set(req.Opaque)
+		err = responder.Set(req.Opaque, req.Quiet)
 
 	} else {
 		metrics.IncCounter(MetricCmdSetErrorsL1)
@@ -444,13 +444,13 @@ func handleAdd(request common.Request, l1, l2 handlers.Handler, responder common
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdAddStored)
 
-		err = responder.Add(req.Opaque, true)
+		err = responder.Add(req.Opaque, true, req.Quiet)
 
 	} else if err == common.ErrKeyExists {
 		metrics.IncCounter(MetricCmdAddNotStoredL1)
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdAddNotStored)
-		err = responder.Add(req.Opaque, false)
+		err = responder.Add(req.Opaque, false, req.Quiet)
 	} else {
 		metrics.IncCounter(MetricCmdAddErrorsL1)
 		// TODO: Account for L2
@@ -477,13 +477,13 @@ func handleReplace(request common.Request, l1, l2 handlers.Handler, responder co
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdReplaceStored)
 
-		err = responder.Replace(req.Opaque, true)
+		err = responder.Replace(req.Opaque, true, req.Quiet)
 
 	} else if err == common.ErrKeyNotFound {
 		metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdReplaceNotStored)
-		err = responder.Replace(req.Opaque, false)
+		err = responder.Replace(req.Opaque, false, req.Quiet)
 	} else {
 		metrics.IncCounter(MetricCmdReplaceErrorsL1)
 		// TODO: Account for L2

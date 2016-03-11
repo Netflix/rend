@@ -134,9 +134,9 @@ type RequestParser interface {
 // Unsupported interactions are OK to panic() on because they should never be returned from the
 // corresponding RequestParser.
 type Responder interface {
-	Set(opaque uint32) error
-	Add(opaque uint32, added bool) error
-	Replace(opaque uint32, replaced bool) error
+	Set(opaque uint32, quiet bool) error
+	Add(opaque uint32, added bool, quiet bool) error
+	Replace(opaque uint32, replaced bool, quiet bool) error
 	Get(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
 	GetE(response GetEResponse) error
@@ -160,6 +160,7 @@ type SetRequest struct {
 	Flags   uint32
 	Exptime uint32
 	Opaque  uint32
+	Quiet   bool
 }
 
 func (r SetRequest) Opq() uint32 {
