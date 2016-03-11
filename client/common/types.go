@@ -23,6 +23,7 @@ type Prot interface {
 	Add(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Replace(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Get(rw *bufio.ReadWriter, key []byte) ([]byte, error)
+	GetWithOpaque(rw *bufio.ReadWriter, key []byte, opaque int) ([]byte, error)
 	GAT(rw *bufio.ReadWriter, key []byte) ([]byte, error)
 	BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error)
 	Delete(rw *bufio.ReadWriter, key []byte) error

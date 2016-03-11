@@ -126,21 +126,30 @@ func NewBinaryResponder(writer *bufio.Writer) BinaryResponder {
 	}
 }
 
-func (b BinaryResponder) Set(opaque uint32) error {
-	return writeSuccessResponseHeader(b.writer, OpcodeSet, 0, 0, 0, opaque, true)
+func (b BinaryResponder) Set(opaque uint32, quiet bool) error {
+	if !quiet {
+		return writeSuccessResponseHeader(b.writer, OpcodeSet, 0, 0, 0, opaque, true)
+	}
+	return nil
 }
 
-func (b BinaryResponder) Add(opaque uint32, added bool) error {
+func (b BinaryResponder) Add(opaque uint32, added bool, quiet bool) error {
 	if added {
-		return writeSuccessResponseHeader(b.writer, OpcodeAdd, 0, 0, 0, opaque, true)
+		if !quiet {
+			return writeSuccessResponseHeader(b.writer, OpcodeAdd, 0, 0, 0, opaque, true)
+		}
+		return nil
 	} else {
 		return writeErrorResponseHeader(b.writer, OpcodeAdd, StatusKeyExists, opaque)
 	}
 }
 
-func (b BinaryResponder) Replace(opaque uint32, replaced bool) error {
+func (b BinaryResponder) Replace(opaque uint32, replaced bool, quiet bool) error {
 	if replaced {
-		return writeSuccessResponseHeader(b.writer, OpcodeReplace, 0, 0, 0, opaque, true)
+		if !quiet {
+			return writeSuccessResponseHeader(b.writer, OpcodeReplace, 0, 0, 0, opaque, true)
+		}
+		return nil
 	} else {
 		return writeErrorResponseHeader(b.writer, OpcodeReplace, StatusKeyEnoent, opaque)
 	}
@@ -205,6 +214,10 @@ func (b BinaryResponder) Delete(opaque uint32) error {
 
 func (b BinaryResponder) Touch(opaque uint32) error {
 	return writeSuccessResponseHeader(b.writer, OpcodeTouch, 0, 0, 0, opaque, true)
+}
+
+func (b BinaryResponder) Noop(opaque uint32) error {
+	return writeSuccessResponseHeader(b.writer, OpcodeNoop, 0, 0, 0, opaque, true)
 }
 
 func (b BinaryResponder) Quit(opaque uint32, quiet bool) error {

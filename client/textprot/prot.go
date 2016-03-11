@@ -99,6 +99,9 @@ func (t TextProt) Replace(rw *bufio.ReadWriter, key []byte, value []byte) error 
 	return nil
 }
 
+func (t TextProt) GetWithOpaque(rw *bufio.ReadWriter, key []byte, opaque int) ([]byte, error) {
+	return t.Get(rw, key)
+}
 func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	strKey := string(key)
 	if VERBOSE {

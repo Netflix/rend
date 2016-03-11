@@ -115,6 +115,9 @@ const (
 	// RequestTouch updates the TTL for the item specified to a new TTL
 	RequestTouch
 
+	// RequestNoop does nothing
+	RequestNoop
+
 	// RequestQuit closes the connection
 	RequestQuit
 
@@ -134,15 +137,16 @@ type RequestParser interface {
 // Unsupported interactions are OK to panic() on because they should never be returned from the
 // corresponding RequestParser.
 type Responder interface {
-	Set(opaque uint32) error
-	Add(opaque uint32, added bool) error
-	Replace(opaque uint32, replaced bool) error
+	Set(opaque uint32, quiet bool) error
+	Add(opaque uint32, added bool, quiet bool) error
+	Replace(opaque uint32, replaced bool, quiet bool) error
 	Get(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
 	GetE(response GetEResponse) error
 	GAT(response GetResponse) error
 	Delete(opaque uint32) error
 	Touch(opaque uint32) error
+	Noop(opaque uint32) error
 	Quit(opaque uint32, quiet bool) error
 	Version(opaque uint32) error
 	Error(opaque uint32, reqType RequestType, err error) error
@@ -160,6 +164,7 @@ type SetRequest struct {
 	Flags   uint32
 	Exptime uint32
 	Opaque  uint32
+	Quiet   bool
 }
 
 func (r SetRequest) Opq() uint32 {
@@ -230,7 +235,17 @@ func (r QuitRequest) Opq() uint32 {
 	return r.Opaque
 }
 
-// VersionRequest corresponds to common.RequestQuit. It contains all the information required to
+// NoopRequest corresponds to common.RequestNoop. It contains all the information required to
+// fulfill a version request.
+type NoopRequest struct {
+	Opaque uint32
+}
+
+func (r NoopRequest) Opq() uint32 {
+	return r.Opaque
+}
+
+// VersionRequest corresponds to common.RequestVersion. It contains all the information required to
 // fulfill a version request.
 type VersionRequest struct {
 	Opaque uint32

@@ -121,7 +121,6 @@ func nextKey(key []byte) []byte {
 		key[i] += byte('A')
 	}
 
-	log.Println(string(key))
 	return key
 }
 
@@ -144,8 +143,10 @@ func worker(prot common.Prot, rw *bufio.ReadWriter, keys chan []byte, wg *sync.W
 			log.Println("Error during set:", err.Error())
 		}
 
+		opaque := r.Int()
+
 		// pass the test if the data matches
-		ret, err := prot.Get(rw, key)
+		ret, err := prot.GetWithOpaque(rw, key, opaque)
 		if err != nil {
 			log.Println("Error getting data for key", string(key), ":", err.Error())
 			continue

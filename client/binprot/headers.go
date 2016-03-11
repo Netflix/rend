@@ -78,7 +78,7 @@ var resPool = &sync.Pool{
 	},
 }
 
-func writeReq(w io.Writer, opcode, keylen, extralen, bodylen int) error {
+func writeReq(w io.Writer, opcode, keylen, extralen, bodylen, opaque int) error {
 	buf := bufPool.Get().([]byte)
 
 	buf[0] = 0x80
@@ -94,9 +94,13 @@ func writeReq(w io.Writer, opcode, keylen, extralen, bodylen int) error {
 	buf[9] = uint8(bodylen >> 16)
 	buf[10] = uint8(bodylen >> 8)
 	buf[11] = uint8(bodylen)
+	buf[12] = uint8(opaque >> 24)
+	buf[13] = uint8(opaque >> 16)
+	buf[14] = uint8(opaque >> 8)
+	buf[15] = uint8(opaque)
 
-	// zero Opaque and CAS region
-	for i := 12; i < 24; i++ {
+	// zero CAS region
+	for i := 16; i < 24; i++ {
 		buf[i] = 0
 	}
 
@@ -139,8 +143,8 @@ func readRes(r io.Reader) (res, error) {
 	//res.DataType = 0
 	res.Status = uint16(buf[6])<<8 | uint16(buf[7])
 	res.BodyLen = uint32(buf[8])<<24 | uint32(buf[9])<<16 | uint32(buf[10])<<8 | uint32(buf[11])
-	// Ignore Opaque and CAS
-	//res.Opaque = 0
+	res.Opaque = uint32(buf[12])<<24 | uint32(buf[13])<<16 | uint32(buf[14])<<8 | uint32(buf[15])
+	// Ignore CAS
 	//res.CASToken = 0
 
 	bufPool.Put(buf)
