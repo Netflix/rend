@@ -17,8 +17,8 @@ package binprot
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	"io"
+	"log"
 
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
@@ -146,7 +146,7 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
 		if err != nil {
-			fmt.Println("Error reading batch get")
+			log.Println("Error reading batch get")
 			return nil, common.RequestGet, err
 		}
 
@@ -156,7 +156,7 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
-			fmt.Println("Error reading key")
+			log.Println("Error reading key")
 			return nil, common.RequestGet, err
 		}
 
@@ -171,7 +171,7 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 	case OpcodeGetEQ:
 		req, err := readBatchGetE(b.reader, reqHeader)
 		if err != nil {
-			fmt.Println("Error reading batch get")
+			log.Println("Error reading batch get")
 			return nil, common.RequestGetE, err
 		}
 
@@ -182,7 +182,7 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
-			fmt.Println("Error reading key")
+			log.Println("Error reading key")
 			return nil, common.RequestGetE, err
 		}
 
@@ -197,13 +197,13 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
 		if err != nil {
-			fmt.Println("Error reading exptime")
+			log.Println("Error reading exptime")
 			return nil, common.RequestGat, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
-			fmt.Println("Error reading key")
+			log.Println("Error reading key")
 			return nil, common.RequestGat, err
 		}
 
@@ -217,7 +217,7 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
-			fmt.Println("Error reading key")
+			log.Println("Error reading key")
 			return nil, common.RequestDelete, err
 		}
 
@@ -230,13 +230,13 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
 		if err != nil {
-			fmt.Println("Error reading exptime")
+			log.Println("Error reading exptime")
 			return nil, common.RequestTouch, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
-			fmt.Println("Error reading key")
+			log.Println("Error reading key")
 			return nil, common.RequestTouch, err
 		}
 
@@ -262,6 +262,8 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 			Opaque: reqHeader.OpaqueToken,
 		}, common.RequestVersion, nil
 	}
+
+	log.Printf("Error processing request: unknown command. Command: %X\nWhole request:%#v", reqHeader.Opcode, reqHeader)
 
 	return nil, common.RequestUnknown, common.ErrUnknownCmd
 }
@@ -396,19 +398,19 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 	// flags, exptime, key, value
 	flags, err := readUInt32(r)
 	if err != nil {
-		fmt.Println("Error reading flags")
+		log.Println("Error reading flags")
 		return common.SetRequest{}, reqType, err
 	}
 
 	exptime, err := readUInt32(r)
 	if err != nil {
-		fmt.Println("Error reading exptime")
+		log.Println("Error reading exptime")
 		return common.SetRequest{}, reqType, err
 	}
 
 	key, err := readString(r, reqHeader.KeyLength)
 	if err != nil {
-		fmt.Println("Error reading key")
+		log.Println("Error reading key")
 		return common.SetRequest{}, reqType, err
 	}
 
