@@ -156,6 +156,7 @@ var (
 	MetricCmdGatErrorsL1            = metrics.AddCounter("cmd_gat_errors_l1")
 	MetricCmdGatErrorsL2            = metrics.AddCounter("cmd_gat_errors_l2")
 	MetricCmdUnknown                = metrics.AddCounter("cmd_unknown")
+	MetricCmdNoop                   = metrics.AddCounter("cmd_noop")
 	MetricCmdQuit                   = metrics.AddCounter("cmd_quit")
 	MetricCmdVersion                = metrics.AddCounter("cmd_version")
 	MetricErrAppError               = metrics.AddCounter("err_app_err")
@@ -356,6 +357,9 @@ func handleConnection(remoteConn net.Conn, l1, l2 handlers.Handler) {
 
 		case common.RequestGat:
 			err = handleGat(request, l1, l2, responder)
+
+		case common.RequestNoop:
+			err = handleNoop(request, l1, l2, responder)
 
 		case common.RequestQuit:
 			handleQuit(request, l1, l2, responder)
@@ -650,6 +654,12 @@ func handleGat(request common.Request, l1, l2 handlers.Handler, responder common
 	//TODO: L2 metrics for gats, gat hits, gat misses, gat errors
 
 	return err
+}
+
+func handleNoop(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {
+	metrics.IncCounter(MetricCmdNoop)
+	req := request.(common.NoopRequest)
+	return responder.Noop(req.Opaque)
 }
 
 func handleQuit(request common.Request, l1, l2 handlers.Handler, responder common.Responder) error {

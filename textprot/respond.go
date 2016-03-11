@@ -111,6 +111,10 @@ func (t TextResponder) Touch(opaque uint32) error {
 	return t.resp("TOUCHED")
 }
 
+func (t TextResponder) Noop(opaque uint32) error {
+	return t.resp("Yep, it works.")
+}
+
 func (t TextResponder) Quit(opaque uint32, quiet bool) error {
 	if !quiet {
 		return t.resp("Bye")

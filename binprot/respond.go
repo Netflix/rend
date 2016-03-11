@@ -216,6 +216,10 @@ func (b BinaryResponder) Touch(opaque uint32) error {
 	return writeSuccessResponseHeader(b.writer, OpcodeTouch, 0, 0, 0, opaque, true)
 }
 
+func (b BinaryResponder) Noop(opaque uint32) error {
+	return writeSuccessResponseHeader(b.writer, OpcodeNoop, 0, 0, 0, opaque, true)
+}
+
 func (b BinaryResponder) Quit(opaque uint32, quiet bool) error {
 	if !quiet {
 		return writeSuccessResponseHeader(b.writer, OpcodeQuit, 0, 0, 0, opaque, true)

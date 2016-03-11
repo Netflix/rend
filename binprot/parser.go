@@ -252,6 +252,11 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 			Opaque:  reqHeader.OpaqueToken,
 		}, common.RequestTouch, nil
 
+	case OpcodeNoop:
+		return common.NoopRequest{
+			Opaque: reqHeader.OpaqueToken,
+		}, common.RequestNoop, nil
+
 	case OpcodeQuit:
 		return common.QuitRequest{
 			Opaque: reqHeader.OpaqueToken,

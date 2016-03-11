@@ -111,6 +111,14 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 			Opaque:  uint32(0),
 		}, common.RequestTouch, nil
 
+	case "noop":
+		if len(clParts) != 1 {
+			return nil, common.RequestNoop, common.ErrBadRequest
+		}
+		return common.NoopRequest{
+			Opaque: 0,
+		}, common.RequestNoop, nil
+
 	case "quit":
 		if len(clParts) != 1 {
 			return nil, common.RequestQuit, common.ErrBadRequest
