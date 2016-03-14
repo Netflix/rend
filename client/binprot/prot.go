@@ -24,6 +24,37 @@ import (
 
 type BinProt struct{}
 
+func consumeResponseE(r *bufio.Reader) ([]byte, uint32, uint32, error) {
+        res, err := readRes(r)
+        if err != nil {
+                return nil, 0, 0, err
+        }
+
+        apperr := statusToError(res.Status)
+
+        // read body in regardless of the error in the header
+        buf := make([]byte, res.BodyLen)
+        io.ReadFull(r, buf)
+
+	var flags uint32 = 0
+	var expiration uint32 = 0
+	if res.ExtraLen >= 4 {
+		flags = binary.BigEndian.Uint32(buf[0:4])
+	}
+	if res.ExtraLen >= 8 {
+        	expiration = binary.BigEndian.Uint32(buf[4:8])
+	}
+        buf = buf[res.ExtraLen:]
+
+        resPool.Put(res)
+
+        if apperr != nil && srsErr(apperr) {
+                return buf, flags, expiration, apperr
+        }
+
+        return buf, flags, expiration, err
+}
+
 func consumeResponse(r *bufio.Reader) ([]byte, error) {
 	res, err := readRes(r)
 	if err != nil {
@@ -187,6 +218,18 @@ func (b BinProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 
 	// consume all of the response and return
 	return consumeResponse(rw.Reader)
+}
+
+func (b BinProt) GetE(rw *bufio.ReadWriter, key []byte) ([]byte, uint32, uint32, error) {
+        // Header
+        writeReq(rw, GetE, len(key), 0, len(key), 0)
+        // Body
+        rw.Write(key)
+
+        rw.Flush()
+
+        // consume all of the response and return
+        return consumeResponseE(rw.Reader)
 }
 
 func (b BinProt) GetWithOpaque(rw *bufio.ReadWriter, key []byte, opaque int) ([]byte, error) {

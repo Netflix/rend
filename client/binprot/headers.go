@@ -52,6 +52,7 @@ const (
 	Touch      = 0x1c
 	GAT        = 0x1d
 	GATQ       = 0x1e
+        GetE       = 0x40
 )
 
 type req struct {
