@@ -2,6 +2,8 @@
 
 # Rend - memcached proxy
 
+[![Dev chat at https://gitter.im/Netflix/rend](https://img.shields.io/badge/gitter-dev_chat-46bc99.svg)](https://gitter.im/Netflix/rend?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Rend is a proxy that is designed to sit on the same server as both a [memcached](https://github.com/memcached/memcached) process and an SSD-backed L2 cache, such as [RocksDB](https://github.com/facebook/rocksdb). It is written in [Go](https://github.com/golang/go) and is under active development at Netflix. Some more points about Rend:
 
  * Designed to handle tens of thousands of concurrent connections
