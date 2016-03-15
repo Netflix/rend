@@ -1,7 +1,30 @@
 package server
 
-type DefaultServer {
-	//lol
+import (
+	"bufio"
+	"io"
+	"log"
+	"net"
+	"time"
+
+	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/handlers"
+	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/textprot"
+)
+
+type DefaultServer struct {
+	stop chan struct{}
+	orca orcas.Orca
+}
+
+func NewDefaultServer(o orcas.Orca) Server {
+	return &DefaultServer{
+		stop: make(chan struct{}),
+		orca: o,
+	}
 }
 
 func (s *DefaultServer) Loop(remoteConn net.Conn, l1, l2 handlers.Handler) {
@@ -80,6 +103,9 @@ func (s *DefaultServer) Loop(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		case common.RequestGat:
 			err = handleGat(request, l1, l2, responder)
 
+		case common.RequestNoop:
+			err = handleNoop(request, l1, l2, responder)
+
 		case common.RequestQuit:
 			handleQuit(request, l1, l2, responder)
 			abort([]io.Closer{remoteConn, l1, l2}, err)
@@ -92,7 +118,6 @@ func (s *DefaultServer) Loop(remoteConn net.Conn, l1, l2 handlers.Handler) {
 			err = handleUnknown(request, l1, l2, responder)
 		}
 
-		// TODO: distinguish fatal errors from non-fatal
 		if err != nil {
 			if common.IsAppError(err) {
 				if err != common.ErrKeyNotFound {

@@ -3,6 +3,8 @@ package server
 import "github.com/netflix/rend/metrics"
 
 type Server interface {
+	Loop()
+	Shutdown()
 }
 
 var (

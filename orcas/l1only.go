@@ -230,6 +230,11 @@ func (l *L1Only) Gat(req common.GATRequest) error {
 	return err
 }
 
+func (l *L1Only) Noop(req common.NoopRequest) error {
+	metrics.IncCounter(MetricCmdNoop)
+	return l.res.Noop(req.Opaque)
+}
+
 func (l *L1Only) Quit(req common.QuitRequest) error {
 	metrics.IncCounter(MetricCmdQuit)
 	return l.res.Quit(req.Opaque, req.Quiet)
