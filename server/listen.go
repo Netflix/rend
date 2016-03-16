@@ -1,15 +1,20 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"time"
 
+	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/handlers/memcached"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/textprot"
 )
 
 type ListenArgs struct {
@@ -75,6 +80,42 @@ func ListenAndServe(l ListenArgs, s ServerConst) {
 
 			l2 = memcached.NewHandler(l2conn)
 		}
+
+		// MAYBE have this differentiation code here:
+		defer func() {
+			if r := recover(); r != nil {
+				if r != io.EOF {
+					log.Println("Recovered from runtime panic:", r)
+					log.Println("Panic location: ", identifyPanic())
+				}
+			}
+		}()
+
+		remoteReader := bufio.NewReader(remoteConn)
+		remoteWriter := bufio.NewWriter(remoteConn)
+
+		var reqParser common.RequestParser
+		var responder common.Responder
+		var reqType common.RequestType
+		var request common.Request
+
+		// A connection is either binary protocol or text. It cannot switch between the two.
+		// This is the way memcached handles protocols, so it can be as strict here.
+		binary, err := isBinaryRequest(remoteReader)
+		if err != nil {
+			// must be an IO error. Abort!
+			abort([]io.Closer{remoteConn, l1, l2}, err)
+			return
+		}
+
+		if binary {
+			reqParser = binprot.NewBinaryParser(remoteReader)
+			responder = binprot.NewBinaryResponder(remoteWriter)
+		} else {
+			reqParser = textprot.NewTextParser(remoteReader)
+			responder = textprot.NewTextResponder(remoteWriter)
+		}
+		// end MAYBE
 
 		server := s(orcas.NewL1Only(orcas.Deps{
 			L1:  l1,
