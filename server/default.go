@@ -4,30 +4,26 @@ import (
 	"bufio"
 	"io"
 	"log"
-	"net"
 	"time"
 
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
-	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
 	"github.com/netflix/rend/textprot"
 )
 
 type DefaultServer struct {
-	stop chan struct{}
 	orca orcas.Orca
 }
 
 func NewDefaultServer(o orcas.Orca) Server {
 	return &DefaultServer{
-		stop: make(chan struct{}),
 		orca: o,
 	}
 }
 
-func (s *DefaultServer) Loop(remoteConn net.Conn, l1, l2 handlers.Handler) {
+func (s *DefaultServer) Loop() {
 	defer func() {
 		if r := recover(); r != nil {
 			if r != io.EOF {
@@ -49,6 +45,7 @@ func (s *DefaultServer) Loop(remoteConn net.Conn, l1, l2 handlers.Handler) {
 	// This is the way memcached handles protocols, so it can be as strict here.
 	binary, err := isBinaryRequest(remoteReader)
 	if err != nil {
+		// must be an IO error. Abort!
 		abort([]io.Closer{remoteConn, l1, l2}, err)
 		return
 	}
@@ -73,6 +70,7 @@ func (s *DefaultServer) Loop(remoteConn net.Conn, l1, l2 handlers.Handler) {
 				responder.Error(0, common.RequestUnknown, err)
 				continue
 			} else {
+				// Otherwise IO error. Abort!
 				abort([]io.Closer{remoteConn, l1, l2}, err)
 				return
 			}
@@ -83,39 +81,29 @@ func (s *DefaultServer) Loop(remoteConn net.Conn, l1, l2 handlers.Handler) {
 		// TODO: handle nil
 		switch reqType {
 		case common.RequestSet:
-			err = handleSet(request, l1, l2, responder)
-
+			err = s.orca.Set(request.(common.SetRequest))
 		case common.RequestAdd:
-			err = handleAdd(request, l1, l2, responder)
-
+			err = s.orca.Add(request.(common.SetRequest))
 		case common.RequestReplace:
-			err = handleReplace(request, l1, l2, responder)
-
+			err = s.orca.Replace(request.(common.SetRequest))
 		case common.RequestDelete:
-			err = handleDelete(request, l1, l2, responder)
-
+			err = s.orca.Delete(request.(common.DeleteRequest))
 		case common.RequestTouch:
-			err = handleTouch(request, l1, l2, responder)
-
+			err = s.orca.Touch(request.(common.TouchRequest))
 		case common.RequestGet:
-			err = handleGet(request, l1, l2, responder)
-
+			err = s.orca.Get(request.(common.GetRequest))
 		case common.RequestGat:
-			err = handleGat(request, l1, l2, responder)
-
+			err = s.orca.Gat(request.(common.GATRequest))
 		case common.RequestNoop:
-			err = handleNoop(request, l1, l2, responder)
-
+			err = s.orca.Noop(request.(common.NoopRequest))
 		case common.RequestQuit:
-			handleQuit(request, l1, l2, responder)
+			s.orca.Quit(request.(common.QuitRequest))
 			abort([]io.Closer{remoteConn, l1, l2}, err)
 			return
-
 		case common.RequestVersion:
-			err = handleVersion(request, l1, l2, responder)
-
+			err = s.orca.Version(request.(common.VersionRequest))
 		case common.RequestUnknown:
-			err = handleUnknown(request, l1, l2, responder)
+			err = s.orca.Unknown(request)
 		}
 
 		if err != nil {

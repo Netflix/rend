@@ -29,7 +29,7 @@ func (l *L1Only) Set(req common.SetRequest) error {
 		metrics.IncCounter(MetricCmdSetSuccessL1)
 		metrics.IncCounter(MetricCmdSetSuccess)
 
-		err = l.res.Set(req.Opaque)
+		err = l.res.Set(req.Opaque, req.Quiet)
 
 	} else {
 		metrics.IncCounter(MetricCmdSetErrorsL1)
@@ -50,13 +50,13 @@ func (l *L1Only) Add(req common.SetRequest) error {
 		metrics.IncCounter(MetricCmdAddStoredL1)
 		metrics.IncCounter(MetricCmdAddStored)
 
-		err = l.res.Add(req.Opaque, true)
+		err = l.res.Add(req.Opaque, true, req.Quiet)
 
 	} else if err == common.ErrKeyExists {
 		metrics.IncCounter(MetricCmdAddNotStoredL1)
 		metrics.IncCounter(MetricCmdAddNotStored)
 
-		err = l.res.Add(req.Opaque, false)
+		err = l.res.Add(req.Opaque, false, req.Quiet)
 
 	} else {
 		metrics.IncCounter(MetricCmdAddErrorsL1)
@@ -77,13 +77,13 @@ func (l *L1Only) Replace(req common.SetRequest) error {
 		metrics.IncCounter(MetricCmdReplaceStoredL1)
 		metrics.IncCounter(MetricCmdReplaceStored)
 
-		err = l.res.Replace(req.Opaque, true)
+		err = l.res.Replace(req.Opaque, true, req.Quiet)
 
 	} else if err == common.ErrKeyNotFound {
 		metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 		metrics.IncCounter(MetricCmdReplaceNotStored)
 
-		err = l.res.Replace(req.Opaque, false)
+		err = l.res.Replace(req.Opaque, false, req.Quiet)
 
 	} else {
 		metrics.IncCounter(MetricCmdReplaceErrorsL1)

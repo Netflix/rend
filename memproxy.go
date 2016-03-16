@@ -15,27 +15,15 @@
 package main
 
 import (
-	"bufio"
 	"flag"
-	"fmt"
-	"io"
-	"log"
-	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"runtime/debug"
-	"strings"
-	"time"
 
-	"github.com/netflix/rend/binprot"
-	"github.com/netflix/rend/common"
-	"github.com/netflix/rend/handlers"
-	"github.com/netflix/rend/handlers/memcached"
 	"github.com/netflix/rend/metrics"
-	"github.com/netflix/rend/textprot"
+	"github.com/netflix/rend/server"
 )
 
 // Set GOGC default explicitly
@@ -66,7 +54,7 @@ func init() {
 	metrics.SetPrefix("rend_")
 }
 
-var (
+/*var (
 	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext")
 	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1")
 	MetricConnectionsEstablishedL2  = metrics.AddCounter("conn_established_l2")
@@ -171,7 +159,7 @@ var (
 	HistGat     = metrics.AddHistogram("gat")
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
-)
+)*/
 
 // Flags
 var chunked bool
@@ -191,6 +179,19 @@ func init() {
 
 // And away we go
 func main() {
+	l := server.ListenArgs{
+		Port:      port,
+		L1sock:    l1sock,
+		L1chunked: chunked,
+		L2enabled: l2enabled,
+		L2sock:    l2sock,
+	}
+	server.ListenAndServe()
+}
+
+/*****
+	continuation of main after opening curly brace
+	******
 	server, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		log.Printf("Error binding to port %d\n", port)
@@ -686,3 +687,4 @@ func isBinaryRequest(reader *bufio.Reader) (bool, error) {
 	}
 	return headerByte[0] == binprot.MagicRequest, nil
 }
+*/

@@ -1,10 +1,14 @@
 package server
 
-import "github.com/netflix/rend/metrics"
+import (
+	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/orcas"
+)
+
+type ServerConst func(o orcas.Orca) Server
 
 type Server interface {
 	Loop()
-	Shutdown()
 }
 
 var (

@@ -13,14 +13,13 @@ type Deps struct {
 }
 
 type Orca interface {
-	Close() error
 	Set(req common.SetRequest) error
 	Add(req common.SetRequest) error
 	Replace(req common.SetRequest) error
 	Delete(req common.DeleteRequest) error
 	Touch(req common.TouchRequest) error
 	Get(req common.GetRequest) error
-	Gat(req common.GetRequest) error
+	Gat(req common.GATRequest) error
 	Noop(req common.NoopRequest) error
 	Quit(req common.QuitRequest) error
 	Version(req common.VersionRequest) error

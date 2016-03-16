@@ -32,7 +32,7 @@ func (l *L1L2) Set(req common.SetRequest) error {
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdSetSuccess)
 
-		err = l.res.Set(req.Opaque)
+		err = l.res.Set(req.Opaque, req.Quiet)
 
 	} else {
 		metrics.IncCounter(MetricCmdSetErrorsL1)
@@ -59,13 +59,13 @@ func (l *L1L2) Add(req common.SetRequest) error {
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdAddStored)
 
-		err = l.res.Add(req.Opaque, true)
+		err = l.res.Add(req.Opaque, true, req.Quiet)
 
 	} else if err == common.ErrKeyExists {
 		metrics.IncCounter(MetricCmdAddNotStoredL1)
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdAddNotStored)
-		err = l.res.Add(req.Opaque, false)
+		err = l.res.Add(req.Opaque, false, req.Quiet)
 	} else {
 		metrics.IncCounter(MetricCmdAddErrorsL1)
 		// TODO: Account for L2
@@ -91,13 +91,13 @@ func (l *L1L2) Replace(req common.SetRequest) error {
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdReplaceStored)
 
-		err = l.res.Replace(req.Opaque, true)
+		err = l.res.Replace(req.Opaque, true, req.Quiet)
 
 	} else if err == common.ErrKeyNotFound {
 		metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 		// TODO: Account for L2
 		metrics.IncCounter(MetricCmdReplaceNotStored)
-		err = l.res.Replace(req.Opaque, false)
+		err = l.res.Replace(req.Opaque, false, req.Quiet)
 	} else {
 		metrics.IncCounter(MetricCmdReplaceErrorsL1)
 		// TODO: Account for L2
