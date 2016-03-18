@@ -6,11 +6,7 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-type Deps struct {
-	L1  handlers.Handler
-	L2  handlers.Handler
-	Res common.Responder
-}
+type OrcaConst func(l1, l2 handlers.Handler, res common.Responder) Orca
 
 type Orca interface {
 	Set(req common.SetRequest) error
