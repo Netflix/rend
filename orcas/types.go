@@ -20,6 +20,7 @@ type Orca interface {
 	Quit(req common.QuitRequest) error
 	Version(req common.VersionRequest) error
 	Unknown(req common.Request) error
+	Error(req common.Request, reqType common.RequestType, err error)
 }
 
 var (

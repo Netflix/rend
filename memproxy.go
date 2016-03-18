@@ -23,6 +23,7 @@ import (
 	"runtime/debug"
 
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/orcas"
 	"github.com/netflix/rend/server"
 )
 
@@ -186,7 +187,7 @@ func main() {
 		L2enabled: l2enabled,
 		L2sock:    l2sock,
 	}
-	server.ListenAndServe()
+	server.ListenAndServe(l, server.Default, orcas.L1Only)
 }
 
 /*****

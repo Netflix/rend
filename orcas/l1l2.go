@@ -6,21 +6,21 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-type L1L2 struct {
+type L1L2Orca struct {
 	l1  handlers.Handler
 	l2  handlers.Handler
 	res common.Responder
 }
 
-func NewL1L2(deps Deps) *L1L2 {
-	return &L1L2{
-		l1:  deps.L1,
-		l2:  deps.L2,
-		res: deps.Res,
+func L1L2(l1, l2 handlers.Handler, res common.Responder) Orca {
+	return &L1L2Orca{
+		l1:  l1,
+		l2:  l2,
+		res: res,
 	}
 }
 
-func (l *L1L2) Set(req common.SetRequest) error {
+func (l *L1L2Orca) Set(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdSet)
 	//log.Println("set", string(req.Key))
 
@@ -45,7 +45,7 @@ func (l *L1L2) Set(req common.SetRequest) error {
 	return err
 }
 
-func (l *L1L2) Add(req common.SetRequest) error {
+func (l *L1L2Orca) Add(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdAdd)
 	//log.Println("add", string(req.Key))
 
@@ -77,7 +77,7 @@ func (l *L1L2) Add(req common.SetRequest) error {
 	return err
 }
 
-func (l *L1L2) Replace(req common.SetRequest) error {
+func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdReplace)
 	//log.Println("replace", string(req.Key))
 
@@ -109,7 +109,7 @@ func (l *L1L2) Replace(req common.SetRequest) error {
 	return err
 }
 
-func (l *L1L2) Delete(req common.DeleteRequest) error {
+func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 	metrics.IncCounter(MetricCmdDelete)
 	//log.Println("delete", string(req.Key))
 
@@ -137,7 +137,7 @@ func (l *L1L2) Delete(req common.DeleteRequest) error {
 	return err
 }
 
-func (l *L1L2) Touch(req common.TouchRequest) error {
+func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 	metrics.IncCounter(MetricCmdTouch)
 	//log.Println("touch", string(req.Key))
 
@@ -166,7 +166,7 @@ func (l *L1L2) Touch(req common.TouchRequest) error {
 	return err
 }
 
-func (l *L1L2) Get(req common.GetRequest) error {
+func (l *L1L2Orca) Get(req common.GetRequest) error {
 	metrics.IncCounter(MetricCmdGet)
 	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
 	//debugString := "get"
@@ -231,7 +231,7 @@ func (l *L1L2) Get(req common.GetRequest) error {
 	return err
 }
 
-func (l *L1L2) Gat(req common.GATRequest) error {
+func (l *L1L2Orca) Gat(req common.GATRequest) error {
 	metrics.IncCounter(MetricCmdGat)
 	//log.Println("gat", string(req.Key))
 
@@ -262,17 +262,26 @@ func (l *L1L2) Gat(req common.GATRequest) error {
 	return err
 }
 
-func (l *L1L2) Quit(req common.QuitRequest) error {
+func (l *L1L2Orca) Noop(req common.NoopRequest) error {
+	metrics.IncCounter(MetricCmdNoop)
+	return l.res.Noop(req.Opaque)
+}
+
+func (l *L1L2Orca) Quit(req common.QuitRequest) error {
 	metrics.IncCounter(MetricCmdQuit)
 	return l.res.Quit(req.Opaque, req.Quiet)
 }
 
-func (l *L1L2) Version(req common.VersionRequest) error {
+func (l *L1L2Orca) Version(req common.VersionRequest) error {
 	metrics.IncCounter(MetricCmdVersion)
 	return l.res.Version(req.Opaque)
 }
 
-func (l *L1L2) Unknown(req common.Request) error {
+func (l *L1L2Orca) Unknown(req common.Request) error {
 	metrics.IncCounter(MetricCmdUnknown)
 	return common.ErrUnknownCmd
+}
+
+func (l *L1L2Orca) Error(req common.Request, reqType common.RequestType, err error) {
+	l.res.Error(req.Opq(), reqType, err)
 }

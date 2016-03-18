@@ -249,3 +249,7 @@ func (l *L1OnlyOrca) Unknown(req common.Request) error {
 	metrics.IncCounter(MetricCmdUnknown)
 	return common.ErrUnknownCmd
 }
+
+func (l *L1OnlyOrca) Error(req common.Request, reqType common.RequestType, err error) {
+	l.res.Error(req.Opq(), reqType, err)
+}

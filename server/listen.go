@@ -81,8 +81,11 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst) {
 			l2 = memcached.NewHandler(l2conn)
 		}
 
-		go func() {
-			// MAYBE have this differentiation code here:
+		// spin off a goroutine here to handle determining the protocol used for the connection.
+		// The server loop can't be started until the protocol is known. Another goroutine is
+		// necessary here because we don't want to block accepting new connections if the current
+		// new connection doesn't send data immediately.
+		go func(remoteConn net.Conn) {
 			remoteReader := bufio.NewReader(remoteConn)
 			remoteWriter := bufio.NewWriter(remoteConn)
 
@@ -105,15 +108,10 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst) {
 				reqParser = textprot.NewTextParser(remoteReader)
 				responder = textprot.NewTextResponder(remoteWriter)
 			}
-			// end MAYBE
 
-			server := s(reqParser, o(orcas.Deps{
-				L1:  l1,
-				L2:  l2,
-				Res: responder,
-			}))
+			server := s(reqParser, o(l1, l2, responder), []io.Closer{remoteConn, l1, l2})
 
 			go server.Loop()
-		}()
+		}(remote)
 	}
 }

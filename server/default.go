@@ -1,25 +1,26 @@
 package server
 
 import (
-	"bufio"
 	"io"
 	"log"
 	"time"
 
-	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
-	"github.com/netflix/rend/textprot"
 )
 
 type DefaultServer struct {
-	orca orcas.Orca
+	rp    common.RequestParser
+	orca  orcas.Orca
+	conns []io.Closer
 }
 
-func NewDefaultServer(o orcas.Orca) Server {
+func Default(rp common.RequestParser, o orcas.Orca, conns []io.Closer) Server {
 	return &DefaultServer{
-		orca: o,
+		rp:    rp,
+		orca:  o,
+		conns: conns,
 	}
 }
 
@@ -33,45 +34,20 @@ func (s *DefaultServer) Loop() {
 		}
 	}()
 
-	remoteReader := bufio.NewReader(remoteConn)
-	remoteWriter := bufio.NewWriter(remoteConn)
-
-	var reqParser common.RequestParser
-	var responder common.Responder
-	var reqType common.RequestType
-	var request common.Request
-
-	// A connection is either binary protocol or text. It cannot switch between the two.
-	// This is the way memcached handles protocols, so it can be as strict here.
-	binary, err := isBinaryRequest(remoteReader)
-	if err != nil {
-		// must be an IO error. Abort!
-		abort([]io.Closer{remoteConn, l1, l2}, err)
-		return
-	}
-
-	if binary {
-		reqParser = binprot.NewBinaryParser(remoteReader)
-		responder = binprot.NewBinaryResponder(remoteWriter)
-	} else {
-		reqParser = textprot.NewTextParser(remoteReader)
-		responder = textprot.NewTextResponder(remoteWriter)
-	}
-
 	for {
 		start := time.Now()
 
-		request, reqType, err = reqParser.Parse()
+		request, reqType, err := s.rp.Parse()
 		if err != nil {
 			if err == common.ErrBadRequest ||
 				err == common.ErrBadLength ||
 				err == common.ErrBadFlags ||
 				err == common.ErrBadExptime {
-				responder.Error(0, common.RequestUnknown, err)
+				s.orca.Error(nil, common.RequestUnknown, err)
 				continue
 			} else {
 				// Otherwise IO error. Abort!
-				abort([]io.Closer{remoteConn, l1, l2}, err)
+				abort(s.conns, err)
 				return
 			}
 		}
@@ -98,7 +74,7 @@ func (s *DefaultServer) Loop() {
 			err = s.orca.Noop(request.(common.NoopRequest))
 		case common.RequestQuit:
 			s.orca.Quit(request.(common.QuitRequest))
-			abort([]io.Closer{remoteConn, l1, l2}, err)
+			abort(s.conns, err)
 			return
 		case common.RequestVersion:
 			err = s.orca.Version(request.(common.VersionRequest))
@@ -111,10 +87,10 @@ func (s *DefaultServer) Loop() {
 				if err != common.ErrKeyNotFound {
 					metrics.IncCounter(MetricErrAppError)
 				}
-				responder.Error(request.Opq(), reqType, err)
+				s.orca.Error(request, reqType, err)
 			} else {
 				metrics.IncCounter(MetricErrUnrecoverable)
-				abort([]io.Closer{remoteConn, l1, l2}, err)
+				abort(s.conns, err)
 				return
 			}
 		}
