@@ -11,7 +11,6 @@ import (
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
-	"github.com/netflix/rend/handlers/memcached"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
 	"github.com/netflix/rend/textprot"
@@ -25,7 +24,7 @@ type ListenArgs struct {
 	L2sock    string
 }
 
-func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst) {
+func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handlers.HandlerConst) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.Port))
 	if err != nil {
 		log.Printf("Error binding to port %d\n", l.Port)
@@ -56,15 +55,11 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst) {
 		}
 		metrics.IncCounter(MetricConnectionsEstablishedL1)
 
-		var l1 handlers.Handler
-		if l.L1chunked {
-			l1 = memcached.NewChunkedHandler(l1conn)
-		} else {
-			l1 = memcached.NewHandler(l1conn)
-		}
+		// construct L1 handler using given constructor
+		l1 := h1(l1conn)
 
+		// construct l2 if needed
 		var l2 handlers.Handler
-
 		if l.L2enabled {
 			l2conn, err := net.Dial("unix", l.L2sock)
 			if err != nil {
@@ -78,7 +73,7 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst) {
 			}
 			metrics.IncCounter(MetricConnectionsEstablishedL2)
 
-			l2 = memcached.NewHandler(l2conn)
+			l2 = h2(l2conn)
 		}
 
 		// spin off a goroutine here to handle determining the protocol used for the connection.
@@ -109,7 +104,7 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst) {
 				responder = textprot.NewTextResponder(remoteWriter)
 			}
 
-			server := s(reqParser, o(l1, l2, responder), []io.Closer{remoteConn, l1, l2})
+			server := s([]io.Closer{remoteConn, l1, l2}, reqParser, o(l1, l2, responder))
 
 			go server.Loop()
 		}(remote)

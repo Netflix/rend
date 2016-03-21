@@ -14,7 +14,20 @@
 
 package handlers
 
-import "github.com/netflix/rend/common"
+import (
+	"io"
+
+	"github.com/netflix/rend/common"
+)
+
+type HandlerConst func(conn io.ReadWriteCloser) Handler
+
+// NilHandler is used as a placeholder for when there is no handler needed.
+// Since the Server API is a composition of a few things, including Handlers,
+// there needs to be a placeholder for when it's not needed.
+func NilHandler(conn io.ReadWriteCloser) Handler {
+	return nil
+}
 
 type Handler interface {
 	Set(cmd common.SetRequest) error

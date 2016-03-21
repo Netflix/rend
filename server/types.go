@@ -8,7 +8,7 @@ import (
 	"github.com/netflix/rend/orcas"
 )
 
-type ServerConst func(rp common.RequestParser, o orcas.Orca, conns []io.Closer) Server
+type ServerConst func(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server
 
 type Server interface {
 	Loop()

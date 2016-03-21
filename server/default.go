@@ -16,7 +16,7 @@ type DefaultServer struct {
 	conns []io.Closer
 }
 
-func Default(rp common.RequestParser, o orcas.Orca, conns []io.Closer) Server {
+func Default(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server {
 	return &DefaultServer{
 		rp:    rp,
 		orca:  o,
