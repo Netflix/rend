@@ -14,15 +14,18 @@
 
 package memcached
 
-import "io"
+import (
+	"io"
 
-import "github.com/netflix/rend/handlers/memcached/std"
-import "github.com/netflix/rend/handlers/memcached/chunked"
+	"github.com/netflix/rend/handlers"
+	"github.com/netflix/rend/handlers/memcached/chunked"
+	"github.com/netflix/rend/handlers/memcached/std"
+)
 
-func NewHandler(conn io.ReadWriteCloser) std.Handler {
+func Regular(conn io.ReadWriteCloser) handlers.Handler {
 	return std.NewHandler(conn)
 }
 
-func NewChunkedHandler(conn io.ReadWriteCloser) chunked.Handler {
+func Chunked(conn io.ReadWriteCloser) handlers.Handler {
 	return chunked.NewHandler(conn)
 }
