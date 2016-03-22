@@ -19,7 +19,6 @@ import (
 type ListenArgs struct {
 	Port      int
 	L1sock    string
-	L1chunked bool
 	L2enabled bool
 	L2sock    string
 }
