@@ -1,8 +1,6 @@
 package orcas
 
 import (
-	"log"
-
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
@@ -24,7 +22,7 @@ func L1L2(l1, l2 handlers.Handler, res common.Responder) Orca {
 
 func (l *L1L2Orca) Set(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdSet)
-	log.Println("set", string(req.Key))
+	//log.Println("set", string(req.Key))
 
 	// Try L2 first
 	metrics.IncCounter(MetricCmdSetL2)
@@ -63,7 +61,7 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 
 func (l *L1L2Orca) Add(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdAdd)
-	log.Println("add", string(req.Key))
+	//log.Println("add", string(req.Key))
 
 	// Add in L2 first, since it has the larger state
 	metrics.IncCounter(MetricCmdAddL2)
@@ -113,7 +111,7 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 
 func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdReplace)
-	log.Println("replace", string(req.Key))
+	//log.Println("replace", string(req.Key))
 
 	// Add in L2 first, since it has the larger state
 	metrics.IncCounter(MetricCmdReplaceL2)
@@ -163,7 +161,7 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 
 func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 	metrics.IncCounter(MetricCmdDelete)
-	log.Println("delete", string(req.Key))
+	//log.Println("delete", string(req.Key))
 
 	// Try L2 first
 	metrics.IncCounter(MetricCmdDeleteL2)
@@ -198,11 +196,15 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 	// missing then no other request can undo part of this request.
 	metrics.IncCounter(MetricCmdDeleteL1)
 	if err := l.l1.Delete(req); err != nil {
-		// Delete
+		// Delete misses in L1 are fine. If we get here, that means the delete
+		// in L2 hit. This isn't a miss per se since the overall effect is a
+		// delete. Concurrent deletes might interleave to produce this, or the
+		// data might have TTL'd out. Both cases are still fine.
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdDeleteMissesL1)
 			metrics.IncCounter(MetricCmdDeleteMisses)
-			return err
+			// disregard the miss, don't return the error
+			return nil
 		}
 		metrics.IncCounter(MetricCmdDeleteErrorsL1)
 		metrics.IncCounter(MetricCmdDeleteErrors)
