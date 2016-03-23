@@ -75,8 +75,7 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 		if err == common.ErrKeyExists {
 			metrics.IncCounter(MetricCmdAddNotStoredL2)
 			metrics.IncCounter(MetricCmdAddNotStored)
-			err = l.res.Add(req.Opaque, false, req.Quiet)
-			return nil
+			return err
 		}
 
 		// otherwise we have a real error on our hands
@@ -97,8 +96,7 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 		if err == common.ErrKeyExists {
 			metrics.IncCounter(MetricCmdAddNotStoredL1)
 			metrics.IncCounter(MetricCmdAddNotStored)
-			err = l.res.Add(req.Opaque, false, req.Quiet)
-			return nil
+			return err
 		}
 
 		// otherwise we have a real error on our hands
@@ -110,7 +108,7 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdAddStoredL1)
 	metrics.IncCounter(MetricCmdAddStored)
 
-	return l.res.Add(req.Opaque, true, req.Quiet)
+	return l.res.Add(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2Orca) Replace(req common.SetRequest) error {
@@ -127,8 +125,7 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdReplaceNotStoredL2)
 			metrics.IncCounter(MetricCmdReplaceNotStored)
-			err = l.res.Replace(req.Opaque, false, req.Quiet)
-			return nil
+			return err
 		}
 
 		// otherwise we have a real error on our hands
@@ -149,8 +146,7 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 			metrics.IncCounter(MetricCmdReplaceNotStored)
-			err = l.res.Replace(req.Opaque, false, req.Quiet)
-			return nil
+			return err
 		}
 
 		// otherwise we have a real error on our hands
@@ -162,35 +158,61 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdReplaceStoredL1)
 	metrics.IncCounter(MetricCmdReplaceStored)
 
-	return l.res.Replace(req.Opaque, true, req.Quiet)
+	return l.res.Replace(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 	metrics.IncCounter(MetricCmdDelete)
-	//log.Println("delete", string(req.Key))
+	log.Println("delete", string(req.Key))
 
-	metrics.IncCounter(MetricCmdDeleteL1)
-	err := l.l1.Delete(req)
+	// Try L2 first
+	metrics.IncCounter(MetricCmdDeleteL2)
+	err := l.l2.Delete(req)
 
-	if err == nil {
-		metrics.IncCounter(MetricCmdDeleteHits)
-		metrics.IncCounter(MetricCmdDeleteHitsL1)
+	if err != nil {
+		// On a delete miss in L2 don't bother deleting in L1. There might be no
+		// key at all, or another request may be deleting the same key. In that
+		// case the other will finish up. Returning a key not found will trigger
+		// error handling to send back an error response.
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdDeleteMissesL2)
+			metrics.IncCounter(MetricCmdDeleteMisses)
+			return err
+		}
 
-		l.res.Delete(req.Opaque)
-
-	} else if err == common.ErrKeyNotFound {
-		metrics.IncCounter(MetricCmdDeleteMissesL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdDeleteMisses)
-	} else {
-		metrics.IncCounter(MetricCmdDeleteErrorsL1)
-		// TODO: Account for L2
+		// If we fail to delete in L2, don't delete in L1. This can leave us in
+		// an inconsistent state if the request succeeded in L2 but some
+		// communication error caused the problem. In the typical deployment of
+		// rend, the L1 and L2 caches are both on the same box with
+		// communication happening over a unix domain socket. In this case, the
+		// likelihood of this error path happening is very small.
+		metrics.IncCounter(MetricCmdDeleteErrorsL2)
 		metrics.IncCounter(MetricCmdDeleteErrors)
+		return err
+	}
+	metrics.IncCounter(MetricCmdDeleteHitsL2)
+
+	// Now delete in L1. This means we're temporarily inconsistent, but also
+	// eliminated the interleaving where the data is deleted from L1, read from
+	// L2, set in L1, then deleted in L2. By deleting from L2 first, if L1 goes
+	// missing then no other request can undo part of this request.
+	metrics.IncCounter(MetricCmdDeleteL1)
+	if err := l.l1.Delete(req); err != nil {
+		// Delete
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdDeleteMissesL1)
+			metrics.IncCounter(MetricCmdDeleteMisses)
+			return err
+		}
+		metrics.IncCounter(MetricCmdDeleteErrorsL1)
+		metrics.IncCounter(MetricCmdDeleteErrors)
+		return err
 	}
 
-	// TODO: L2 metrics for deletes, delete hits, delete misses, delete errors
+	metrics.IncCounter(MetricCmdDeleteHitsL1)
+	metrics.IncCounter(MetricCmdDeleteHits)
 
-	return err
+	return l.res.Delete(req.Opaque)
 }
 
 func (l *L1L2Orca) Touch(req common.TouchRequest) error {
