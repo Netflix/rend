@@ -1,6 +1,8 @@
 package orcas
 
 import (
+	"log"
+
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
@@ -22,91 +24,145 @@ func L1L2(l1, l2 handlers.Handler, res common.Responder) Orca {
 
 func (l *L1L2Orca) Set(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdSet)
-	//log.Println("set", string(req.Key))
+	log.Println("set", string(req.Key))
 
-	metrics.IncCounter(MetricCmdSetL1)
-	err := l.l1.Set(req)
+	// Try L2 first
+	metrics.IncCounter(MetricCmdSetL2)
+	err := l.l2.Set(req)
 
-	if err == nil {
-		metrics.IncCounter(MetricCmdSetSuccessL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdSetSuccess)
-
-		err = l.res.Set(req.Opaque, req.Quiet)
-
-	} else {
-		metrics.IncCounter(MetricCmdSetErrorsL1)
-		// TODO: Account for L2
+	// If we fail to set in L2, don't set in L1
+	if err != nil {
+		metrics.IncCounter(MetricCmdSetErrorsL2)
 		metrics.IncCounter(MetricCmdSetErrors)
+		return err
+	}
+	metrics.IncCounter(MetricCmdSetSuccessL2)
+
+	// Now set in L1. If L1 fails, we log the error and fail the request.
+	// If a user was writing a new piece of information, the error would be OK,
+	// since the next GET would be able to put the L2 information back into L1.
+	// In the case that the user was overwriting information, a failed set in L1
+	// and successful one in L2 would leave us inconsistent. If the response was
+	// positive in this situation, it would look like the server successfully
+	// processed the request but didn't store the information. Clients will
+	// retry failed writes. In this case L2 will get two writes for the same key
+	// but this is better because it is more correct overall, though less
+	// efficient. Note there are no retries at this level.
+	metrics.IncCounter(MetricCmdSetL1)
+	if err := l.l1.Set(req); err != nil {
+		metrics.IncCounter(MetricCmdSetErrorsL1)
+		metrics.IncCounter(MetricCmdSetErrors)
+		return err
 	}
 
-	// TODO: L2 metrics for sets, set success, set errors
+	metrics.IncCounter(MetricCmdSetSuccessL1)
+	metrics.IncCounter(MetricCmdSetSuccess)
 
-	return err
+	return l.res.Set(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2Orca) Add(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdAdd)
-	//log.Println("add", string(req.Key))
+	log.Println("add", string(req.Key))
 
-	// TODO: L2 first, then L1
+	// Add in L2 first, since it has the larger state
+	metrics.IncCounter(MetricCmdAddL2)
+	err := l.l2.Add(req)
 
-	metrics.IncCounter(MetricCmdAddL1)
-	err := l.l1.Add(req)
+	if err != nil {
+		// A key already existing is not an error per se, it's a part of the
+		// functionality of the add command to respond with a "not stored"
+		if err == common.ErrKeyExists {
+			metrics.IncCounter(MetricCmdAddNotStoredL2)
+			metrics.IncCounter(MetricCmdAddNotStored)
+			err = l.res.Add(req.Opaque, false, req.Quiet)
+			return nil
+		}
 
-	if err == nil {
-		metrics.IncCounter(MetricCmdAddStoredL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdAddStored)
-
-		err = l.res.Add(req.Opaque, true, req.Quiet)
-
-	} else if err == common.ErrKeyExists {
-		metrics.IncCounter(MetricCmdAddNotStoredL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdAddNotStored)
-		err = l.res.Add(req.Opaque, false, req.Quiet)
-	} else {
-		metrics.IncCounter(MetricCmdAddErrorsL1)
-		// TODO: Account for L2
+		// otherwise we have a real error on our hands
+		metrics.IncCounter(MetricCmdAddErrorsL2)
 		metrics.IncCounter(MetricCmdAddErrors)
+		return err
 	}
 
-	// TODO: L2 metrics for adds, add stored, add not stored, add errors
+	metrics.IncCounter(MetricCmdAddStoredL2)
 
-	return err
+	// Now on to L1
+	metrics.IncCounter(MetricCmdAddL1)
+	err = l.l1.Add(req)
+
+	if err != nil {
+		// A key already existing is not an error per se, it's a part of the
+		// functionality of the add command to respond with a "not stored"
+		if err == common.ErrKeyExists {
+			metrics.IncCounter(MetricCmdAddNotStoredL1)
+			metrics.IncCounter(MetricCmdAddNotStored)
+			err = l.res.Add(req.Opaque, false, req.Quiet)
+			return nil
+		}
+
+		// otherwise we have a real error on our hands
+		metrics.IncCounter(MetricCmdAddErrorsL1)
+		metrics.IncCounter(MetricCmdAddErrors)
+		return err
+	}
+
+	metrics.IncCounter(MetricCmdAddStoredL1)
+	metrics.IncCounter(MetricCmdAddStored)
+
+	return l.res.Add(req.Opaque, true, req.Quiet)
 }
 
 func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdReplace)
-	//log.Println("replace", string(req.Key))
+	log.Println("replace", string(req.Key))
 
-	// TODO: L2 first, then L1
+	// Add in L2 first, since it has the larger state
+	metrics.IncCounter(MetricCmdReplaceL2)
+	err := l.l2.Replace(req)
 
-	metrics.IncCounter(MetricCmdReplaceL1)
-	err := l.l1.Replace(req)
+	if err != nil {
+		// A key already existing is not an error per se, it's a part of the
+		// functionality of the replace command to respond with a "not stored"
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdReplaceNotStoredL2)
+			metrics.IncCounter(MetricCmdReplaceNotStored)
+			err = l.res.Replace(req.Opaque, false, req.Quiet)
+			return nil
+		}
 
-	if err == nil {
-		metrics.IncCounter(MetricCmdReplaceStoredL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdReplaceStored)
-
-		err = l.res.Replace(req.Opaque, true, req.Quiet)
-
-	} else if err == common.ErrKeyNotFound {
-		metrics.IncCounter(MetricCmdReplaceNotStoredL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdReplaceNotStored)
-		err = l.res.Replace(req.Opaque, false, req.Quiet)
-	} else {
-		metrics.IncCounter(MetricCmdReplaceErrorsL1)
-		// TODO: Account for L2
+		// otherwise we have a real error on our hands
+		metrics.IncCounter(MetricCmdReplaceErrorsL2)
 		metrics.IncCounter(MetricCmdReplaceErrors)
+		return err
 	}
 
-	// TODO: L2 metrics for replaces, replace stored, replace not stored, replace errors
+	metrics.IncCounter(MetricCmdReplaceStoredL2)
 
-	return err
+	// Now on to L1
+	metrics.IncCounter(MetricCmdReplaceL1)
+	err = l.l1.Replace(req)
+
+	if err != nil {
+		// A key already existing is not an error per se, it's a part of the
+		// functionality of the replace command to respond with a "not stored"
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdReplaceNotStoredL1)
+			metrics.IncCounter(MetricCmdReplaceNotStored)
+			err = l.res.Replace(req.Opaque, false, req.Quiet)
+			return nil
+		}
+
+		// otherwise we have a real error on our hands
+		metrics.IncCounter(MetricCmdReplaceErrorsL1)
+		metrics.IncCounter(MetricCmdReplaceErrors)
+		return err
+	}
+
+	metrics.IncCounter(MetricCmdReplaceStoredL1)
+	metrics.IncCounter(MetricCmdReplaceStored)
+
+	return l.res.Replace(req.Opaque, true, req.Quiet)
 }
 
 func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
