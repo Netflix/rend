@@ -50,14 +50,11 @@ func (l *L1OnlyOrca) Add(req common.SetRequest) error {
 		metrics.IncCounter(MetricCmdAddStoredL1)
 		metrics.IncCounter(MetricCmdAddStored)
 
-		err = l.res.Add(req.Opaque, true, req.Quiet)
+		err = l.res.Add(req.Opaque, req.Quiet)
 
 	} else if err == common.ErrKeyExists {
 		metrics.IncCounter(MetricCmdAddNotStoredL1)
 		metrics.IncCounter(MetricCmdAddNotStored)
-
-		err = l.res.Add(req.Opaque, false, req.Quiet)
-
 	} else {
 		metrics.IncCounter(MetricCmdAddErrorsL1)
 		metrics.IncCounter(MetricCmdAddErrors)
@@ -77,14 +74,11 @@ func (l *L1OnlyOrca) Replace(req common.SetRequest) error {
 		metrics.IncCounter(MetricCmdReplaceStoredL1)
 		metrics.IncCounter(MetricCmdReplaceStored)
 
-		err = l.res.Replace(req.Opaque, true, req.Quiet)
+		err = l.res.Replace(req.Opaque, req.Quiet)
 
 	} else if err == common.ErrKeyNotFound {
 		metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 		metrics.IncCounter(MetricCmdReplaceNotStored)
-
-		err = l.res.Replace(req.Opaque, false, req.Quiet)
-
 	} else {
 		metrics.IncCounter(MetricCmdReplaceErrorsL1)
 		metrics.IncCounter(MetricCmdReplaceErrors)

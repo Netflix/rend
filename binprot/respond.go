@@ -133,26 +133,18 @@ func (b BinaryResponder) Set(opaque uint32, quiet bool) error {
 	return nil
 }
 
-func (b BinaryResponder) Add(opaque uint32, added bool, quiet bool) error {
-	if added {
-		if !quiet {
-			return writeSuccessResponseHeader(b.writer, OpcodeAdd, 0, 0, 0, opaque, true)
-		}
-		return nil
-	} else {
-		return writeErrorResponseHeader(b.writer, OpcodeAdd, StatusKeyExists, opaque)
+func (b BinaryResponder) Add(opaque uint32, quiet bool) error {
+	if !quiet {
+		return writeSuccessResponseHeader(b.writer, OpcodeAdd, 0, 0, 0, opaque, true)
 	}
+	return nil
 }
 
-func (b BinaryResponder) Replace(opaque uint32, replaced bool, quiet bool) error {
-	if replaced {
-		if !quiet {
-			return writeSuccessResponseHeader(b.writer, OpcodeReplace, 0, 0, 0, opaque, true)
-		}
-		return nil
-	} else {
-		return writeErrorResponseHeader(b.writer, OpcodeReplace, StatusKeyEnoent, opaque)
+func (b BinaryResponder) Replace(opaque uint32, quiet bool) error {
+	if !quiet {
+		return writeSuccessResponseHeader(b.writer, OpcodeReplace, 0, 0, 0, opaque, true)
 	}
+	return nil
 }
 
 func (b BinaryResponder) Get(response common.GetResponse) error {
