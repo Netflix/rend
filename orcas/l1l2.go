@@ -221,29 +221,59 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 	metrics.IncCounter(MetricCmdTouch)
 	//log.Println("touch", string(req.Key))
 
+	// Try L2 first
+	metrics.IncCounter(MetricCmdTouchL2)
+	err := l.l2.Touch(req)
+
+	if err != nil {
+		// On a touch miss in L2 don't bother touch in L1. The data should be
+		// TTL'd out within a second. This is yet another place where it's
+		// possible to be inconsistent, but only for a short time. Any
+		// concurrent requests will see the same behavior as this one. If the
+		// touch misses here, any other request will see the same view.
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdTouchMissesL2)
+			metrics.IncCounter(MetricCmdTouchMisses)
+			return err
+		}
+
+		// If we fail to touch in L2, don't touch in L1. If the touch succeeded
+		// but for some reason the communication failed, then this is still OK
+		// since L1 can TTL out while L2 still has the data. On the next get
+		// request the data would still be retrievable, albeit more slowly.
+		metrics.IncCounter(MetricCmdTouchErrorsL2)
+		metrics.IncCounter(MetricCmdTouchErrors)
+		return err
+	}
+	metrics.IncCounter(MetricCmdTouchHitsL2)
+
+	// In the case of concurrent touches with different values, it's possible
+	// that the touches for L1 and L2 interleave and produce an inconsistent
+	// state. The L2 could be touched long, then L2 and L1 touched short on
+	// another request, then L1 touched long. In this case the data in L1 would
+	// outlive L2. This situation is uncommon and is therefore discounted.
 	metrics.IncCounter(MetricCmdTouchL1)
-	err := l.l1.Touch(req)
+	if err := l.l1.Touch(req); err != nil {
+		// Touch misses in L1 after a hit in L2 are nto a big deal. The
+		// touch operation here explicitly does *not* act as a pre-warm putting
+		// data into L1. A miss here after a hit is the same as a hit.
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdTouchMissesL1)
+			// Note that we increment the overall hits here (not misses) on
+			// purpose because L2 hit.
+			metrics.IncCounter(MetricCmdTouchHits)
+			return nil
+		}
 
-	if err == nil {
-		metrics.IncCounter(MetricCmdTouchHitsL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdTouchHits)
-
-		l.res.Touch(req.Opaque)
-
-	} else if err == common.ErrKeyNotFound {
-		metrics.IncCounter(MetricCmdTouchMissesL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdTouchMisses)
-	} else {
-		metrics.IncCounter(MetricCmdTouchMissesL1)
-		// TODO: Account for L2
-		metrics.IncCounter(MetricCmdTouchMisses)
+		metrics.IncCounter(MetricCmdTouchErrorsL1)
+		metrics.IncCounter(MetricCmdTouchErrors)
+		return err
 	}
 
-	// TODO: L2 metrics for touches, touch hits, touch misses, touch errors
+	metrics.IncCounter(MetricCmdTouchHitsL1)
+	metrics.IncCounter(MetricCmdTouchHits)
 
-	return err
+	return l.res.Touch(req.Opaque)
 }
 
 func (l *L1L2Orca) Get(req common.GetRequest) error {
