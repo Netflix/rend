@@ -22,7 +22,7 @@ type HandlerConstConst func(sockpath string) HandlerConst
 // NilHandler is used as a placeholder for when there is no handler needed.
 // Since the Server API is a composition of a few things, including Handlers,
 // there needs to be a placeholder for when it's not needed.
-func NilHandler(sockpath string) func() (Handler, error) {
+func NilHandler(sockpath string) HandlerConst {
 	return func() (Handler, error) { return nil, nil }
 }
 

@@ -23,7 +23,7 @@ import (
 	"github.com/netflix/rend/handlers/memcached/std"
 )
 
-func Regular(sock string) func() (handlers.Handler, error) {
+func Regular(sock string) handlers.HandlerConst {
 	return func() (handlers.Handler, error) {
 		conn, err := net.Dial("unix", sock)
 		if err != nil {
@@ -36,7 +36,7 @@ func Regular(sock string) func() (handlers.Handler, error) {
 	}
 }
 
-func Chunked(sock string) func() (handlers.Handler, error) {
+func Chunked(sock string) handlers.HandlerConst {
 	return func() (handlers.Handler, error) {
 		conn, err := net.Dial("unix", sock)
 		if err != nil {
