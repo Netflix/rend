@@ -15,17 +15,37 @@
 package memcached
 
 import (
-	"io"
+	"log"
+	"net"
 
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/handlers/memcached/chunked"
 	"github.com/netflix/rend/handlers/memcached/std"
 )
 
-func Regular(conn io.ReadWriteCloser) handlers.Handler {
-	return std.NewHandler(conn)
+func Regular(sock string) func() (handlers.Handler, error) {
+	return func() (handlers.Handler, error) {
+		conn, err := net.Dial("unix", sock)
+		if err != nil {
+			if conn != nil {
+				conn.Close()
+			}
+			return nil, err
+		}
+		return std.NewHandler(conn), nil
+	}
 }
 
-func Chunked(conn io.ReadWriteCloser) handlers.Handler {
-	return chunked.NewHandler(conn)
+func Chunked(sock string) func() (handlers.Handler, error) {
+	return func() (handlers.Handler, error) {
+		conn, err := net.Dial("unix", sock)
+		if err != nil {
+			log.Println("Error opening connection:", err.Error())
+			if conn != nil {
+				conn.Close()
+			}
+			return nil, err
+		}
+		return chunked.NewHandler(conn), nil
+	}
 }

@@ -17,10 +17,7 @@ import (
 )
 
 type ListenArgs struct {
-	Port      int
-	L1sock    string
-	L2enabled bool
-	L2sock    string
+	Port int
 }
 
 func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handlers.HandlerConst) {
@@ -43,37 +40,24 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handl
 		tcpRemote.SetKeepAlive(true)
 		tcpRemote.SetKeepAlivePeriod(30 * time.Second)
 
-		l1conn, err := net.Dial("unix", l.L1sock)
+		// construct L1 handler using given constructor
+		l1, err := h1()
 		if err != nil {
 			log.Println("Error opening connection to L1:", err.Error())
-			if l1conn != nil {
-				l1conn.Close()
-			}
 			remote.Close()
 			continue
 		}
 		metrics.IncCounter(MetricConnectionsEstablishedL1)
 
-		// construct L1 handler using given constructor
-		l1 := h1(l1conn)
-
-		// construct l2 if needed
-		var l2 handlers.Handler
-		if l.L2enabled {
-			l2conn, err := net.Dial("unix", l.L2sock)
-			if err != nil {
-				log.Println("Error opening connection to L2:", err.Error())
-				if l2conn != nil {
-					l2conn.Close()
-				}
-				l1conn.Close()
-				remote.Close()
-				continue
-			}
-			metrics.IncCounter(MetricConnectionsEstablishedL2)
-
-			l2 = h2(l2conn)
+		// construct l2
+		l2, err := h2()
+		if err != nil {
+			log.Println("Error opening connection to L2:", err.Error())
+			l1.Close()
+			remote.Close()
+			continue
 		}
+		metrics.IncCounter(MetricConnectionsEstablishedL2)
 
 		// spin off a goroutine here to handle determining the protocol used for the connection.
 		// The server loop can't be started until the protocol is known. Another goroutine is
