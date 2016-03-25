@@ -46,6 +46,11 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 	// retry failed writes. In this case L2 will get two writes for the same key
 	// but this is better because it is more correct overall, though less
 	// efficient. Note there are no retries at this level.
+	//
+	// It should be noted that errors on a straight set are nearly always fatal
+	// for the connection. It's likely that if this branch is taken that the
+	// connections to everyone will be severed (for this one client connection)
+	// and that the client will reconnect to try again.
 	metrics.IncCounter(MetricCmdSetL1)
 	if err := l.l1.Set(req); err != nil {
 		metrics.IncCounter(MetricCmdSetErrorsL1)
@@ -69,7 +74,8 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 
 	if err != nil {
 		// A key already existing is not an error per se, it's a part of the
-		// functionality of the add command to respond with a "not stored"
+		// functionality of the add command to respond with a "not stored" in
+		// the form of a ErrKeyExists. Hence no error metrics.
 		if err == common.ErrKeyExists {
 			metrics.IncCounter(MetricCmdAddNotStoredL2)
 			metrics.IncCounter(MetricCmdAddNotStored)
@@ -84,13 +90,28 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdAddStoredL2)
 
-	// Now on to L1
+	// Now on to L1. For L1 we also do an add operation to protect (partially)
+	// against concurrent operations modifying the same key. For concurrent sets
+	// that complete between the two stages, this will fail, leaving the cache
+	// consistent.
+	//
+	// There is a possibility in add that concurrent deletes will cause an
+	// inconsistent state. A concurrent delete could hit in L2 and miss in
+	// L1 between the two add operations, causing the L2 to be deleted and
+	// the L1 to have the data.
 	metrics.IncCounter(MetricCmdAddL1)
 	err = l.l1.Add(req)
 
 	if err != nil {
-		// A key already existing is not an error per se, it's a part of the
-		// functionality of the add command to respond with a "not stored"
+		// This is kind of a problem. What has happened here is that the L2
+		// cache has successfully added the key but L1 did not. In this case
+		// we have to fail with a ErrKeyExists/Not Stored because the overall
+		// operation failed. If we assume a retry on the client, then it will
+		// likely fail again at the L2 step.
+		//
+		// One possible scenario here is that an add started and completed L2,
+		// then a set ran to full completion, overwriting the data in L2 then
+		// writing into L1, then the second step here ran and got an error.
 		if err == common.ErrKeyExists {
 			metrics.IncCounter(MetricCmdAddNotStoredL1)
 			metrics.IncCounter(MetricCmdAddNotStored)
@@ -120,6 +141,7 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	if err != nil {
 		// A key already existing is not an error per se, it's a part of the
 		// functionality of the replace command to respond with a "not stored"
+		// in the form of an ErrKeyNotFound. Hence no error metrics.
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdReplaceNotStoredL2)
 			metrics.IncCounter(MetricCmdReplaceNotStored)
@@ -134,17 +156,35 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdReplaceStoredL2)
 
-	// Now on to L1
+	// Now on to L1. For a replace, the L2 succeeding means that the key is
+	// successfully replaced in L2, but in the middle here "anything can happen"
+	// so we have to think about concurrent operations. In a concurrent set
+	// situation, both L2 and L1 might have the same value from the set. In this
+	// case an add will fail and cause correct behavior. In a concurrent delete
+	// that hits in L2 (for the newly replaced data) and hits in L1 (for the
+	// data that was about to be replaced) then an add will cause a consistency
+	// problem by setting a key that shouldn't exist in L1 because it's not in
+	// L2. set and replace have the opposite problem, since they might overwrite
+	// a legitimate set that happened concurrently in the middle of the two
+	// operations. There is no one operation that solves these, so:
+	//
+	// The use of replace here explicitly assumes there is no concurrent set for
+	// the same key.
+	//
+	// The other risk here is a concurrent replace for the same key, which will
+	// possibly interleave to produce inconsistency in L2 and L1.
 	metrics.IncCounter(MetricCmdReplaceL1)
 	err = l.l1.Replace(req)
 
 	if err != nil {
-		// A key already existing is not an error per se, it's a part of the
-		// functionality of the replace command to respond with a "not stored"
+		// In thi case, the replace worked fine, and we don't worry about it not
+		// being replaced in L1 because it did not exist. In this case, L2 has
+		// the data and L1 is empty. This is still correct, and the next get
+		// would place the data back into L1. Hence, we do not return the error.
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 			metrics.IncCounter(MetricCmdReplaceNotStored)
-			return err
+			return nil
 		}
 
 		// otherwise we have a real error on our hands
