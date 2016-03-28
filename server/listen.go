@@ -16,15 +16,27 @@ import (
 	"github.com/netflix/rend/textprot"
 )
 
-type ListenArgs struct {
-	Port int
-}
-
 func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handlers.HandlerConst) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.Port))
-	if err != nil {
-		log.Printf("Error binding to port %d\n", l.Port)
-		return
+	var listener net.Listener
+	var err error
+
+	switch l.Type {
+	case ListenTCP:
+		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", l.Port))
+		if err != nil {
+			log.Printf("Error binding to port %d\n", l.Port)
+			return
+		}
+
+	case ListenUnix:
+		listener, err = net.Listen("unix", l.Path)
+		if err != nil {
+			log.Printf("Error binding to unix socket at %s\n", l.Path)
+			return
+		}
+
+	default:
+		panic(fmt.Sprintf("Unsupported server listen type: %s", l.Type))
 	}
 
 	for {
@@ -36,9 +48,11 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handl
 		}
 		metrics.IncCounter(MetricConnectionsEstablishedExt)
 
-		tcpRemote := remote.(*net.TCPConn)
-		tcpRemote.SetKeepAlive(true)
-		tcpRemote.SetKeepAlivePeriod(30 * time.Second)
+		if l.Type == ListenTCP {
+			tcpRemote := remote.(*net.TCPConn)
+			tcpRemote.SetKeepAlive(true)
+			tcpRemote.SetKeepAlivePeriod(30 * time.Second)
+		}
 
 		// construct L1 handler using given constructor
 		l1, err := h1()

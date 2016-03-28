@@ -70,9 +70,8 @@ func init() {
 // And away we go
 func main() {
 	l := server.ListenArgs{
-		//Type: "tcp",
+		Type: server.ListenTCP,
 		Port: port,
-		//Path: "",
 	}
 
 	var o orcas.OrcaConst
@@ -90,7 +89,7 @@ func main() {
 		h2 = memcached.Regular(l2sock)
 	} else {
 		o = orcas.L1Only
-		h2 = handlers.NilHandler(l2sock)
+		h2 = handlers.NilHandler("")
 	}
 
 	server.ListenAndServe(l, server.Default, o, h1, h2)

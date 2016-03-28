@@ -14,6 +14,22 @@ type Server interface {
 	Loop()
 }
 
+type ListenType int
+
+const (
+	ListenTCP ListenType = iota
+	ListenUnix
+)
+
+type ListenArgs struct {
+	// The type of the connection. "tcp" or "unix" only.
+	Type ListenType
+	// TCP port to listen on, if applicable
+	Port int
+	// Unix domain socket path to listen on, if applicable
+	Path string
+}
+
 var (
 	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext")
 	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1")
