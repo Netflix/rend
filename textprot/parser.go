@@ -176,7 +176,7 @@ func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (
 	}
 
 	// Consume the last two bytes "\r\n"
-	r.Discard(2)
+	r.ReadString(byte('\n'))
 	metrics.IncCounterBy(common.MetricBytesReadRemote, 2)
 
 	return common.SetRequest{

@@ -36,20 +36,12 @@ func (t TextResponder) Set(opaque uint32, quiet bool) error {
 	return t.resp("STORED")
 }
 
-func (t TextResponder) Add(opaque uint32, added bool, quiet bool) error {
-	if added {
-		return t.resp("STORED")
-	} else {
-		return t.resp("NOT_STORED")
-	}
+func (t TextResponder) Add(opaque uint32, quiet bool) error {
+	return t.resp("STORED")
 }
 
-func (t TextResponder) Replace(opaque uint32, replaced bool, quiet bool) error {
-	if replaced {
-		return t.resp("STORED")
-	} else {
-		return t.resp("NOT_STORED")
-	}
+func (t TextResponder) Replace(opaque uint32, quiet bool) error {
+	return t.resp("STORED")
 }
 
 func (t TextResponder) Get(response common.GetResponse) error {

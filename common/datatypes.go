@@ -138,8 +138,8 @@ type RequestParser interface {
 // corresponding RequestParser.
 type Responder interface {
 	Set(opaque uint32, quiet bool) error
-	Add(opaque uint32, added bool, quiet bool) error
-	Replace(opaque uint32, replaced bool, quiet bool) error
+	Add(opaque uint32, quiet bool) error
+	Replace(opaque uint32, quiet bool) error
 	Get(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
 	GetE(response GetEResponse) error
