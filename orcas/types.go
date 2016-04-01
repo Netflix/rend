@@ -115,10 +115,18 @@ var (
 	MetricCmdGatErrorsL1 = metrics.AddCounter("cmd_gat_errors_l1")
 	MetricCmdGatErrorsL2 = metrics.AddCounter("cmd_gat_errors_l2")
 
+	// Secondary metrics under GAT that refer to other kinds of operations to
+	// backing datastores as a part of the overall request
+	MetricCmdGatAddL1          = metrics.AddCounter("cmd_gat_add_l1")
+	MetricCmdGatAddErrorsL1    = metrics.AddCounter("cmd_gat_add_errors_l1")
+	MetricCmdGatAddStoredL1    = metrics.AddCounter("cmd_gat_add_stored_l1")
+	MetricCmdGatAddNotStoredL1 = metrics.AddCounter("cmd_gat_add_not_stored_l1")
+	MetricCmdGatSetL2          = metrics.AddCounter("cmd_gat_set_l2")
+	MetricCmdGatSetErrorsL2    = metrics.AddCounter("cmd_gat_set_errors_l2")
+	MetricCmdGatSetSuccessL2   = metrics.AddCounter("cmd_gat_set_success_l2")
+
 	MetricCmdUnknown = metrics.AddCounter("cmd_unknown")
 	MetricCmdNoop    = metrics.AddCounter("cmd_noop")
 	MetricCmdQuit    = metrics.AddCounter("cmd_quit")
 	MetricCmdVersion = metrics.AddCounter("cmd_version")
-
-	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )

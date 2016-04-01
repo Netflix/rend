@@ -177,7 +177,6 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	data, flags, err := getLocal(h.rw)
 	if err != nil {
 		if err == common.ErrKeyNotFound {
-			//fmt.Println("GAT miss because of missing metadata. Key:", key)
 			return common.GetResponse{
 				Miss:   true,
 				Quiet:  false,
