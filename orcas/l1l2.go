@@ -184,7 +184,7 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 			metrics.IncCounter(MetricCmdReplaceNotStored)
-			return nil
+			return l.res.Replace(req.Opaque, req.Quiet)
 		}
 
 		// otherwise we have a real error on our hands
@@ -242,9 +242,9 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 		// data might have TTL'd out. Both cases are still fine.
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdDeleteMissesL1)
-			metrics.IncCounter(MetricCmdDeleteMisses)
+			metrics.IncCounter(MetricCmdDeleteHits)
 			// disregard the miss, don't return the error
-			return nil
+			return l.res.Delete(req.Opaque)
 		}
 		metrics.IncCounter(MetricCmdDeleteErrorsL1)
 		metrics.IncCounter(MetricCmdDeleteErrors)
@@ -302,7 +302,7 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 			// Note that we increment the overall hits here (not misses) on
 			// purpose because L2 hit.
 			metrics.IncCounter(MetricCmdTouchHits)
-			return nil
+			return l.res.Touch(req.Opaque)
 		}
 
 		metrics.IncCounter(MetricCmdTouchErrorsL1)
