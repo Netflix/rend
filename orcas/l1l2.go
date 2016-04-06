@@ -345,9 +345,10 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 	resChan, errChan := l.l1.Get(req)
 
 	var err error
-
-	// note to self later: gather misses from L1 into a slice and send as gets to L2 in a batch
-	// The L2 handler will be able to send it in a batch to L2, which will internally parallelize
+	//var lastres common.GetResponse
+	l2keys := make([][]byte, 0)
+	l2opaques := make([]uint32, 0)
+	l2quiets := make([]bool, 0)
 
 	// Read all the responses back from L1.
 	// The contract is that the resChan will have GetResponse's for get hits and misses,
@@ -362,13 +363,14 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 			} else {
 				if res.Miss {
 					metrics.IncCounter(MetricCmdGetMissesL1)
-					// TODO: Account for L2
-					metrics.IncCounter(MetricCmdGetMisses)
+					l2keys = append(l2keys, res.Key)
+					l2opaques = append(l2opaques, res.Opaque)
+					l2quiets = append(l2quiets, res.Quiet)
 				} else {
 					metrics.IncCounter(MetricCmdGetHits)
 					metrics.IncCounter(MetricCmdGetHitsL1)
+					l.res.Get(res)
 				}
-				l.res.Get(res)
 			}
 
 		case getErr, ok := <-errChan:
@@ -386,13 +388,88 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 		}
 	}
 
-	if err == nil {
-		l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
+	// Time for the same dance with L2
+	req = common.GetRequest{
+		Keys:       l2keys,
+		NoopEnd:    req.NoopEnd,
+		NoopOpaque: req.NoopOpaque,
+		Opaques:    l2opaques,
+		Quiet:      l2quiets,
 	}
 
-	// TODO: L2 metrics for gets, get hits, get misses, get errors
+	metrics.IncCounter(MetricCmdGetL2)
+	metrics.IncCounterBy(MetricCmdGetKeysL2, uint64(len(l2keys)))
+	resChanE, errChan := l.l2.GetE(req)
+	for {
+		select {
+		case res, ok := <-resChanE:
+			if !ok {
+				resChanE = nil
+			} else {
+				if res.Miss {
+					metrics.IncCounter(MetricCmdGetMissesL2)
+					// Missing L2 means a true miss
+					metrics.IncCounter(MetricCmdGetMisses)
+				} else {
+					metrics.IncCounter(MetricCmdGetHitsL2)
+
+					//set in l1
+					metrics.IncCounter(MetricCmdGetSetL1)
+					setreq := common.SetRequest{
+						Key:     res.Key,
+						Flags:   res.Flags,
+						Exptime: res.Exptime,
+						Data:    res.Data,
+					}
+
+					if err := l.l1.Set(setreq); err != nil {
+						metrics.IncCounter(MetricCmdGetSetErrorsL1)
+						return err
+					} else {
+						metrics.IncCounter(MetricCmdGetSetSucessL1)
+					}
+
+					// overall operation is considered a hit
+					metrics.IncCounter(MetricCmdGetHits)
+				}
+
+				getres := common.GetResponse{
+					Key:    res.Key,
+					Flags:  res.Flags,
+					Data:   res.Data,
+					Miss:   res.Miss,
+					Opaque: res.Opaque,
+					Quiet:  res.Quiet,
+				}
+
+				l.res.Get(getres)
+			}
+
+		case getErr, ok := <-errChan:
+			if !ok {
+				errChan = nil
+			} else {
+				metrics.IncCounter(MetricCmdGetErrors)
+				metrics.IncCounter(MetricCmdGetErrorsL2)
+				err = getErr
+			}
+		}
+
+		if resChanE == nil && errChan == nil {
+			break
+		}
+	}
+
+	if err == nil {
+		return l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
+	}
 
 	return err
+}
+
+func (l *L1L2Orca) GetE(req common.GetRequest) error {
+	// The L1/L2 does not support getE, only L1Only does.
+	return common.ErrUnknownCmd
 }
 
 func (l *L1L2Orca) Gat(req common.GATRequest) error {

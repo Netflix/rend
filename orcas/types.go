@@ -29,6 +29,7 @@ type Orca interface {
 	Delete(req common.DeleteRequest) error
 	Touch(req common.TouchRequest) error
 	Get(req common.GetRequest) error
+	GetE(req common.GetRequest) error
 	Gat(req common.GATRequest) error
 	Noop(req common.NoopRequest) error
 	Quit(req common.QuitRequest) error
@@ -53,6 +54,26 @@ var (
 	MetricCmdGetKeys     = metrics.AddCounter("cmd_get_keys")
 	MetricCmdGetKeysL1   = metrics.AddCounter("cmd_get_keys_l1")
 	MetricCmdGetKeysL2   = metrics.AddCounter("cmd_get_keys_l2")
+
+	MetricCmdGetSetL1       = metrics.AddCounter("cmd_get_set_l1")
+	MetricCmdGetSetErrorsL1 = metrics.AddCounter("cmd_get_set_errors_l1")
+	MetricCmdGetSetSucessL1 = metrics.AddCounter("cmd_get_set_success_l1")
+
+	MetricCmdGetE         = metrics.AddCounter("cmd_gete")
+	MetricCmdGetEL1       = metrics.AddCounter("cmd_gete_l1")
+	MetricCmdGetEL2       = metrics.AddCounter("cmd_gete_l2")
+	MetricCmdGetEHits     = metrics.AddCounter("cmd_gete_hits")
+	MetricCmdGetEHitsL1   = metrics.AddCounter("cmd_gete_hits_l1")
+	MetricCmdGetEHitsL2   = metrics.AddCounter("cmd_gete_hits_l2")
+	MetricCmdGetEMisses   = metrics.AddCounter("cmd_gete_misses")
+	MetricCmdGetEMissesL1 = metrics.AddCounter("cmd_gete_misses_l1")
+	MetricCmdGetEMissesL2 = metrics.AddCounter("cmd_gete_misses_l2")
+	MetricCmdGetEErrors   = metrics.AddCounter("cmd_gete_errors")
+	MetricCmdGetEErrorsL1 = metrics.AddCounter("cmd_gete_errors_l1")
+	MetricCmdGetEErrorsL2 = metrics.AddCounter("cmd_gete_errors_l2")
+	MetricCmdGetEKeys     = metrics.AddCounter("cmd_gete_keys")
+	MetricCmdGetEKeysL1   = metrics.AddCounter("cmd_gete_keys_l1")
+	MetricCmdGetEKeysL2   = metrics.AddCounter("cmd_gete_keys_l2")
 
 	MetricCmdSet          = metrics.AddCounter("cmd_set")
 	MetricCmdSetL1        = metrics.AddCounter("cmd_set_l1")

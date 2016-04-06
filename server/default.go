@@ -82,6 +82,8 @@ func (s *DefaultServer) Loop() {
 			err = s.orca.Touch(request.(common.TouchRequest))
 		case common.RequestGet:
 			err = s.orca.Get(request.(common.GetRequest))
+		case common.RequestGetE:
+			err = s.orca.GetE(request.(common.GetRequest))
 		case common.RequestGat:
 			err = s.orca.Gat(request.(common.GATRequest))
 		case common.RequestNoop:
