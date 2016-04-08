@@ -1,3 +1,17 @@
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orcas
 
 import (
@@ -15,6 +29,7 @@ type Orca interface {
 	Delete(req common.DeleteRequest) error
 	Touch(req common.TouchRequest) error
 	Get(req common.GetRequest) error
+	GetE(req common.GetRequest) error
 	Gat(req common.GATRequest) error
 	Noop(req common.NoopRequest) error
 	Quit(req common.QuitRequest) error
@@ -39,6 +54,26 @@ var (
 	MetricCmdGetKeys     = metrics.AddCounter("cmd_get_keys")
 	MetricCmdGetKeysL1   = metrics.AddCounter("cmd_get_keys_l1")
 	MetricCmdGetKeysL2   = metrics.AddCounter("cmd_get_keys_l2")
+
+	MetricCmdGetSetL1       = metrics.AddCounter("cmd_get_set_l1")
+	MetricCmdGetSetErrorsL1 = metrics.AddCounter("cmd_get_set_errors_l1")
+	MetricCmdGetSetSucessL1 = metrics.AddCounter("cmd_get_set_success_l1")
+
+	MetricCmdGetE         = metrics.AddCounter("cmd_gete")
+	MetricCmdGetEL1       = metrics.AddCounter("cmd_gete_l1")
+	MetricCmdGetEL2       = metrics.AddCounter("cmd_gete_l2")
+	MetricCmdGetEHits     = metrics.AddCounter("cmd_gete_hits")
+	MetricCmdGetEHitsL1   = metrics.AddCounter("cmd_gete_hits_l1")
+	MetricCmdGetEHitsL2   = metrics.AddCounter("cmd_gete_hits_l2")
+	MetricCmdGetEMisses   = metrics.AddCounter("cmd_gete_misses")
+	MetricCmdGetEMissesL1 = metrics.AddCounter("cmd_gete_misses_l1")
+	MetricCmdGetEMissesL2 = metrics.AddCounter("cmd_gete_misses_l2")
+	MetricCmdGetEErrors   = metrics.AddCounter("cmd_gete_errors")
+	MetricCmdGetEErrorsL1 = metrics.AddCounter("cmd_gete_errors_l1")
+	MetricCmdGetEErrorsL2 = metrics.AddCounter("cmd_gete_errors_l2")
+	MetricCmdGetEKeys     = metrics.AddCounter("cmd_gete_keys")
+	MetricCmdGetEKeysL1   = metrics.AddCounter("cmd_gete_keys_l1")
+	MetricCmdGetEKeysL2   = metrics.AddCounter("cmd_gete_keys_l2")
 
 	MetricCmdSet          = metrics.AddCounter("cmd_set")
 	MetricCmdSetL1        = metrics.AddCounter("cmd_set_l1")
@@ -115,10 +150,18 @@ var (
 	MetricCmdGatErrorsL1 = metrics.AddCounter("cmd_gat_errors_l1")
 	MetricCmdGatErrorsL2 = metrics.AddCounter("cmd_gat_errors_l2")
 
+	// Secondary metrics under GAT that refer to other kinds of operations to
+	// backing datastores as a part of the overall request
+	MetricCmdGatAddL1          = metrics.AddCounter("cmd_gat_add_l1")
+	MetricCmdGatAddErrorsL1    = metrics.AddCounter("cmd_gat_add_errors_l1")
+	MetricCmdGatAddStoredL1    = metrics.AddCounter("cmd_gat_add_stored_l1")
+	MetricCmdGatAddNotStoredL1 = metrics.AddCounter("cmd_gat_add_not_stored_l1")
+	MetricCmdGatSetL2          = metrics.AddCounter("cmd_gat_set_l2")
+	MetricCmdGatSetErrorsL2    = metrics.AddCounter("cmd_gat_set_errors_l2")
+	MetricCmdGatSetSuccessL2   = metrics.AddCounter("cmd_gat_set_success_l2")
+
 	MetricCmdUnknown = metrics.AddCounter("cmd_unknown")
 	MetricCmdNoop    = metrics.AddCounter("cmd_noop")
 	MetricCmdQuit    = metrics.AddCounter("cmd_quit")
 	MetricCmdVersion = metrics.AddCounter("cmd_version")
-
-	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )

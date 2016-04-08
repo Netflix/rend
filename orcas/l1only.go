@@ -1,3 +1,17 @@
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orcas
 
 import (
@@ -164,7 +178,6 @@ func (l *L1OnlyOrca) Get(req common.GetRequest) error {
 			} else {
 				if res.Miss {
 					metrics.IncCounter(MetricCmdGetMissesL1)
-					// TODO: Account for L2
 					metrics.IncCounter(MetricCmdGetMisses)
 				} else {
 					metrics.IncCounter(MetricCmdGetHits)
@@ -179,6 +192,68 @@ func (l *L1OnlyOrca) Get(req common.GetRequest) error {
 			} else {
 				metrics.IncCounter(MetricCmdGetErrors)
 				metrics.IncCounter(MetricCmdGetErrorsL1)
+				err = getErr
+			}
+		}
+
+		if resChan == nil && errChan == nil {
+			break
+		}
+	}
+
+	if err == nil {
+		l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
+	}
+
+	return err
+}
+
+func (l *L1OnlyOrca) GetE(req common.GetRequest) error {
+	// For an L1 only orchestrator, this will fail if the backend is memcached.
+	// It should be talking to another rend-based server, such as the L2 for the
+	// EVCache server project.
+	metrics.IncCounter(MetricCmdGetE)
+	metrics.IncCounterBy(MetricCmdGetEKeys, uint64(len(req.Keys)))
+	//debugString := "gete"
+	//for _, k := range req.Keys {
+	//	debugString += " "
+	//	debugString += string(k)
+	//}
+	//println(debugString)
+
+	metrics.IncCounter(MetricCmdGetEL1)
+	metrics.IncCounterBy(MetricCmdGetEKeysL1, uint64(len(req.Keys)))
+	resChan, errChan := l.l1.GetE(req)
+
+	var err error
+
+	// Read all the responses back from l.l1.
+	// The contract is that the resChan will have GetEResponse's for get hits and misses,
+	// and the errChan will have any other errors, such as an out of memory error from
+	// memcached. If any receive happens from errChan, there will be no more responses
+	// from resChan.
+	for {
+		select {
+		case res, ok := <-resChan:
+			if !ok {
+				resChan = nil
+			} else {
+				if res.Miss {
+					metrics.IncCounter(MetricCmdGetEMissesL1)
+					metrics.IncCounter(MetricCmdGetEMisses)
+				} else {
+					metrics.IncCounter(MetricCmdGetEHits)
+					metrics.IncCounter(MetricCmdGetEHitsL1)
+				}
+				l.res.GetE(res)
+			}
+
+		case getErr, ok := <-errChan:
+			if !ok {
+				errChan = nil
+			} else {
+				metrics.IncCounter(MetricCmdGetEErrors)
+				metrics.IncCounter(MetricCmdGetEErrorsL1)
 				err = getErr
 			}
 		}
@@ -245,5 +320,10 @@ func (l *L1OnlyOrca) Unknown(req common.Request) error {
 }
 
 func (l *L1OnlyOrca) Error(req common.Request, reqType common.RequestType, err error) {
-	l.res.Error(req.Opq(), reqType, err)
+	opaque := uint32(0)
+	if req != nil {
+		opaque = req.Opq()
+	}
+
+	l.res.Error(opaque, reqType, err)
 }

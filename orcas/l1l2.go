@@ -1,3 +1,17 @@
+// Copyright 2015 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orcas
 
 import (
@@ -177,14 +191,14 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	err = l.l1.Replace(req)
 
 	if err != nil {
-		// In thi case, the replace worked fine, and we don't worry about it not
+		// In this case, the replace worked fine, and we don't worry about it not
 		// being replaced in L1 because it did not exist. In this case, L2 has
 		// the data and L1 is empty. This is still correct, and the next get
 		// would place the data back into L1. Hence, we do not return the error.
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdReplaceNotStoredL1)
 			metrics.IncCounter(MetricCmdReplaceNotStored)
-			return nil
+			return l.res.Replace(req.Opaque, req.Quiet)
 		}
 
 		// otherwise we have a real error on our hands
@@ -242,9 +256,9 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 		// data might have TTL'd out. Both cases are still fine.
 		if err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdDeleteMissesL1)
-			metrics.IncCounter(MetricCmdDeleteMisses)
+			metrics.IncCounter(MetricCmdDeleteHits)
 			// disregard the miss, don't return the error
-			return nil
+			return l.res.Delete(req.Opaque)
 		}
 		metrics.IncCounter(MetricCmdDeleteErrorsL1)
 		metrics.IncCounter(MetricCmdDeleteErrors)
@@ -302,7 +316,7 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 			// Note that we increment the overall hits here (not misses) on
 			// purpose because L2 hit.
 			metrics.IncCounter(MetricCmdTouchHits)
-			return nil
+			return l.res.Touch(req.Opaque)
 		}
 
 		metrics.IncCounter(MetricCmdTouchErrorsL1)
@@ -331,9 +345,10 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 	resChan, errChan := l.l1.Get(req)
 
 	var err error
-
-	// note to self later: gather misses from L1 into a slice and send as gets to L2 in a batch
-	// The L2 handler will be able to send it in a batch to L2, which will internally parallelize
+	//var lastres common.GetResponse
+	l2keys := make([][]byte, 0)
+	l2opaques := make([]uint32, 0)
+	l2quiets := make([]bool, 0)
 
 	// Read all the responses back from L1.
 	// The contract is that the resChan will have GetResponse's for get hits and misses,
@@ -348,13 +363,14 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 			} else {
 				if res.Miss {
 					metrics.IncCounter(MetricCmdGetMissesL1)
-					// TODO: Account for L2
-					metrics.IncCounter(MetricCmdGetMisses)
+					l2keys = append(l2keys, res.Key)
+					l2opaques = append(l2opaques, res.Opaque)
+					l2quiets = append(l2quiets, res.Quiet)
 				} else {
 					metrics.IncCounter(MetricCmdGetHits)
 					metrics.IncCounter(MetricCmdGetHitsL1)
+					l.res.Get(res)
 				}
-				l.res.Get(res)
 			}
 
 		case getErr, ok := <-errChan:
@@ -372,44 +388,226 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 		}
 	}
 
-	if err == nil {
-		l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
+	// Time for the same dance with L2
+	req = common.GetRequest{
+		Keys:       l2keys,
+		NoopEnd:    req.NoopEnd,
+		NoopOpaque: req.NoopOpaque,
+		Opaques:    l2opaques,
+		Quiet:      l2quiets,
 	}
 
-	// TODO: L2 metrics for gets, get hits, get misses, get errors
+	metrics.IncCounter(MetricCmdGetEL2)
+	metrics.IncCounterBy(MetricCmdGetEKeysL2, uint64(len(l2keys)))
+	resChanE, errChan := l.l2.GetE(req)
+	for {
+		select {
+		case res, ok := <-resChanE:
+			if !ok {
+				resChanE = nil
+			} else {
+				if res.Miss {
+					metrics.IncCounter(MetricCmdGetEMissesL2)
+					// Missing L2 means a true miss
+					metrics.IncCounter(MetricCmdGetMisses)
+				} else {
+					metrics.IncCounter(MetricCmdGetEHitsL2)
+
+					//set in l1
+					metrics.IncCounter(MetricCmdGetSetL1)
+					setreq := common.SetRequest{
+						Key:     res.Key,
+						Flags:   res.Flags,
+						Exptime: res.Exptime,
+						Data:    res.Data,
+					}
+
+					if err := l.l1.Set(setreq); err != nil {
+						metrics.IncCounter(MetricCmdGetSetErrorsL1)
+						return err
+					} else {
+						metrics.IncCounter(MetricCmdGetSetSucessL1)
+					}
+
+					// overall operation is considered a hit
+					metrics.IncCounter(MetricCmdGetHits)
+				}
+
+				getres := common.GetResponse{
+					Key:    res.Key,
+					Flags:  res.Flags,
+					Data:   res.Data,
+					Miss:   res.Miss,
+					Opaque: res.Opaque,
+					Quiet:  res.Quiet,
+				}
+
+				l.res.Get(getres)
+			}
+
+		case getErr, ok := <-errChan:
+			if !ok {
+				errChan = nil
+			} else {
+				metrics.IncCounter(MetricCmdGetErrors)
+				metrics.IncCounter(MetricCmdGetEErrorsL2)
+				err = getErr
+			}
+		}
+
+		if resChanE == nil && errChan == nil {
+			break
+		}
+	}
+
+	if err == nil {
+		return l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
+	}
 
 	return err
+}
+
+func (l *L1L2Orca) GetE(req common.GetRequest) error {
+	// The L1/L2 does not support getE, only L1Only does.
+	return common.ErrUnknownCmd
 }
 
 func (l *L1L2Orca) Gat(req common.GATRequest) error {
 	metrics.IncCounter(MetricCmdGat)
 	//log.Println("gat", string(req.Key))
 
+	// Try L1 first, since it'll be faster if it succeeds
 	metrics.IncCounter(MetricCmdGatL1)
 	res, err := l.l1.GAT(req)
 
-	if err == nil {
-		if res.Miss {
-			metrics.IncCounter(MetricCmdGatMissesL1)
-			// TODO: Account for L2
-			metrics.IncCounter(MetricCmdGatMisses)
-		} else {
-			metrics.IncCounter(MetricCmdGatHits)
-			metrics.IncCounter(MetricCmdGatHitsL1)
-		}
-		l.res.GAT(res)
-		// There is no GetEnd call required here since this is only ever
-		// done in the binary protocol, where there's no END marker.
-		// Calling l.res.GetEnd was a no-op here and is just useless.
-		//l.res.GetEnd(0, false)
-	} else {
-		metrics.IncCounter(MetricCmdGatErrors)
+	// Errors here are genrally fatal to the connection, as something has gone
+	// seriously wrong. Bail out early.
+	// I should note that this is different than the other commands, where there
+	// are some benevolent "errors" that include KeyNotFound or KeyExists. In
+	// both Get and GAT the mini-internal-protocol is different because the Get
+	// command uses a channel to send results back and an error channel to signal
+	// some kind of fatal problem. The result signals non-fatal "errors"; in this
+	// case it's ErrKeyNotFound --> res.Miss is true.
+	if err != nil {
 		metrics.IncCounter(MetricCmdGatErrorsL1)
+		metrics.IncCounter(MetricCmdGatErrors)
+		return err
 	}
 
-	//TODO: L2 metrics for gats, gat hits, gat misses, gat errors
+	if res.Miss {
+		// If we miss here, we have to GAT L2 to get the data, then put it back
+		// into L1 with the new TTL.
+		metrics.IncCounter(MetricCmdGatMissesL1)
 
-	return err
+		metrics.IncCounter(MetricCmdGatL2)
+		res, err = l.l2.GAT(req)
+
+		// fatal error
+		if err != nil {
+			metrics.IncCounter(MetricCmdGatErrorsL2)
+			metrics.IncCounter(MetricCmdGatErrors)
+			return err
+		}
+
+		// A miss on L2 after L1 is a true miss
+		if res.Miss {
+			metrics.IncCounter(MetricCmdGatMissesL2)
+			metrics.IncCounter(MetricCmdGatMisses)
+			return l.res.GAT(res)
+		}
+
+		// Take the data from the L2 GAT and set into L1 with the new TTL.
+		// There's several problems that could arise from interleaving of other
+		// operations. Another GAT isn't a problem.
+		//
+		// Intermediate sets might get clobbered in L1 but remain in L2 if we
+		// used Set, but since we use Add we should not overwrite a Set that
+		// happens between the L2 GAT hit and subsequent L1 reconciliation.
+		//
+		// Deletes would be a possible problem since a delete hit in L2 and miss
+		// in L1 would interleave to have data in L1 not in L2. This is a risk
+		// that is understood and accepted. The typical use cases at Netflix
+		// will not use deletes concurrently with GATs.
+		setreq := common.SetRequest{
+			Key:     req.Key,
+			Exptime: req.Exptime,
+			Flags:   res.Flags,
+			Data:    res.Data,
+		}
+
+		metrics.IncCounter(MetricCmdGatAddL1)
+		if err := l.l1.Add(setreq); err != nil {
+			// we were trampled in the middle of performing the GAT operation
+			// In this case, it's fine; no error for the overall op. We still
+			// want to track this with a metric, though, and return success.
+			if err == common.ErrKeyExists {
+				metrics.IncCounter(MetricCmdGatAddNotStoredL1)
+			} else {
+				metrics.IncCounter(MetricCmdGatAddErrorsL1)
+				// Gat errors here and not Add. The metrics for L1/L2 correspond to
+				// direct interaction with the two. THe overall metrics correspond
+				// to the more abstract orchestrator operation.
+				metrics.IncCounter(MetricCmdGatErrors)
+				return err
+			}
+		} else {
+			metrics.IncCounter(MetricCmdGatAddStoredL1)
+		}
+
+		// the overall operation succeeded
+		metrics.IncCounter(MetricCmdGatHits)
+
+	} else {
+		metrics.IncCounter(MetricCmdGatHitsL1)
+
+		// Set in L2 to play to the L2's strengths (fast writes) and avoid some
+		// pitfalls (slow touches and replaces, which require reads)
+		//
+		// The first possibility is a Set. A set into L2 would possibly cause a
+		// concurrent delete to not take, meaning the delete could say it was
+		// successful and then a subsequent get call would show the old data
+		// that was just deleted.
+		//
+		// Another option is to just send a touch, which allows us to send less
+		// data but gives the possibility of a touch miss on L2, which will be a
+		// problematic situation. If we get a touch miss, then we know we are
+		// inconsistent but we don't affect concurrent deletes.
+		//
+		// A third option is to use Replace, which could be helpful to avoid
+		// overriding concurrent deletes. This also might cause problems with
+		// othr sets at the same time, as it might overwrite a set that just
+		// finished.
+		//
+		// Many heavy users of EVCache at Netflix use GAT commands to lengthen
+		// TTLs of their data in use and to shorten the TTL of data they will
+		// not be using which is then async TTL'd out. I am explicitly
+		// discounting the concurrent delete situation here and accepting that
+		// they might not be exactly correct.
+		setreq := common.SetRequest{
+			Key:     req.Key,
+			Exptime: req.Exptime,
+			Flags:   res.Flags,
+			Data:    res.Data,
+		}
+
+		metrics.IncCounter(MetricCmdGatSetL2)
+		err := l.l2.Set(setreq)
+
+		if err != nil {
+			// set error? Return it as our error. Yes, the GAT succeeded in L1
+			// but if L2 didn't get the set, then likely something is seriously
+			// wrong.
+			metrics.IncCounter(MetricCmdGatSetErrorsL2)
+			metrics.IncCounter(MetricCmdGatErrors)
+			return err
+		}
+		metrics.IncCounter(MetricCmdGatSetSuccessL2)
+
+		// overall operation succeeded
+		metrics.IncCounter(MetricCmdGatHits)
+	}
+
+	return l.res.GAT(res)
 }
 
 func (l *L1L2Orca) Noop(req common.NoopRequest) error {
@@ -433,5 +631,10 @@ func (l *L1L2Orca) Unknown(req common.Request) error {
 }
 
 func (l *L1L2Orca) Error(req common.Request, reqType common.RequestType, err error) {
-	l.res.Error(req.Opq(), reqType, err)
+	opaque := uint32(0)
+	if req != nil {
+		opaque = req.Opq()
+	}
+
+	l.res.Error(opaque, reqType, err)
 }

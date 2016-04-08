@@ -55,14 +55,14 @@ func simpleCmdLocal(rw *bufio.ReadWriter) error {
 	return nil
 }
 
-func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
+func getLocal(rw *bufio.ReadWriter, readExp bool) (data []byte, flags, exp uint32, err error) {
 	if err := rw.Flush(); err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	resHeader, err := binprot.ReadResponseHeader(rw)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer binprot.PutResponseHeader(resHeader)
 
@@ -71,14 +71,20 @@ func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
 		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
 		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 		if ioerr != nil {
-			return nil, 0, ioerr
+			return nil, 0, 0, ioerr
 		}
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	var serverFlags uint32
 	binary.Read(rw, binary.BigEndian, &serverFlags)
 	metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
+
+	var serverExp uint32
+	if readExp {
+		binary.Read(rw, binary.BigEndian, &serverExp)
+		metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
+	}
 
 	// total body - key - extra
 	dataLen := resHeader.TotalBodyLength - uint32(resHeader.KeyLength) - uint32(resHeader.ExtraLength)
@@ -88,8 +94,8 @@ func getLocal(rw *bufio.ReadWriter) (data []byte, flags uint32, err error) {
 	n, err := io.ReadAtLeast(rw, buf, int(dataLen))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
-	return buf, serverFlags, nil
+	return buf, serverFlags, serverExp, nil
 }

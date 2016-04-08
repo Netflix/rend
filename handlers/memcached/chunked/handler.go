@@ -376,7 +376,17 @@ outer:
 }
 
 func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
-	panic("GetE not supported in Rend")
+	// Being minimalist, not lazy. The chunked handler is not meant to be used with a
+	// backing store that supports the GetE protocol extension. It would be a waste of
+	// time and effort to support it here if it would "never" be used. It will be added
+	// as soon as a case for it exists.
+	//
+	// The GetE extension is an addition that only rend supports. This chunked handler
+	// is pretty explicitly for talking to memcached since it is a complex workaround
+	// for pathological behavior when data size rapidly changes that only happens in
+	// memcached. The chunked handler will not work well with the L2 the EVCache team
+	// uses.
+	panic("GetE not supported in Rend chunked mode")
 }
 
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
