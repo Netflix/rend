@@ -631,5 +631,10 @@ func (l *L1L2Orca) Unknown(req common.Request) error {
 }
 
 func (l *L1L2Orca) Error(req common.Request, reqType common.RequestType, err error) {
-	l.res.Error(req.Opq(), reqType, err)
+	opaque := uint32(0)
+	if req != nil {
+		opaque = req.Opq()
+	}
+
+	l.res.Error(opaque, reqType, err)
 }
