@@ -135,7 +135,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 			return
 		}
 
-		data, flags, err := getLocal(rw)
+		data, flags, _, err := getLocal(rw, false)
 		if err != nil {
 			if err == common.ErrKeyNotFound {
 				dataOut <- common.GetResponse{
@@ -166,7 +166,52 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 }
 
 func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
-	panic("GetE not supported in Rend")
+	dataOut := make(chan common.GetEResponse)
+	errorOut := make(chan error)
+	go realHandleGetE(cmd, dataOut, errorOut, h.rw)
+	return dataOut, errorOut
+}
+
+func realHandleGetE(cmd common.GetRequest, dataOut chan common.GetEResponse, errorOut chan error, rw *bufio.ReadWriter) {
+	defer close(errorOut)
+	defer close(dataOut)
+
+	for idx, key := range cmd.Keys {
+		if err := binprot.WriteGetECmd(rw.Writer, key); err != nil {
+			errorOut <- err
+			return
+		}
+
+		data, flags, exp, err := getLocal(rw, true)
+		if err != nil {
+			if err == common.ErrKeyNotFound {
+				dataOut <- common.GetEResponse{
+					Miss:    true,
+					Quiet:   cmd.Quiet[idx],
+					Opaque:  cmd.Opaques[idx],
+					Flags:   flags,
+					Exptime: exp,
+					Key:     key,
+					Data:    nil,
+				}
+
+				continue
+			}
+
+			errorOut <- err
+			return
+		}
+
+		dataOut <- common.GetEResponse{
+			Miss:    false,
+			Quiet:   cmd.Quiet[idx],
+			Opaque:  cmd.Opaques[idx],
+			Flags:   flags,
+			Exptime: exp,
+			Key:     key,
+			Data:    data,
+		}
+	}
 }
 
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
@@ -174,7 +219,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 		return common.GetResponse{}, err
 	}
 
-	data, flags, err := getLocal(h.rw)
+	data, flags, _, err := getLocal(h.rw, false)
 	if err != nil {
 		if err == common.ErrKeyNotFound {
 			return common.GetResponse{
