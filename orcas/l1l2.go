@@ -397,8 +397,8 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 		Quiet:      l2quiets,
 	}
 
-	metrics.IncCounter(MetricCmdGetL2)
-	metrics.IncCounterBy(MetricCmdGetKeysL2, uint64(len(l2keys)))
+	metrics.IncCounter(MetricCmdGetEL2)
+	metrics.IncCounterBy(MetricCmdGetEKeysL2, uint64(len(l2keys)))
 	resChanE, errChan := l.l2.GetE(req)
 	for {
 		select {
@@ -407,11 +407,11 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 				resChanE = nil
 			} else {
 				if res.Miss {
-					metrics.IncCounter(MetricCmdGetMissesL2)
+					metrics.IncCounter(MetricCmdGetEMissesL2)
 					// Missing L2 means a true miss
 					metrics.IncCounter(MetricCmdGetMisses)
 				} else {
-					metrics.IncCounter(MetricCmdGetHitsL2)
+					metrics.IncCounter(MetricCmdGetEHitsL2)
 
 					//set in l1
 					metrics.IncCounter(MetricCmdGetSetL1)
@@ -450,7 +450,7 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 				errChan = nil
 			} else {
 				metrics.IncCounter(MetricCmdGetErrors)
-				metrics.IncCounter(MetricCmdGetErrorsL2)
+				metrics.IncCounter(MetricCmdGetEErrorsL2)
 				err = getErr
 			}
 		}
