@@ -27,6 +27,7 @@ const (
 
 var (
 	hnames    = make([]string, numHists)
+	hsampled  = make([]bool, numHists)
 	hists     = make([]*hist, numHists)
 	curHistID = new(uint32)
 )
@@ -69,7 +70,7 @@ func newHdat() *hdat {
 	return ret
 }
 
-func AddHistogram(name string) uint32 {
+func AddHistogram(name string, sampled bool) uint32 {
 	idx := atomic.AddUint32(curHistID, 1)
 
 	if idx >= numHists {
@@ -77,6 +78,7 @@ func AddHistogram(name string) uint32 {
 	}
 
 	hnames[idx] = name
+	hsampled[idx] = sampled
 	hists[idx] = newHist()
 
 	return idx
@@ -108,10 +110,13 @@ func ObserveHist(id uint32, value uint64) {
 		}
 	}
 
-	// Sample, keep every 4th observation
-	if c := atomic.AddUint64(&h.prim.count, 1) & 0x3; c > 0 {
-		h.lock.RUnlock()
-		return
+	c := atomic.AddUint64(&h.prim.count, 1)
+	if hsampled[id] {
+		// Sample, keep every 4th observation
+		if (c & 0x3) > 0 {
+			h.lock.RUnlock()
+			return
+		}
 	}
 
 	// Get the current index as the count % buflen
