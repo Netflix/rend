@@ -24,6 +24,7 @@ func metaKey(key []byte) []byte {
 }
 
 func chunkKey(key []byte, chunk int) []byte {
+	// TODO: POOL ME PLEASE
 	keyCopy := make([]byte, len(key))
 	copy(keyCopy, key)
 	chunkStr := fmt.Sprintf("_%v", chunk)

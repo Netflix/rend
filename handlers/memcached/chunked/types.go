@@ -21,5 +21,5 @@ type metadata struct {
 	OrigFlags uint32
 	NumChunks uint32
 	ChunkSize uint32
-	Token     [16]byte
+	Token     [tokenSize]byte
 }
