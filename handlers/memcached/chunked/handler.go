@@ -26,48 +26,44 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-const (
-	// Chunk size, leaving room for the token
-	// Make sure the value subtracted from chunk size stays in sync
-	// with the size of the Metadata struct
-	chunkSize    = 1024 - 16
-	fullDataSize = 1024
-)
-
 var (
-	MetricCmdSetErrorsOOM        = metrics.AddCounter("cmd_set_errors_oom")
-	MetricCmdSetErrorsOOML1      = metrics.AddCounter("cmd_set_errors_oom_l1")
-	MetricCmdSetErrorsOOML2      = metrics.AddCounter("cmd_set_errors_oom_l2")
-	MetricCmdTouchMissesMeta     = metrics.AddCounter("cmd_touch_misses_meta")
-	MetricCmdTouchMissesMetaL1   = metrics.AddCounter("cmd_touch_misses_meta_l1")
-	MetricCmdTouchMissesMetaL2   = metrics.AddCounter("cmd_touch_misses_meta_l2")
-	MetricCmdTouchMissesChunk    = metrics.AddCounter("cmd_touch_misses_chunk")
-	MetricCmdTouchMissesChunkL1  = metrics.AddCounter("cmd_touch_misses_chunk_l1")
-	MetricCmdTouchMissesChunkL2  = metrics.AddCounter("cmd_touch_misses_chunk_l2")
+	MetricCmdSetErrorsOOM   = metrics.AddCounter("cmd_set_errors_oom")
+	MetricCmdSetErrorsOOML1 = metrics.AddCounter("cmd_set_errors_oom_l1")
+	MetricCmdSetErrorsOOML2 = metrics.AddCounter("cmd_set_errors_oom_l2")
+
+	MetricCmdTouchMissesMeta    = metrics.AddCounter("cmd_touch_misses_meta")
+	MetricCmdTouchMissesMetaL1  = metrics.AddCounter("cmd_touch_misses_meta_l1")
+	MetricCmdTouchMissesMetaL2  = metrics.AddCounter("cmd_touch_misses_meta_l2")
+	MetricCmdTouchMissesChunk   = metrics.AddCounter("cmd_touch_misses_chunk")
+	MetricCmdTouchMissesChunkL1 = metrics.AddCounter("cmd_touch_misses_chunk_l1")
+	MetricCmdTouchMissesChunkL2 = metrics.AddCounter("cmd_touch_misses_chunk_l2")
+
 	MetricCmdDeleteMissesMeta    = metrics.AddCounter("cmd_delete_misses_meta")
 	MetricCmdDeleteMissesMetaL1  = metrics.AddCounter("cmd_delete_misses_meta_l1")
 	MetricCmdDeleteMissesMetaL2  = metrics.AddCounter("cmd_delete_misses_meta_l2")
 	MetricCmdDeleteMissesChunk   = metrics.AddCounter("cmd_delete_misses_chunk")
 	MetricCmdDeleteMissesChunkL1 = metrics.AddCounter("cmd_delete_misses_chunk_l1")
 	MetricCmdDeleteMissesChunkL2 = metrics.AddCounter("cmd_delete_misses_chunk_l2")
-	MetricCmdGetMissesMeta       = metrics.AddCounter("cmd_get_misses_meta")
-	MetricCmdGetMissesMetaL1     = metrics.AddCounter("cmd_get_misses_meta_l1")
-	MetricCmdGetMissesMetaL2     = metrics.AddCounter("cmd_get_misses_meta_l2")
-	MetricCmdGetMissesChunk      = metrics.AddCounter("cmd_get_misses_chunk")
-	MetricCmdGetMissesChunkL1    = metrics.AddCounter("cmd_get_misses_chunk_l1")
-	MetricCmdGetMissesChunkL2    = metrics.AddCounter("cmd_get_misses_chunk_l2")
-	MetricCmdGetMissesToken      = metrics.AddCounter("cmd_get_misses_token")
-	MetricCmdGetMissesTokenL1    = metrics.AddCounter("cmd_get_misses_token_l1")
-	MetricCmdGetMissesTokenL2    = metrics.AddCounter("cmd_get_misses_token_l2")
-	MetricCmdGatMissesMeta       = metrics.AddCounter("cmd_gat_misses_meta")
-	MetricCmdGatMissesMetaL1     = metrics.AddCounter("cmd_gat_misses_meta_l1")
-	MetricCmdGatMissesMetaL2     = metrics.AddCounter("cmd_gat_misses_meta_l2")
-	MetricCmdGatMissesChunk      = metrics.AddCounter("cmd_gat_misses_chunk")
-	MetricCmdGatMissesChunkL1    = metrics.AddCounter("cmd_gat_misses_chunk_l1")
-	MetricCmdGatMissesChunkL2    = metrics.AddCounter("cmd_gat_misses_chunk_l2")
-	MetricCmdGatMissesToken      = metrics.AddCounter("cmd_gat_misses_token")
-	MetricCmdGatMissesTokenL1    = metrics.AddCounter("cmd_gat_misses_token_l1")
-	MetricCmdGatMissesTokenL2    = metrics.AddCounter("cmd_gat_misses_token_l2")
+
+	MetricCmdGetMissesMeta    = metrics.AddCounter("cmd_get_misses_meta")
+	MetricCmdGetMissesMetaL1  = metrics.AddCounter("cmd_get_misses_meta_l1")
+	MetricCmdGetMissesMetaL2  = metrics.AddCounter("cmd_get_misses_meta_l2")
+	MetricCmdGetMissesChunk   = metrics.AddCounter("cmd_get_misses_chunk")
+	MetricCmdGetMissesChunkL1 = metrics.AddCounter("cmd_get_misses_chunk_l1")
+	MetricCmdGetMissesChunkL2 = metrics.AddCounter("cmd_get_misses_chunk_l2")
+	MetricCmdGetMissesToken   = metrics.AddCounter("cmd_get_misses_token")
+	MetricCmdGetMissesTokenL1 = metrics.AddCounter("cmd_get_misses_token_l1")
+	MetricCmdGetMissesTokenL2 = metrics.AddCounter("cmd_get_misses_token_l2")
+
+	MetricCmdGatMissesMeta    = metrics.AddCounter("cmd_gat_misses_meta")
+	MetricCmdGatMissesMetaL1  = metrics.AddCounter("cmd_gat_misses_meta_l1")
+	MetricCmdGatMissesMetaL2  = metrics.AddCounter("cmd_gat_misses_meta_l2")
+	MetricCmdGatMissesChunk   = metrics.AddCounter("cmd_gat_misses_chunk")
+	MetricCmdGatMissesChunkL1 = metrics.AddCounter("cmd_gat_misses_chunk_l1")
+	MetricCmdGatMissesChunkL2 = metrics.AddCounter("cmd_gat_misses_chunk_l2")
+	MetricCmdGatMissesToken   = metrics.AddCounter("cmd_gat_misses_token")
+	MetricCmdGatMissesTokenL1 = metrics.AddCounter("cmd_gat_misses_token_l1")
+	MetricCmdGatMissesTokenL2 = metrics.AddCounter("cmd_gat_misses_token_l2")
 )
 
 func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
@@ -121,11 +117,42 @@ func (h Handler) Replace(cmd common.SetRequest) error {
 	return h.realHandleSet(cmd, common.RequestReplace)
 }
 
+const (
+	// TODO: Make configurable at command line
+	// might be a constructor argument
+	// Slab 12, ~1KB per chunk
+	chunkMaxSize = 1184
+
+	// Format of headers in memcached:
+	//
+	// Key size + 1 + Header (Flags + Key + 2 bytes (\r\n) + 4 bytes (2 spaces and 1 \r)) + Chunk Size + CAS Size + 3
+	// + 1 // Space
+	// + 4 // Flags
+	// + 4 // Key
+	// + 2 // /r/n
+	// + 4 // 2 spaces and 1 \r
+	// + 48 // Header Size
+	// + 8 // CAS
+	// 4 because we will suffix _00, _01 ... _99, 68 is the size of the memcached header
+	// we kind of assume there will only be at most 999 chunks, but if there's more we can up the chunk max size
+	// tokenSize
+	//
+	// TODO: Double check. 71 is currently used in the EVCache client but 67 works, so 4 less bytes overhead
+	chunkOverhead = 67 + 4
+)
+
+func chunkSize(keylen int) (dataSize, fullSize uint32) {
+	fullSize = uint32(chunkMaxSize - chunkOverhead - keylen)
+	dataSize = fullSize - tokenSize
+	return
+}
+
 func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType) error {
 
 	// Specialized chunk reader to make the code here much simpler
-	limChunkReader := newChunkLimitedReader(bytes.NewBuffer(cmd.Data), int64(chunkSize), int64(len(cmd.Data)))
-	numChunks := int(math.Ceil(float64(len(cmd.Data)) / float64(chunkSize)))
+	dataSize, fullSize := chunkSize(len(cmd.Key))
+	limChunkReader := newChunkLimitedReader(bytes.NewBuffer(cmd.Data), int64(dataSize), int64(len(cmd.Data)))
+	numChunks := int(math.Ceil(float64(len(cmd.Data)) / float64(dataSize)))
 	token := <-tokens
 
 	metaKey := metaKey(cmd.Key)
@@ -133,7 +160,7 @@ func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType
 		Length:    uint32(len(cmd.Data)),
 		OrigFlags: cmd.Flags,
 		NumChunks: uint32(numChunks),
-		ChunkSize: chunkSize,
+		ChunkSize: dataSize,
 		Token:     token,
 	}
 
@@ -194,7 +221,7 @@ func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType
 		key := chunkKey(cmd.Key, chunkNum)
 
 		// Write the key
-		if err := binprot.WriteSetCmd(h.rw.Writer, key, cmd.Flags, cmd.Exptime, fullDataSize); err != nil {
+		if err := binprot.WriteSetCmd(h.rw.Writer, key, cmd.Flags, cmd.Exptime, fullSize); err != nil {
 			return err
 		}
 		// Write token
