@@ -15,7 +15,6 @@
 package binprot
 
 import (
-	"fmt"
 	"io"
 	"sync"
 
@@ -24,6 +23,13 @@ import (
 )
 
 const ReqHeaderLen = 24
+
+var (
+	MetricBinaryRequestHeadersParsed    = metrics.AddCounter("binary_request_headers_parsed")
+	MetricBinaryRequestHeadersBadMagic  = metrics.AddCounter("binary_request_headers_bad_magic")
+	MetricBinaryResponseHeadersParsed   = metrics.AddCounter("binary_response_headers_parsed")
+	MetricBinaryResponseHeadersBadMagic = metrics.AddCounter("binary_response_headers_bad_magic")
+)
 
 type RequestHeader struct {
 	Magic           uint8 // Already known, since we're here
@@ -105,6 +111,7 @@ func readRequestHeader(r io.Reader) (RequestHeader, error) {
 
 	if buf[0] != MagicRequest {
 		bufPool.Put(buf)
+		metrics.IncCounter(MetricBinaryRequestHeadersBadMagic)
 		return emptyReqHeader, ErrBadMagic
 	}
 
@@ -127,6 +134,7 @@ func readRequestHeader(r io.Reader) (RequestHeader, error) {
 	rh.CASToken = 0
 
 	bufPool.Put(buf)
+	metrics.IncCounter(MetricBinaryRequestHeadersParsed)
 
 	return rh, nil
 }
@@ -174,8 +182,8 @@ func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	}
 
 	if buf[0] != MagicResponse {
-		fmt.Println(buf[0])
 		bufPool.Put(buf)
+		metrics.IncCounter(MetricBinaryResponseHeadersBadMagic)
 		return emptyResHeader, ErrBadMagic
 	}
 
@@ -196,6 +204,7 @@ func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	rh.CASToken = 0
 
 	bufPool.Put(buf)
+	metrics.IncCounter(MetricBinaryResponseHeadersParsed)
 
 	return rh, nil
 }
