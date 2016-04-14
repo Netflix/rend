@@ -21,7 +21,7 @@ import (
 // Derived from Damian Gryski's go-bits package
 // Copyright 2015 Damian Gryski, under MIT license
 // See the NOTICE file for more details.
-// https://github.com/dgryski/go-bitspackage metrics
+// https://github.com/dgryski/go-bits
 func TestQuickLzcnt(t *testing.T) {
 	f := func(x uint64) bool {
 		return lzcnt(x) == lzcntSlowForTestingOnly(x)
