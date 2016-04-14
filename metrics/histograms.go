@@ -29,6 +29,7 @@ var (
 	hnames    = make([]string, numHists)
 	hsampled  = make([]bool, numHists)
 	hists     = make([]*hist, numHists)
+	bhists    = make([]*bhist, numHists)
 	curHistID = new(uint32)
 )
 
@@ -70,6 +71,17 @@ func newHdat() *hdat {
 	return ret
 }
 
+type bhist struct {
+	buckets []uint64
+}
+
+func newBHist() *bhist {
+	return &bhist{
+		// Holds enough for the entire length of a uint64
+		buckets: make([]uint64, 64),
+	}
+}
+
 func AddHistogram(name string, sampled bool) uint32 {
 	idx := atomic.AddUint32(curHistID, 1)
 
@@ -80,6 +92,7 @@ func AddHistogram(name string, sampled bool) uint32 {
 	hnames[idx] = name
 	hsampled[idx] = sampled
 	hists[idx] = newHist()
+	bhists[idx] = newBHist()
 
 	return idx
 }
@@ -110,6 +123,10 @@ func ObserveHist(id uint32, value uint64) {
 		}
 	}
 
+	// Record the bucketized histograms
+	bucket := lzcnt(value)
+	atomic.AddUint64(&bhists[id].buckets[bucket], 1)
+
 	c := atomic.AddUint64(&h.prim.count, 1)
 	if hsampled[id] {
 		// Sample, keep every 4th observation
@@ -139,6 +156,9 @@ func getAllHistograms() map[string]*hdat {
 	}
 
 	return ret
+
+	// TODO: return bucket histograms as well
+	// then add endpoint output for them
 }
 
 func extractAndReset(h *hist) *hdat {
