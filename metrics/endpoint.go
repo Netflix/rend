@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"runtime"
 	"sort"
@@ -108,6 +109,22 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, 100, pctls[21])
 	}
 
+	// Bucketized histograms
+	// Buckets are based on the number of leading zeros in the number
+	// so each is less than or equal to that number of ones. Therefore
+	// bucket 0 means the number was greater than 0x7FFF_FFFF_FFFF_FFFF
+	// and less than or equal to 0xFFFF_FFFF_FFFF_FFFF, which would be a huge
+	// duration but it's a good example. As well, bucket 63 only hold values
+	// 0x0 and 0x1. Bucket 62 hold 0x10 and 0x11. 61: 0x100, 0x101, 0x110, 0x111
+	bhists := getAllBucketHistograms()
+	for name, bh := range bhists {
+		var bmax uint64 = math.MaxUint64 // 0xFFFF_FFFF_FFFF_FFFF
+		for i := 0; i < 64; i++ {
+			fmt.Fprintf(w, "%sbhist_%s_bucket_%d %d\n", prefix, name, bmax, bh[i])
+			bmax >>= 1
+		}
+	}
+
 	// Application stats
 	ctrs := getAllCounters()
 	for name, val := range ctrs {
@@ -141,14 +158,18 @@ func hdatPercentiles(dat *hdat) []uint64 {
 	sort.Sort(uint64slice(buf))
 
 	pctls := make([]uint64, 22)
+
+	// Take care of 0th and 100th specially
 	pctls[0] = dat.min
 	pctls[21] = dat.max
 
+	// 5th - 95th
 	for i := 1; i < 20; i++ {
 		idx := len(buf) * i / 20
 		pctls[i] = buf[idx]
 	}
 
+	// Add 99th
 	idx := len(buf) * 99 / 100
 	pctls[20] = buf[idx]
 
@@ -163,14 +184,18 @@ func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
 	sort.Sort(uint64slice(pauses))
 
 	pctls := make([]uint64, 22)
+
+	// Take care of 0th and 100th specially
 	pctls[0] = pauses[0]
 	pctls[21] = pauses[len(pauses)-1]
 
+	// 5th - 95th
 	for i := 1; i < 20; i++ {
 		idx := len(pauses) * i / 20
 		pctls[i] = pauses[idx]
 	}
 
+	// Add 99th
 	idx := len(pauses) * 99 / 100
 	pctls[20] = pauses[idx]
 

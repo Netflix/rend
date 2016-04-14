@@ -127,6 +127,7 @@ func ObserveHist(id uint32, value uint64) {
 	bucket := lzcnt(value)
 	atomic.AddUint64(&bhists[id].buckets[bucket], 1)
 
+	// Count and possibly return for sampling
 	c := atomic.AddUint64(&h.prim.count, 1)
 	if hsampled[id] {
 		// Sample, keep every 4th observation
@@ -156,9 +157,6 @@ func getAllHistograms() map[string]*hdat {
 	}
 
 	return ret
-
-	// TODO: return bucket histograms as well
-	// then add endpoint output for them
 }
 
 func extractAndReset(h *hist) *hdat {
@@ -176,4 +174,24 @@ func extractAndReset(h *hist) *hdat {
 	h.lock.Unlock()
 
 	return h.sec
+}
+
+func getAllBucketHistograms() map[string][]uint64 {
+	n := int(atomic.LoadUint32(curHistID))
+
+	ret := make(map[string][]uint64)
+
+	for i := 0; i < n; i++ {
+		ret[hnames[i]] = extractBHist(bhists[i])
+	}
+
+	return ret
+}
+
+func extractBHist(b *bhist) []uint64 {
+	ret := make([]uint64, 64)
+	for i := 0; i < 64; i++ {
+		ret[i] = atomic.LoadUint64(&b.buckets[i])
+	}
+	return ret
 }
