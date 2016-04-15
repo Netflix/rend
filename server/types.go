@@ -52,13 +52,13 @@ var (
 	MetricErrAppError               = metrics.AddCounter("err_app_err")
 	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
 
-	HistSet     = metrics.AddHistogram("set")
-	HistAdd     = metrics.AddHistogram("add")
-	HistReplace = metrics.AddHistogram("replace")
-	HistDelete  = metrics.AddHistogram("delete")
-	HistTouch   = metrics.AddHistogram("touch")
-	HistGet     = metrics.AddHistogram("get")
-	HistGat     = metrics.AddHistogram("gat")
+	HistSet     = metrics.AddHistogram("set", false)
+	HistAdd     = metrics.AddHistogram("add", false)
+	HistReplace = metrics.AddHistogram("replace", false)
+	HistDelete  = metrics.AddHistogram("delete", false)
+	HistTouch   = metrics.AddHistogram("touch", false)
+	HistGet     = metrics.AddHistogram("get", true) // sampled
+	HistGat     = metrics.AddHistogram("gat", true) // sampled
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )

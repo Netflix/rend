@@ -27,7 +27,9 @@ const (
 
 var (
 	hnames    = make([]string, numHists)
+	hsampled  = make([]bool, numHists)
 	hists     = make([]*hist, numHists)
+	bhists    = make([]*bhist, numHists)
 	curHistID = new(uint32)
 )
 
@@ -69,7 +71,18 @@ func newHdat() *hdat {
 	return ret
 }
 
-func AddHistogram(name string) uint32 {
+type bhist struct {
+	buckets []uint64
+}
+
+func newBHist() *bhist {
+	return &bhist{
+		// Holds enough for the entire length of a uint64
+		buckets: make([]uint64, 64),
+	}
+}
+
+func AddHistogram(name string, sampled bool) uint32 {
 	idx := atomic.AddUint32(curHistID, 1)
 
 	if idx >= numHists {
@@ -77,7 +90,9 @@ func AddHistogram(name string) uint32 {
 	}
 
 	hnames[idx] = name
+	hsampled[idx] = sampled
 	hists[idx] = newHist()
+	bhists[idx] = newBHist()
 
 	return idx
 }
@@ -108,10 +123,18 @@ func ObserveHist(id uint32, value uint64) {
 		}
 	}
 
-	// Sample, keep every 4th observation
-	if c := atomic.AddUint64(&h.prim.count, 1) & 0x3; c > 0 {
-		h.lock.RUnlock()
-		return
+	// Record the bucketized histograms
+	bucket := lzcnt(value)
+	atomic.AddUint64(&bhists[id].buckets[bucket], 1)
+
+	// Count and possibly return for sampling
+	c := atomic.AddUint64(&h.prim.count, 1)
+	if hsampled[id] {
+		// Sample, keep every 4th observation
+		if (c & 0x3) > 0 {
+			h.lock.RUnlock()
+			return
+		}
 	}
 
 	// Get the current index as the count % buflen
@@ -151,4 +174,24 @@ func extractAndReset(h *hist) *hdat {
 	h.lock.Unlock()
 
 	return h.sec
+}
+
+func getAllBucketHistograms() map[string][]uint64 {
+	n := int(atomic.LoadUint32(curHistID))
+
+	ret := make(map[string][]uint64)
+
+	for i := 0; i < n; i++ {
+		ret[hnames[i]] = extractBHist(bhists[i])
+	}
+
+	return ret
+}
+
+func extractBHist(b *bhist) []uint64 {
+	ret := make([]uint64, 64)
+	for i := 0; i < 64; i++ {
+		ret[i] = atomic.LoadUint64(&b.buckets[i])
+	}
+	return ret
 }
