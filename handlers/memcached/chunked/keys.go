@@ -14,8 +14,10 @@
 
 package chunked
 
-import "fmt"
-import "math"
+import (
+	"math"
+	"strconv"
+)
 
 func metaKey(key []byte) []byte {
 	keyCopy := make([]byte, len(key))
@@ -25,10 +27,12 @@ func metaKey(key []byte) []byte {
 
 func chunkKey(key []byte, chunk int) []byte {
 	// TODO: POOL ME PLEASE
-	keyCopy := make([]byte, len(key))
+	// or maybe not since pooling adds interface{} conversion overhead anyway
+	// +4 to account for the '_###' at the end
+	keyCopy := make([]byte, len(key), len(key)+4)
 	copy(keyCopy, key)
-	chunkStr := fmt.Sprintf("_%v", chunk)
-	return append(keyCopy, []byte(chunkStr)...)
+	keyCopy = append(keyCopy, '_')
+	return append(keyCopy, []byte(strconv.Itoa(chunk))...)
 }
 
 func chunkSliceIndices(chunkSize, chunkNum, totalLength int) (int, int) {
