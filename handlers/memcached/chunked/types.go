@@ -14,7 +14,15 @@
 
 package chunked
 
-const metadataSize = 32
+import (
+	"encoding/binary"
+	"io"
+
+	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
+)
+
+const metadataSize = 16 + tokenSize
 
 type metadata struct {
 	Length    uint32
@@ -22,4 +30,23 @@ type metadata struct {
 	NumChunks uint32
 	ChunkSize uint32
 	Token     [tokenSize]byte
+}
+
+func parseMetadata(r io.Reader) (metadata, error) {
+	buf := make([]byte, metadataSize)
+
+	n, err := io.ReadAtLeast(r, buf, metadataSize)
+	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+	if err != nil {
+		return emptyMeta, nil
+	}
+
+	m := metadata{}
+	m.Length = binary.BigEndian.Uint32(buf[0:4])
+	m.OrigFlags = binary.BigEndian.Uint32(buf[4:8])
+	m.NumChunks = binary.BigEndian.Uint32(buf[8:12])
+	m.ChunkSize = binary.BigEndian.Uint32(buf[12:16])
+	copy(m.Token[:], buf[16:])
+
+	return m, nil
 }

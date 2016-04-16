@@ -16,7 +16,6 @@ package chunked
 
 import (
 	"bufio"
-	"encoding/binary"
 	"io"
 
 	"github.com/netflix/rend/binprot"
@@ -67,17 +66,23 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 		return emptyMeta, err
 	}
 
-	var serverFlags uint32
-	if err := binary.Read(rw, binary.BigEndian, &serverFlags); err != nil {
+	// we currently do nothing with the flags
+	//buf := make([]byte, 4)
+	//n, err := io.ReadAtLeast(rw, buf, 4)
+	//metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+	//if err != nil {
+	//	return emptyMeta, err
+	//}
+	//serverFlags := binary.BigEndian.Uint32(buf)
+
+	// instead of reading and parsing flags, just discard
+	rw.Discard(4)
+	metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
+
+	metaData, err := parseMetadata(rw)
+	if err != nil {
 		return emptyMeta, err
 	}
-
-	var metaData metadata
-	if err := binary.Read(rw, binary.BigEndian, &metaData); err != nil {
-		return emptyMeta, err
-	}
-
-	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(metadataSize+4))
 
 	return metaData, nil
 }
@@ -130,10 +135,17 @@ func getLocalIntoBuf(rw *bufio.Reader, metaData metadata, tokenBuf, dataBuf []by
 		return false, err
 	}
 
-	var serverFlags uint32
-	if err := binary.Read(rw, binary.BigEndian, &serverFlags); err != nil {
-		return false, err
-	}
+	// we currently do nothing with the flags
+	//buf := make([]byte, 4)
+	//n, err := io.ReadAtLeast(rw, buf, 4)
+	//metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+	//if err != nil {
+	//	return emptyMeta, err
+	//}
+	//serverFlags := binary.BigEndian.Uint32(buf)
+
+	// instead of reading and parsing flags, just discard
+	rw.Discard(4)
 	metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
 
 	// Read in token if requested

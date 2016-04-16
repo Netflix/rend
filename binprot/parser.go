@@ -459,12 +459,13 @@ func readString(r io.Reader, l uint16) ([]byte, error) {
 }
 
 func readUInt32(r io.Reader) (uint32, error) {
-	var num uint32
-	err := binary.Read(r, binary.BigEndian, &num)
+	buf := make([]byte, 4)
+
+	n, err := io.ReadAtLeast(r, buf, 4)
+	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
 		return uint32(0), err
 	}
-	metrics.IncCounterBy(common.MetricBytesReadRemote, 4)
 
-	return num, nil
+	return binary.BigEndian.Uint32(buf), nil
 }
