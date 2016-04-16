@@ -32,7 +32,7 @@ func chunkKey(key []byte, chunk int) []byte {
 	keyCopy := make([]byte, len(key), len(key)+4)
 	copy(keyCopy, key)
 	keyCopy = append(keyCopy, '_')
-	return append(keyCopy, []byte(strconv.Itoa(chunk))...)
+	return strconv.AppendInt(keyCopy, int64(chunk), 10)
 }
 
 func chunkSliceIndices(chunkSize, chunkNum, totalLength int) (int, int) {
