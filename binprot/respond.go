@@ -264,7 +264,9 @@ func getCommon(w *bufio.Writer, response common.GetResponse, opcode uint8) error
 	// total body length = extras (flags, 4 bytes) + data length
 	totalBodyLength := len(response.Data) + 4
 	writeSuccessResponseHeader(w, opcode, 0, 4, totalBodyLength, response.Opaque, false)
-	binary.Write(w, binary.BigEndian, response.Flags)
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, response.Flags)
+	w.Write(buf)
 	w.Write(response.Data)
 	if err := w.Flush(); err != nil {
 		return err
