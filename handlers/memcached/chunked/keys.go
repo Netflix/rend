@@ -20,19 +20,20 @@ import (
 )
 
 func metaKey(key []byte) []byte {
-	keyCopy := make([]byte, len(key))
-	copy(keyCopy, key)
-	return append(keyCopy, ([]byte("_meta"))...)
+	// no need to copy, the header returned will point to the same array
+	// just with a longer len. It might get copied if the runtime decides
+	// to grow the slice.
+	return append(key, ([]byte("-meta"))...)
 }
 
 func chunkKey(key []byte, chunk int) []byte {
 	// TODO: POOL ME PLEASE
 	// or maybe not since pooling adds interface{} conversion overhead anyway
-	// +4 to account for the '_###' at the end
-	keyCopy := make([]byte, len(key), len(key)+4)
-	copy(keyCopy, key)
-	keyCopy = append(keyCopy, '_')
-	return strconv.AppendInt(keyCopy, int64(chunk), 10)
+	//
+	// no need to copy, the header returned will point to the same array
+	// just with a longer len. It might get copied if the runtime decides
+	// to grow the slice.
+	return strconv.AppendInt(key, int64(-chunk), 10)
 }
 
 func chunkSliceIndices(chunkSize, chunkNum, totalLength int) (int, int) {
