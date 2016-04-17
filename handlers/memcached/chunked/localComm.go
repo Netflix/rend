@@ -79,7 +79,7 @@ func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {
 	rw.Discard(4)
 	metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
 
-	metaData, err := parseMetadata(rw)
+	metaData, err := readMetadata(rw)
 	if err != nil {
 		return emptyMeta, err
 	}

@@ -32,7 +32,7 @@ type metadata struct {
 	Token     [tokenSize]byte
 }
 
-func parseMetadata(r io.Reader) (metadata, error) {
+func readMetadata(r io.Reader) (metadata, error) {
 	buf := make([]byte, metadataSize)
 
 	n, err := io.ReadAtLeast(r, buf, metadataSize)
@@ -49,4 +49,23 @@ func parseMetadata(r io.Reader) (metadata, error) {
 	copy(m.Token[:], buf[16:])
 
 	return m, nil
+}
+
+func writeMetadata(w io.Writer, md metadata) error {
+	buf := make([]byte, metadataSize - tokenSize)
+
+	binary.BigEndian.PutUint32(buf[0:4], md.Length)
+	binary.BigEndian.PutUint32(buf[4:8], md.OrigFlags)
+	binary.BigEndian.PutUint32(buf[8:12], md.NumChunks)
+	binary.BigEndian.PutUint32(buf[12:16], md.ChunkSize)
+
+	n, err := w.Write(buf)
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+	if err != nil {
+		return err
+	}
+
+	n, err = w.Write(md.Token[:])
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+	return err
 }
