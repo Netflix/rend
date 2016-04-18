@@ -31,11 +31,14 @@ func writeDataCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, d
 	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength)
 
 	writeRequestHeader(w, header)
-	binary.Write(w, binary.BigEndian, flags)
-	binary.Write(w, binary.BigEndian, exptime)
-	err := binary.Write(w, binary.BigEndian, key)
 
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+	buf := make([]byte, len(key)+8)
+	binary.BigEndian.PutUint32(buf[0:4], flags)
+	binary.BigEndian.PutUint32(buf[4:8], exptime)
+	copy(buf[8:], key)
+
+	n, err := w.Write(buf)
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
 
 	reqHeadPool.Put(header)
 
@@ -108,10 +111,13 @@ func writeKeyExptimeCmd(w io.Writer, opcode uint8, key []byte, exptime uint32) e
 	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength)
 
 	writeRequestHeader(w, header)
-	binary.Write(w, binary.BigEndian, exptime)
-	err := binary.Write(w, binary.BigEndian, key)
 
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(ReqHeaderLen+totalBodyLength))
+	buf := make([]byte, len(key)+4)
+	binary.BigEndian.PutUint32(buf[0:4], exptime)
+	copy(buf[4:], key)
+
+	n, err := w.Write(buf)
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
 
 	reqHeadPool.Put(header)
 

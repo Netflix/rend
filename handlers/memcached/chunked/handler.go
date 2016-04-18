@@ -17,7 +17,6 @@ package chunked
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"io"
 	"math"
 
@@ -185,10 +184,7 @@ func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType
 	}
 
 	// Write value
-	if err := binary.Write(h.rw, binary.BigEndian, metaData); err != nil {
-		return err
-	}
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, metadataSize)
+	writeMetadata(h.rw, metaData)
 
 	if err := h.rw.Flush(); err != nil {
 		return err
