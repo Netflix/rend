@@ -85,6 +85,12 @@ var (
 	MetricCmdSetErrorsL1  = metrics.AddCounter("cmd_set_errors_l1")
 	MetricCmdSetErrorsL2  = metrics.AddCounter("cmd_set_errors_l2")
 
+	// Batch L1L2 metrics
+	MetricCmdSetDeleteL1        = metrics.AddCounter("cmd_set_delete_l1")
+	MetricCmdSetDeleteMissesL1  = metrics.AddCounter("cmd_set_delete_misses_l1")
+	MetricCmdSetDeleteErrorsL1  = metrics.AddCounter("cmd_set_delete_errors_l1")
+	MetricCmdSetDeleteSuccessL1 = metrics.AddCounter("cmd_set_delete_success_l1")
+
 	MetricCmdAdd            = metrics.AddCounter("cmd_add")
 	MetricCmdAddL1          = metrics.AddCounter("cmd_add_l1")
 	MetricCmdAddL2          = metrics.AddCounter("cmd_add_l2")

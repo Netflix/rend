@@ -42,7 +42,7 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdSetL2)
 	err := l.l2.Set(req)
 
-	// If we fail to set in L2, don't set in L1
+	// If we fail to set in L2, don't do anything in L1
 	if err != nil {
 		metrics.IncCounter(MetricCmdSetErrorsL2)
 		metrics.IncCounter(MetricCmdSetErrors)
@@ -50,30 +50,26 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 	}
 	metrics.IncCounter(MetricCmdSetSuccessL2)
 
-	// Now set in L1. If L1 fails, we log the error and fail the request.
-	// If a user was writing a new piece of information, the error would be OK,
-	// since the next GET would be able to put the L2 information back into L1.
-	// In the case that the user was overwriting information, a failed set in L1
-	// and successful one in L2 would leave us inconsistent. If the response was
-	// positive in this situation, it would look like the server successfully
-	// processed the request but didn't store the information. Clients will
-	// retry failed writes. In this case L2 will get two writes for the same key
-	// but this is better because it is more correct overall, though less
-	// efficient. Note there are no retries at this level.
-	//
-	// It should be noted that errors on a straight set are nearly always fatal
-	// for the connection. It's likely that if this branch is taken that the
-	// connections to everyone will be severed (for this one client connection)
-	// and that the client will reconnect to try again.
-	metrics.IncCounter(MetricCmdSetL1)
-	if err := l.l1.Set(req); err != nil {
-		metrics.IncCounter(MetricCmdSetErrorsL1)
-		metrics.IncCounter(MetricCmdSetErrors)
-		return err
+	// Invalidate the entry in L1 for batch sets.
+	delreq := common.DeleteRequest{
+		Key:    req.Key,
+		Opaque: req.Opaque,
 	}
 
-	metrics.IncCounter(MetricCmdSetSuccessL1)
-	metrics.IncCounter(MetricCmdSetSuccess)
+	metrics.IncCounter(MetricCmdSetDeleteL1)
+	if err := l.l1.Delete(delreq); err != nil {
+		if err == common.ErrKeyNotFound {
+			// For a delete miss in L1, there's no problem.
+			// The state we want to exist is already in place.
+			metrics.IncCounter(MetricCmdSetDeleteMissesL1)
+		} else {
+			metrics.IncCounter(MetricCmdSetDeleteErrorsL1)
+
+			return err
+		}
+	}
+
+	metrics.IncCounter(MetricCmdSetDeleteSuccessL1)
 
 	return l.res.Set(req.Opaque, req.Quiet)
 }
