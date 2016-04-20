@@ -52,7 +52,7 @@ func readMetadata(r io.Reader) (metadata, error) {
 }
 
 func writeMetadata(w io.Writer, md metadata) error {
-	buf := make([]byte, metadataSize - tokenSize)
+	buf := make([]byte, metadataSize-tokenSize)
 
 	binary.BigEndian.PutUint32(buf[0:4], md.Length)
 	binary.BigEndian.PutUint32(buf[4:8], md.OrigFlags)
