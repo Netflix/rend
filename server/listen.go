@@ -20,6 +20,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/netflix/rend/binprot"
@@ -43,6 +44,10 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handl
 		}
 
 	case ListenUnix:
+		err = os.Remove(l.Path)
+		if err != nil && !os.IsNotExist(err) {
+			log.Printf("Error removing previous unix socket file at %s\n", l.Path)
+		}
 		listener, err = net.Listen("unix", l.Path)
 		if err != nil {
 			log.Printf("Error binding to unix socket at %s\n", l.Path)

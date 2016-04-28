@@ -59,6 +59,8 @@ var l2enabled bool
 var l2sock string
 var port int
 var batchPort int
+var useDomainSocket bool
+var sockPath string
 
 func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
@@ -67,14 +69,25 @@ func init() {
 	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2. Only used if --l2-enabled is true.")
 	flag.IntVar(&port, "p", 11211, "External port to listen on")
 	flag.IntVar(&batchPort, "bp", 11212, "External port to listen on for batch systems")
+	flag.BoolVar(&useDomainSocket, "use-domain-socket", false, "Listen on a domain socket instead of a TCP port. --port will be ignored.")
+	flag.StringVar(&sockPath, "sock-path", "/tmp/invalid.sock", "The socket path to listen on. Only valid in conjunction with --use-domain-socket.")
 	flag.Parse()
 }
 
 // And away we go
 func main() {
-	l := server.ListenArgs{
-		Type: server.ListenTCP,
-		Port: port,
+	var l server.ListenArgs
+
+	if useDomainSocket {
+		l = server.ListenArgs{
+			Type: server.ListenUnix,
+			Path: sockPath,
+		}
+	} else {
+		l = server.ListenArgs{
+			Type: server.ListenTCP,
+			Port: port,
+		}
 	}
 
 	var o orcas.OrcaConst
