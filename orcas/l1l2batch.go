@@ -269,30 +269,26 @@ func (l *L1L2BatchOrca) Touch(req common.TouchRequest) error {
 	}
 	metrics.IncCounter(MetricCmdTouchHitsL2)
 
-	// In the case of concurrent touches with different values, it's possible
-	// that the touches for L1 and L2 interleave and produce an inconsistent
-	// state. The L2 could be touched long, then L2 and L1 touched short on
-	// another request, then L1 touched long. In this case the data in L1 would
-	// outlive L2. This situation is uncommon and is therefore discounted.
-	metrics.IncCounter(MetricCmdTouchL1)
-	if err := l.l1.Touch(req); err != nil {
-		// Touch misses in L1 after a hit in L2 are nto a big deal. The
-		// touch operation here explicitly does *not* act as a pre-warm putting
-		// data into L1. A miss here after a hit is the same as a hit.
-		if err == common.ErrKeyNotFound {
-			metrics.IncCounter(MetricCmdTouchMissesL1)
-			// Note that we increment the overall hits here (not misses) on
-			// purpose because L2 hit.
-			metrics.IncCounter(MetricCmdTouchHits)
-			return l.res.Touch(req.Opaque)
-		}
-
-		metrics.IncCounter(MetricCmdTouchErrorsL1)
-		metrics.IncCounter(MetricCmdTouchErrors)
-		return err
+	// Invalidate the entry in L1 for batch touches.
+	delreq := common.DeleteRequest{
+		Key:    req.Key,
+		Opaque: req.Opaque,
 	}
 
-	metrics.IncCounter(MetricCmdTouchHitsL1)
+	metrics.IncCounter(MetricCmdTouchDeleteL1)
+	if err := l.l1.Delete(delreq); err != nil {
+		if err == common.ErrKeyNotFound {
+			// For a delete miss in L1, there's no problem.
+			// The state we want to exist is already in place.
+			metrics.IncCounter(MetricCmdTouchDeleteMissesL1)
+		} else {
+			metrics.IncCounter(MetricCmdTouchDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdTouchErrors)
+			return err
+		}
+	}
+
+	metrics.IncCounter(MetricCmdTouchDeleteSuccessL1)
 	metrics.IncCounter(MetricCmdTouchHits)
 
 	return l.res.Touch(req.Opaque)

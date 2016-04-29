@@ -155,6 +155,12 @@ var (
 	MetricCmdTouchErrorsL1 = metrics.AddCounter("cmd_touch_errors_l1")
 	MetricCmdTouchErrorsL2 = metrics.AddCounter("cmd_touch_errors_l2")
 
+	// Batch L1L2 metrics
+	MetricCmdTouchDeleteL1        = metrics.AddCounter("cmd_touch_delete_l1")
+	MetricCmdTouchDeleteMissesL1  = metrics.AddCounter("cmd_touch_delete_misses_l1")
+	MetricCmdTouchDeleteErrorsL1  = metrics.AddCounter("cmd_touch_delete_errors_l1")
+	MetricCmdTouchDeleteSuccessL1 = metrics.AddCounter("cmd_touch_delete_success_l1")
+
 	MetricCmdGat         = metrics.AddCounter("cmd_gat")
 	MetricCmdGatL1       = metrics.AddCounter("cmd_gat_l1")
 	MetricCmdGatL2       = metrics.AddCounter("cmd_gat_l2")
