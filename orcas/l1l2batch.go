@@ -64,7 +64,7 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 			metrics.IncCounter(MetricCmdSetDeleteMissesL1)
 		} else {
 			metrics.IncCounter(MetricCmdSetDeleteErrorsL1)
-
+			metrics.IncCounter(MetricCmdSetErrors)
 			return err
 		}
 	}
@@ -100,41 +100,31 @@ func (l *L1L2BatchOrca) Add(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdAddStoredL2)
 
-	// Now on to L1. For L1 we also do an add operation to protect (partially)
-	// against concurrent operations modifying the same key. For concurrent sets
-	// that complete between the two stages, this will fail, leaving the cache
-	// consistent.
-	//
-	// There is a possibility in add that concurrent deletes will cause an
-	// inconsistent state. A concurrent delete could hit in L2 and miss in
-	// L1 between the two add operations, causing the L2 to be deleted and
-	// the L1 to have the data.
-	metrics.IncCounter(MetricCmdAddL1)
-	err = l.l1.Add(req)
-
-	if err != nil {
-		// This is kind of a problem. What has happened here is that the L2
-		// cache has successfully added the key but L1 did not. In this case
-		// we have to fail with a ErrKeyExists/Not Stored because the overall
-		// operation failed. If we assume a retry on the client, then it will
-		// likely fail again at the L2 step.
-		//
-		// One possible scenario here is that an add started and completed L2,
-		// then a set ran to full completion, overwriting the data in L2 then
-		// writing into L1, then the second step here ran and got an error.
-		if err == common.ErrKeyExists {
-			metrics.IncCounter(MetricCmdAddNotStoredL1)
-			metrics.IncCounter(MetricCmdAddNotStored)
-			return err
-		}
-
-		// otherwise we have a real error on our hands
-		metrics.IncCounter(MetricCmdAddErrorsL1)
-		metrics.IncCounter(MetricCmdAddErrors)
-		return err
+	// Invalidate the entry in L1 for batch adds. This might not make sense at
+	// first, but does in the context of concurrent requests. We want anything
+	// that is successfully added to the L2 to be gone from L1, regardless of
+	// what else is going on outside the current request. If a concurrent request
+	// completes between L2 and L1 in the non-batch endpoint, we still maintain
+	// correctness, albeit a bit slower.
+	delreq := common.DeleteRequest{
+		Key:    req.Key,
+		Opaque: req.Opaque,
 	}
 
-	metrics.IncCounter(MetricCmdAddStoredL1)
+	metrics.IncCounter(MetricCmdAddDeleteL1)
+	if err := l.l1.Delete(delreq); err != nil {
+		if err == common.ErrKeyNotFound {
+			// For a delete miss in L1, there's no problem.
+			// The state we want to exist is already in place.
+			metrics.IncCounter(MetricCmdAddDeleteMissesL1)
+		} else {
+			metrics.IncCounter(MetricCmdAddDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdAddErrors)
+			return err
+		}
+	}
+
+	metrics.IncCounter(MetricCmdAddDeleteSuccessL1)
 	metrics.IncCounter(MetricCmdAddStored)
 
 	return l.res.Add(req.Opaque, req.Quiet)
@@ -166,44 +156,26 @@ func (l *L1L2BatchOrca) Replace(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdReplaceStoredL2)
 
-	// Now on to L1. For a replace, the L2 succeeding means that the key is
-	// successfully replaced in L2, but in the middle here "anything can happen"
-	// so we have to think about concurrent operations. In a concurrent set
-	// situation, both L2 and L1 might have the same value from the set. In this
-	// case an add will fail and cause correct behavior. In a concurrent delete
-	// that hits in L2 (for the newly replaced data) and hits in L1 (for the
-	// data that was about to be replaced) then an add will cause a consistency
-	// problem by setting a key that shouldn't exist in L1 because it's not in
-	// L2. set and replace have the opposite problem, since they might overwrite
-	// a legitimate set that happened concurrently in the middle of the two
-	// operations. There is no one operation that solves these, so:
-	//
-	// The use of replace here explicitly assumes there is no concurrent set for
-	// the same key.
-	//
-	// The other risk here is a concurrent replace for the same key, which will
-	// possibly interleave to produce inconsistency in L2 and L1.
-	metrics.IncCounter(MetricCmdReplaceL1)
-	err = l.l1.Replace(req)
-
-	if err != nil {
-		// In this case, the replace worked fine, and we don't worry about it not
-		// being replaced in L1 because it did not exist. In this case, L2 has
-		// the data and L1 is empty. This is still correct, and the next get
-		// would place the data back into L1. Hence, we do not return the error.
-		if err == common.ErrKeyNotFound {
-			metrics.IncCounter(MetricCmdReplaceNotStoredL1)
-			metrics.IncCounter(MetricCmdReplaceNotStored)
-			return l.res.Replace(req.Opaque, req.Quiet)
-		}
-
-		// otherwise we have a real error on our hands
-		metrics.IncCounter(MetricCmdReplaceErrorsL1)
-		metrics.IncCounter(MetricCmdReplaceErrors)
-		return err
+	// Invalidate the entry in L1 for batch replaces.
+	delreq := common.DeleteRequest{
+		Key:    req.Key,
+		Opaque: req.Opaque,
 	}
 
-	metrics.IncCounter(MetricCmdReplaceStoredL1)
+	metrics.IncCounter(MetricCmdReplaceDeleteL1)
+	if err := l.l1.Delete(delreq); err != nil {
+		if err == common.ErrKeyNotFound {
+			// For a delete miss in L1, there's no problem.
+			// The state we want to exist is already in place.
+			metrics.IncCounter(MetricCmdReplaceDeleteMissesL1)
+		} else {
+			metrics.IncCounter(MetricCmdReplaceDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdReplaceErrors)
+			return err
+		}
+	}
+
+	metrics.IncCounter(MetricCmdReplaceDeleteSuccessL1)
 	metrics.IncCounter(MetricCmdReplaceStored)
 
 	return l.res.Replace(req.Opaque, req.Quiet)
