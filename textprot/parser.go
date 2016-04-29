@@ -16,8 +16,8 @@ package textprot
 
 import (
 	"bufio"
-	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 
@@ -41,10 +41,10 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 
 	if err != nil {
 		if err == io.EOF {
-			fmt.Println("End of file: Connection closed?")
+			log.Println("Connection closed")
+		} else {
+			log.Printf("Error while reading text command line: %s\n", err.Error())
 		}
-
-		fmt.Println(err.Error())
 		return nil, common.RequestUnknown, err
 	}
 
@@ -99,9 +99,8 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 		key := []byte(clParts[1])
 
 		exptime, err := strconv.ParseUint(strings.TrimSpace(clParts[2]), 10, 32)
-
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Printf("Error parsing ttl for touch command: %s\n", err.Error())
 			return nil, common.RequestSet, common.ErrBadRequest
 		}
 
@@ -151,19 +150,19 @@ func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (
 
 	flags, err := strconv.ParseUint(strings.TrimSpace(clParts[2]), 10, 32)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Printf("Error parsing flags for set/add/replace command: %s\n", err.Error())
 		return common.SetRequest{}, reqType, common.ErrBadFlags
 	}
 
 	exptime, err := strconv.ParseUint(strings.TrimSpace(clParts[3]), 10, 32)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Printf("Error parsing ttl for set/add/replace command: %s\n", err.Error())
 		return common.SetRequest{}, reqType, common.ErrBadExptime
 	}
 
 	length, err := strconv.ParseUint(strings.TrimSpace(clParts[4]), 10, 32)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Printf("Error parsing length for set/add/replace command: %s\n", err.Error())
 		return common.SetRequest{}, reqType, common.ErrBadLength
 	}
 
