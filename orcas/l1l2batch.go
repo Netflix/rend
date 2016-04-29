@@ -361,37 +361,26 @@ func (l *L1L2BatchOrca) Get(req common.GetRequest) error {
 		Quiet:      l2quiets,
 	}
 
-	metrics.IncCounter(MetricCmdGetEL2)
-	metrics.IncCounterBy(MetricCmdGetEKeysL2, uint64(len(l2keys)))
-	resChanE, errChan := l.l2.GetE(req)
+	metrics.IncCounter(MetricCmdGetL2)
+	metrics.IncCounterBy(MetricCmdGetKeysL2, uint64(len(l2keys)))
+	resChan, errChan = l.l2.Get(req)
 	for {
 		select {
-		case res, ok := <-resChanE:
+		case res, ok := <-resChan:
 			if !ok {
-				resChanE = nil
+				resChan = nil
 			} else {
 				if res.Miss {
-					metrics.IncCounter(MetricCmdGetEMissesL2)
+					metrics.IncCounter(MetricCmdGetMissesL2)
 					// Missing L2 means a true miss
 					metrics.IncCounter(MetricCmdGetMisses)
 				} else {
-					metrics.IncCounter(MetricCmdGetEHitsL2)
+					metrics.IncCounter(MetricCmdGetHitsL2)
 
-					//set in l1
-					metrics.IncCounter(MetricCmdGetSetL1)
-					setreq := common.SetRequest{
-						Key:     res.Key,
-						Flags:   res.Flags,
-						Exptime: res.Exptime,
-						Data:    res.Data,
-					}
-
-					if err := l.l1.Set(setreq); err != nil {
-						metrics.IncCounter(MetricCmdGetSetErrorsL1)
-						return err
-					} else {
-						metrics.IncCounter(MetricCmdGetSetSucessL1)
-					}
+					// For batch, don't set in l1. Typically batch users will read
+					// data once and not again, so setting in L1 will not be valuable.
+					// As well the data is typically just about to be replaced, making
+					// it doubly useless.
 
 					// overall operation is considered a hit
 					metrics.IncCounter(MetricCmdGetHits)
@@ -419,7 +408,7 @@ func (l *L1L2BatchOrca) Get(req common.GetRequest) error {
 			}
 		}
 
-		if resChanE == nil && errChan == nil {
+		if resChan == nil && errChan == nil {
 			break
 		}
 	}
@@ -432,7 +421,7 @@ func (l *L1L2BatchOrca) Get(req common.GetRequest) error {
 }
 
 func (l *L1L2BatchOrca) GetE(req common.GetRequest) error {
-	// The L1/L2 does not support getE, only L1Only does.
+	// The L1/L2 batch does not support getE, only L1Only does.
 	return common.ErrUnknownCmd
 }
 
