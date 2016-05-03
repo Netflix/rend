@@ -55,6 +55,7 @@ var (
 	MetricCmdGetKeysL1   = metrics.AddCounter("cmd_get_keys_l1")
 	MetricCmdGetKeysL2   = metrics.AddCounter("cmd_get_keys_l2")
 
+	// Batch L1L2 get metrics
 	MetricCmdGetSetL1       = metrics.AddCounter("cmd_get_set_l1")
 	MetricCmdGetSetErrorsL1 = metrics.AddCounter("cmd_get_set_errors_l1")
 	MetricCmdGetSetSucessL1 = metrics.AddCounter("cmd_get_set_success_l1")
@@ -85,6 +86,12 @@ var (
 	MetricCmdSetErrorsL1  = metrics.AddCounter("cmd_set_errors_l1")
 	MetricCmdSetErrorsL2  = metrics.AddCounter("cmd_set_errors_l2")
 
+	// Batch L1L2 set metrics
+	MetricCmdSetDeleteL1        = metrics.AddCounter("cmd_set_delete_l1")
+	MetricCmdSetDeleteMissesL1  = metrics.AddCounter("cmd_set_delete_misses_l1")
+	MetricCmdSetDeleteErrorsL1  = metrics.AddCounter("cmd_set_delete_errors_l1")
+	MetricCmdSetDeleteSuccessL1 = metrics.AddCounter("cmd_set_delete_success_l1")
+
 	MetricCmdAdd            = metrics.AddCounter("cmd_add")
 	MetricCmdAddL1          = metrics.AddCounter("cmd_add_l1")
 	MetricCmdAddL2          = metrics.AddCounter("cmd_add_l2")
@@ -98,6 +105,12 @@ var (
 	MetricCmdAddErrorsL1    = metrics.AddCounter("cmd_add_errors_l1")
 	MetricCmdAddErrorsL2    = metrics.AddCounter("cmd_add_errors_l2")
 
+	// Batch L1L2 add metrics
+	MetricCmdAddDeleteL1        = metrics.AddCounter("cmd_add_delete_l1")
+	MetricCmdAddDeleteMissesL1  = metrics.AddCounter("cmd_add_delete_misses_l1")
+	MetricCmdAddDeleteErrorsL1  = metrics.AddCounter("cmd_add_delete_errors_l1")
+	MetricCmdAddDeleteSuccessL1 = metrics.AddCounter("cmd_add_delete_success_l1")
+
 	MetricCmdReplace            = metrics.AddCounter("cmd_replace")
 	MetricCmdReplaceL1          = metrics.AddCounter("cmd_replace_l1")
 	MetricCmdReplaceL2          = metrics.AddCounter("cmd_replace_l2")
@@ -110,6 +123,12 @@ var (
 	MetricCmdReplaceErrors      = metrics.AddCounter("cmd_replace_errors")
 	MetricCmdReplaceErrorsL1    = metrics.AddCounter("cmd_replace_errors_l1")
 	MetricCmdReplaceErrorsL2    = metrics.AddCounter("cmd_replace_errors_l2")
+
+	// Batch L1L2 replace metrics
+	MetricCmdReplaceDeleteL1        = metrics.AddCounter("cmd_replace_delete_l1")
+	MetricCmdReplaceDeleteMissesL1  = metrics.AddCounter("cmd_replace_delete_misses_l1")
+	MetricCmdReplaceDeleteErrorsL1  = metrics.AddCounter("cmd_replace_delete_errors_l1")
+	MetricCmdReplaceDeleteSuccessL1 = metrics.AddCounter("cmd_replace_delete_success_l1")
 
 	MetricCmdDelete         = metrics.AddCounter("cmd_delete")
 	MetricCmdDeleteL1       = metrics.AddCounter("cmd_delete_l1")
@@ -137,6 +156,12 @@ var (
 	MetricCmdTouchErrorsL1 = metrics.AddCounter("cmd_touch_errors_l1")
 	MetricCmdTouchErrorsL2 = metrics.AddCounter("cmd_touch_errors_l2")
 
+	// Batch L1L2 touch metrics
+	MetricCmdTouchDeleteL1        = metrics.AddCounter("cmd_touch_delete_l1")
+	MetricCmdTouchDeleteMissesL1  = metrics.AddCounter("cmd_touch_delete_misses_l1")
+	MetricCmdTouchDeleteErrorsL1  = metrics.AddCounter("cmd_touch_delete_errors_l1")
+	MetricCmdTouchDeleteSuccessL1 = metrics.AddCounter("cmd_touch_delete_success_l1")
+
 	MetricCmdGat         = metrics.AddCounter("cmd_gat")
 	MetricCmdGatL1       = metrics.AddCounter("cmd_gat_l1")
 	MetricCmdGatL2       = metrics.AddCounter("cmd_gat_l2")
@@ -159,6 +184,12 @@ var (
 	MetricCmdGatSetL2          = metrics.AddCounter("cmd_gat_set_l2")
 	MetricCmdGatSetErrorsL2    = metrics.AddCounter("cmd_gat_set_errors_l2")
 	MetricCmdGatSetSuccessL2   = metrics.AddCounter("cmd_gat_set_success_l2")
+
+	// Batch L1L2 GAT metrics
+	MetricCmdGatDeleteL1        = metrics.AddCounter("cmd_gat_delete_l1")
+	MetricCmdGatDeleteMissesL1  = metrics.AddCounter("cmd_gat_delete_misses_l1")
+	MetricCmdGatDeleteErrorsL1  = metrics.AddCounter("cmd_gat_delete_errors_l1")
+	MetricCmdGatDeleteSuccessL1 = metrics.AddCounter("cmd_gat_delete_success_l1")
 
 	MetricCmdUnknown = metrics.AddCounter("cmd_unknown")
 	MetricCmdNoop    = metrics.AddCounter("cmd_noop")

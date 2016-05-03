@@ -123,7 +123,7 @@ func (t TextResponder) Error(opaque uint32, reqType common.RequestType, err erro
 	case common.ErrKeyNotFound:
 		return t.resp("NOT_FOUND")
 	case common.ErrKeyExists:
-		return t.resp("EXISTS")
+		return t.resp("NOT_STORED")
 	case common.ErrItemNotStored:
 		return t.resp("NOT_STORED")
 	case common.ErrValueTooBig:

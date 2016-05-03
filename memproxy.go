@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"sync"
 
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/handlers/memcached"
@@ -57,6 +58,7 @@ var l1sock string
 var l2enabled bool
 var l2sock string
 var port int
+var batchPort int
 var useDomainSocket bool
 var sockPath string
 
@@ -66,6 +68,7 @@ func init() {
 	flag.BoolVar(&l2enabled, "l2-enabled", false, "Specifies if l2 is enabled")
 	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2. Only used if --l2-enabled is true.")
 	flag.IntVar(&port, "p", 11211, "External port to listen on")
+	flag.IntVar(&batchPort, "bp", 11212, "External port to listen on for batch systems")
 	flag.BoolVar(&useDomainSocket, "use-domain-socket", false, "Listen on a domain socket instead of a TCP port. --port will be ignored.")
 	flag.StringVar(&sockPath, "sock-path", "/tmp/invalid.sock", "The socket path to listen on. Only valid in conjunction with --use-domain-socket.")
 	flag.Parse()
@@ -105,5 +108,20 @@ func main() {
 		h2 = handlers.NilHandler("")
 	}
 
-	server.ListenAndServe(l, server.Default, o, h1, h2)
+	go server.ListenAndServe(l, server.Default, o, h1, h2)
+
+	if l2enabled {
+		// If L2 is enabled, start the batch L1 / L2 orchestrator
+		l = server.ListenArgs{
+			Type: server.ListenTCP,
+			Port: batchPort,
+		}
+
+		go server.ListenAndServe(l, server.Default, orcas.L1L2Batch, h1, h2)
+	}
+
+	// Block forever
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	wg.Wait()
 }

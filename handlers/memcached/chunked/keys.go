@@ -33,6 +33,9 @@ func chunkKey(key []byte, chunk int) []byte {
 	// no need to copy, the header returned will point to the same array
 	// just with a longer len. It might get copied if the runtime decides
 	// to grow the slice.
+	if chunk == 0 {
+		key = append(key, '-')
+	}
 	return strconv.AppendInt(key, int64(-chunk), 10)
 }
 
