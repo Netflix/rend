@@ -139,6 +139,8 @@ func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 		fmt.Println(response)
 	}
 
+	retval := strings.TrimSpace(response)
+
 	// then read the END
 	response, err = rw.ReadString('\n')
 	if err != nil {
@@ -148,7 +150,7 @@ func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 		fmt.Println(response)
 		fmt.Printf("Got key %s\n", key)
 	}
-	return []byte(response), nil
+	return []byte(retval), nil
 }
 
 func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error) {
