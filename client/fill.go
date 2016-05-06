@@ -53,18 +53,12 @@ func main() {
 
 	// spawn worker goroutines
 	for i := 0; i < f.NumWorkers; i++ {
-		conn, err := common.Connect(f.Host, f.Port)
-		if err != nil {
-			panic(err.Error())
-		}
-
-		rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 		numops := opsPerWorker
 		if i == 0 {
 			numops += extraOps
 		}
 
-		go worker(numops, prot, rw, wg)
+		go worker(numops, prot, wg)
 	}
 
 	wg.Wait()
@@ -74,7 +68,13 @@ func main() {
 
 var opCount = new(uint64)
 
-func worker(numops int, prot common.Prot, rw *bufio.ReadWriter, wg *sync.WaitGroup) {
+func worker(numops int, prot common.Prot, wg *sync.WaitGroup) {
+	conn, err := common.Connect(f.Host, f.Port)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	for i := 0; i < numops; i++ {
@@ -93,6 +93,14 @@ func worker(numops int, prot common.Prot, rw *bufio.ReadWriter, wg *sync.WaitGro
 		// continue on even if there's errors here
 		if err := prot.Set(rw, key, value); err != nil {
 			log.Println("Error during set:", err.Error())
+			conn.Close()
+
+			conn, err = common.Connect(f.Host, f.Port)
+			if err != nil {
+				panic(err.Error())
+			}
+
+			rw = bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 		}
 	}
 
