@@ -53,25 +53,42 @@ func init() {
 }
 
 // Flags
-var chunked bool
-var l1sock string
-var l2enabled bool
-var l2sock string
-var port int
-var batchPort int
-var useDomainSocket bool
-var sockPath string
+var (
+	chunked bool
+	l1sock  string
+
+	l2enabled bool
+	l2sock    string
+
+	locked      bool
+	concurrency int
+
+	port            int
+	batchPort       int
+	useDomainSocket bool
+	sockPath        string
+)
 
 func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
 	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
+
 	flag.BoolVar(&l2enabled, "l2-enabled", false, "Specifies if l2 is enabled")
 	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2. Only used if --l2-enabled is true.")
+
+	flag.BoolVar(&locked, "locking", false, "Add locking to overall operations (above L1/L2 layers)")
+	flag.IntVar(&concurrency, "concurrency", 8, "Concurrency level. 2^(concurrency) parallel operations permitted, assuming no collisions. Large values (>16) are likely useless and will eat up RAM.")
+
 	flag.IntVar(&port, "p", 11211, "External port to listen on")
 	flag.IntVar(&batchPort, "bp", 11212, "External port to listen on for batch systems")
 	flag.BoolVar(&useDomainSocket, "use-domain-socket", false, "Listen on a domain socket instead of a TCP port. --port will be ignored.")
 	flag.StringVar(&sockPath, "sock-path", "/tmp/invalid.sock", "The socket path to listen on. Only valid in conjunction with --use-domain-socket.")
+
 	flag.Parse()
+
+	if concurrency >= 64 {
+		panic("Concurrency cannot be more than 2^64")
+	}
 }
 
 // And away we go
@@ -106,6 +123,10 @@ func main() {
 	} else {
 		o = orcas.L1Only
 		h2 = handlers.NilHandler("")
+	}
+
+	if locked {
+		o = orcas.Locking(o, uint8(concurrency))
 	}
 
 	go server.ListenAndServe(l, server.Default, o, h1, h2)
