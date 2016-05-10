@@ -26,20 +26,22 @@ import (
 type LockingOrca struct {
 	wrapped Orca
 	locks   []sync.RWMutex
-	hpool   *sync.Pool
+	//counts  []uint32
+	hpool *sync.Pool
 }
 
 // Locking wraps an orcas.Orca to provide locking around operations on the same
 // key. The concurrency param allows 2^(concurrency) operations to happen in
 // parallel. E.g. concurrency of 1 would allow 2 parallel operations, while a
 // concurrency of 4 allows 2^4 = 16 parallel operations.
-func Locking(oc OrcaConst, concurrency uint16) OrcaConst {
+func Locking(oc OrcaConst, concurrency uint8) OrcaConst {
 	if concurrency < 0 {
 		panic("Concurrency level must be at least 0")
 	}
 
 	// keep the same locks for all instances by closing over this slice
 	locks := make([]sync.RWMutex, 1<<concurrency)
+	//counts := make([]uint32, 1<<concurrency)
 	pool := &sync.Pool{
 		New: func() interface{} {
 			return fnv.New32a()
@@ -50,18 +52,30 @@ func Locking(oc OrcaConst, concurrency uint16) OrcaConst {
 		return &LockingOrca{
 			wrapped: oc(l1, l2, res),
 			locks:   locks,
-			hpool:   pool,
+			//counts:  counts,
+			hpool: pool,
 		}
 	}
 }
+
+//var numops uint64 = 0
 
 func (l *LockingOrca) getlock(key []byte) *sync.RWMutex {
 	h := l.hpool.Get().(hash.Hash32)
 	h.Reset()
 
 	// Calculate bucket using hash and mod. FNV1a never returns an error.
-	bucket, _ := h.Write(key)
+	h.Write(key)
+	bucket := int(h.Sum32())
 	bucket &= len(l.locks) - 1
+
+	//atomic.AddUint32(&l.counts[bucket], 1)
+
+	//if (atomic.AddUint64(&numops, 1) % 10000) == 0 {
+	//	for idx, count := range l.counts {
+	//		fmt.Printf("%d: %d\n", idx, count)
+	//	}
+	//}
 
 	return &l.locks[bucket]
 }
