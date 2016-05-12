@@ -23,48 +23,69 @@ import (
 	"github.com/netflix/rend/handlers"
 )
 
-type LockingOrca struct {
+type LockedOrca struct {
 	wrapped Orca
-	locks   []sync.RWMutex
+	locks   []sync.Locker
+	rlocks  []sync.Locker
+	hpool   *sync.Pool
 	//counts  []uint32
-	hpool *sync.Pool
 }
 
 // Locking wraps an orcas.Orca to provide locking around operations on the same
-// key. The concurrency param allows 2^(concurrency) operations to happen in
+// key. When multipleReaders is true, operations will allow many readers and
+// only a single writer at a time. When false, only a single reader is allowed.
+// The concurrency param allows 2^(concurrency) operations to happen in
 // parallel. E.g. concurrency of 1 would allow 2 parallel operations, while a
 // concurrency of 4 allows 2^4 = 16 parallel operations.
-func Locking(oc OrcaConst, concurrency uint8) OrcaConst {
+func Locked(oc OrcaConst, multipleReaders bool, concurrency uint8) OrcaConst {
 	if concurrency < 0 {
 		panic("Concurrency level must be at least 0")
 	}
 
 	// keep the same locks for all instances by closing over this slice
-	locks := make([]sync.RWMutex, 1<<concurrency)
-	//counts := make([]uint32, 1<<concurrency)
+	locks := make([]sync.Locker, 1<<concurrency)
+	rlocks := make([]sync.Locker, 1<<concurrency)
+
+	if multipleReaders {
+		for idx, _ := range locks {
+			temp := &sync.RWMutex{}
+			locks[idx] = temp
+			rlocks[idx] = temp.RLocker()
+		}
+	} else {
+		for idx, _ := range locks {
+			temp := &sync.Mutex{}
+			locks[idx] = temp
+			rlocks[idx] = temp
+		}
+	}
+
 	pool := &sync.Pool{
 		New: func() interface{} {
 			return fnv.New32a()
 		},
 	}
 
+	//counts := make([]uint32, 1<<concurrency)
+
 	return func(l1, l2 handlers.Handler, res common.Responder) Orca {
-		return &LockingOrca{
+		return &LockedOrca{
 			wrapped: oc(l1, l2, res),
 			locks:   locks,
+			rlocks:  rlocks,
+			hpool:   pool,
 			//counts:  counts,
-			hpool: pool,
 		}
 	}
 }
 
 //var numops uint64 = 0
 
-func (l *LockingOrca) getlock(key []byte) *sync.RWMutex {
+func (l *LockedOrca) getlock(key []byte, read bool) sync.Locker {
 	h := l.hpool.Get().(hash.Hash32)
 	h.Reset()
 
-	// Calculate bucket using hash and mod. FNV1a never returns an error.
+	// Calculate bucket using hash and mod. hash.Hash.Write() never returns an error.
 	h.Write(key)
 	bucket := int(h.Sum32())
 	bucket &= len(l.locks) - 1
@@ -77,105 +98,109 @@ func (l *LockingOrca) getlock(key []byte) *sync.RWMutex {
 	//	}
 	//}
 
-	return &l.locks[bucket]
+	if read {
+		return l.rlocks[bucket]
+	} else {
+		return l.locks[bucket]
+	}
 }
 
-func (l *LockingOrca) Set(req common.SetRequest) error {
-	lock := l.getlock(req.Key)
+func (l *LockedOrca) Set(req common.SetRequest) error {
+	lock := l.getlock(req.Key, false)
 	lock.Lock()
 	ret := l.wrapped.Set(req)
 	lock.Unlock()
 	return ret
 }
 
-func (l *LockingOrca) Add(req common.SetRequest) error {
-	lock := l.getlock(req.Key)
+func (l *LockedOrca) Add(req common.SetRequest) error {
+	lock := l.getlock(req.Key, false)
 	lock.Lock()
 	ret := l.wrapped.Add(req)
 	lock.Unlock()
 	return ret
 }
 
-func (l *LockingOrca) Replace(req common.SetRequest) error {
-	lock := l.getlock(req.Key)
+func (l *LockedOrca) Replace(req common.SetRequest) error {
+	lock := l.getlock(req.Key, false)
 	lock.Lock()
 	ret := l.wrapped.Replace(req)
 	lock.Unlock()
 	return ret
 }
 
-func (l *LockingOrca) Delete(req common.DeleteRequest) error {
-	lock := l.getlock(req.Key)
+func (l *LockedOrca) Delete(req common.DeleteRequest) error {
+	lock := l.getlock(req.Key, false)
 	lock.Lock()
 	ret := l.wrapped.Delete(req)
 	lock.Unlock()
 	return ret
 }
 
-func (l *LockingOrca) Touch(req common.TouchRequest) error {
-	lock := l.getlock(req.Key)
+func (l *LockedOrca) Touch(req common.TouchRequest) error {
+	lock := l.getlock(req.Key, false)
 	lock.Lock()
 	ret := l.wrapped.Touch(req)
 	lock.Unlock()
 	return ret
 }
 
-func (l *LockingOrca) Get(req common.GetRequest) error {
+func (l *LockedOrca) Get(req common.GetRequest) error {
 	// Acquire read locks for all keys
 	for _, key := range req.Keys {
-		l.getlock(key).RLock()
+		l.getlock(key, true).Lock()
 	}
 
 	ret := l.wrapped.Get(req)
 
 	// Release all read locks
 	for _, key := range req.Keys {
-		l.getlock(key).RUnlock()
+		l.getlock(key, true).Unlock()
 	}
 
 	return ret
 }
 
-func (l *LockingOrca) GetE(req common.GetRequest) error {
+func (l *LockedOrca) GetE(req common.GetRequest) error {
 	// Acquire read locks for all keys
 	for _, key := range req.Keys {
-		l.getlock(key).RLock()
+		l.getlock(key, true).Lock()
 	}
 
 	ret := l.wrapped.GetE(req)
 
 	// Release all read locks
 	for _, key := range req.Keys {
-		l.getlock(key).RUnlock()
+		l.getlock(key, true).Unlock()
 	}
 
 	return ret
 }
 
-func (l *LockingOrca) Gat(req common.GATRequest) error {
-	lock := l.getlock(req.Key)
+func (l *LockedOrca) Gat(req common.GATRequest) error {
+	lock := l.getlock(req.Key, false)
 	lock.Lock()
 	ret := l.wrapped.Gat(req)
 	lock.Unlock()
 	return ret
 }
 
-func (l *LockingOrca) Noop(req common.NoopRequest) error {
+func (l *LockedOrca) Noop(req common.NoopRequest) error {
 	return l.wrapped.Noop(req)
 }
 
-func (l *LockingOrca) Quit(req common.QuitRequest) error {
+func (l *LockedOrca) Quit(req common.QuitRequest) error {
 	return l.wrapped.Quit(req)
 }
 
-func (l *LockingOrca) Version(req common.VersionRequest) error {
+func (l *LockedOrca) Version(req common.VersionRequest) error {
 	return l.wrapped.Version(req)
 }
 
-func (l *LockingOrca) Unknown(req common.Request) error {
+func (l *LockedOrca) Unknown(req common.Request) error {
 	return l.wrapped.Unknown(req)
 }
 
-func (l *LockingOrca) Error(req common.Request, reqType common.RequestType, err error) {
+func (l *LockedOrca) Error(req common.Request, reqType common.RequestType, err error) {
 	l.wrapped.Error(req, reqType, err)
 }

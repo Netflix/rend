@@ -1,4 +1,4 @@
-// Copyright 2015 Netflix, Inc.
+// Copyright 2016 Netflix, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,6 +62,7 @@ var (
 
 	locked      bool
 	concurrency int
+	multiReader bool
 
 	port            int
 	batchPort       int
@@ -76,8 +77,9 @@ func init() {
 	flag.BoolVar(&l2enabled, "l2-enabled", false, "Specifies if l2 is enabled")
 	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2. Only used if --l2-enabled is true.")
 
-	flag.BoolVar(&locked, "locking", false, "Add locking to overall operations (above L1/L2 layers)")
-	flag.IntVar(&concurrency, "concurrency", 8, "Concurrency level. 2^(concurrency) parallel operations permitted, assuming no collisions. Large values (>16) are likely useless and will eat up RAM.")
+	flag.BoolVar(&locked, "locked", false, "Add locking to overall operations (above L1/L2 layers)")
+	flag.IntVar(&concurrency, "concurrency", 8, "Concurrency level. 2^(concurrency) parallel operations permitted, assuming no collisions. Large values (>16) are likely useless and will eat up RAM. Default of 8 means 256 operations (on different keys) can happen in parallel.")
+	flag.BoolVar(&multiReader, "multi-reader", true, "Allow (or disallow) multiple readers on the same key. If chunking is used, this will always be false and setting it to true will be ignored.")
 
 	flag.IntVar(&port, "p", 11211, "External port to listen on")
 	flag.IntVar(&batchPort, "bp", 11212, "External port to listen on for batch systems")
@@ -125,8 +127,16 @@ func main() {
 		h2 = handlers.NilHandler("")
 	}
 
+	// Add the locking wrapper if requested. The locking wrapper can either allow mutltiple readers
+	// or not, with the same difference in semantics between a sync.Mutex and a sync.RWMutex. If
+	// chunking is enabled, we want to ensure that stricter locking is enabled, since concurrent
+	// sets into L1 with chunking can collide and cause data corruption.
 	if locked {
-		o = orcas.Locking(o, uint8(concurrency))
+		if chunked || !multiReader {
+			o = orcas.Locked(o, false, uint8(concurrency))
+		} else {
+			o = orcas.Locked(o, true, uint8(concurrency))
+		}
 	}
 
 	go server.ListenAndServe(l, server.Default, o, h1, h2)
