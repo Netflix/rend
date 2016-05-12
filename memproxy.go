@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/netflix/rend/handlers"
+	"github.com/netflix/rend/handlers/inmem"
 	"github.com/netflix/rend/handlers/memcached"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
@@ -56,6 +57,7 @@ func init() {
 var (
 	chunked bool
 	l1sock  string
+	l1inmem bool
 
 	l2enabled bool
 	l2sock    string
@@ -72,6 +74,7 @@ var (
 
 func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
+	flag.BoolVar(&l1inmem, "l1-inmem", false, "Use the debug in-memory in-process L1 cache")
 	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
 
 	flag.BoolVar(&l2enabled, "l2-enabled", false, "Specifies if l2 is enabled")
@@ -113,7 +116,9 @@ func main() {
 	var h2 handlers.HandlerConst
 	var h1 handlers.HandlerConst
 
-	if chunked {
+	if l1inmem {
+		h1 = inmem.New
+	} else if chunked {
 		h1 = memcached.Chunked(l1sock)
 	} else {
 		h1 = memcached.Regular(l1sock)
