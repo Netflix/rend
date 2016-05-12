@@ -47,10 +47,9 @@ func New() (handlers.Handler, error) {
 func (h *Handler) Set(cmd common.SetRequest) error {
 	h.mutex.Lock()
 
-	key := string(cmd.Key)
 	instime := time.Now().Unix()
 	exptime := instime + int64(cmd.Exptime)
-	h.data[key] = entry{
+	h.data[string(cmd.Key)] = entry{
 		data:    cmd.Data,
 		instime: instime,
 		exptime: exptime,
@@ -64,9 +63,7 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 func (h *Handler) Add(cmd common.SetRequest) error {
 	h.mutex.Lock()
 
-	key := string(cmd.Key)
-
-	if _, ok := h.data[key]; ok {
+	if _, ok := h.data[string(cmd.Key)]; ok {
 		h.mutex.Unlock()
 		return common.ErrKeyExists
 	}
@@ -74,7 +71,7 @@ func (h *Handler) Add(cmd common.SetRequest) error {
 	instime := time.Now().Unix()
 	exptime := instime + int64(cmd.Exptime)
 
-	h.data[key] = entry{
+	h.data[string(cmd.Key)] = entry{
 		data:    cmd.Data,
 		instime: instime,
 		exptime: exptime,
@@ -88,9 +85,7 @@ func (h *Handler) Add(cmd common.SetRequest) error {
 func (h *Handler) Replace(cmd common.SetRequest) error {
 	h.mutex.Lock()
 
-	key := string(cmd.Key)
-
-	if _, ok := h.data[key]; !ok {
+	if _, ok := h.data[string(cmd.Key)]; !ok {
 		h.mutex.Unlock()
 		return common.ErrKeyExists
 	}
@@ -98,7 +93,7 @@ func (h *Handler) Replace(cmd common.SetRequest) error {
 	instime := time.Now().Unix()
 	exptime := instime + int64(cmd.Exptime)
 
-	h.data[key] = entry{
+	h.data[string(cmd.Key)] = entry{
 		data:    cmd.Data,
 		instime: instime,
 		exptime: exptime,
@@ -116,8 +111,7 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 	h.mutex.RLock()
 
 	for idx, bk := range cmd.Keys {
-		key := string(bk)
-		e, ok := h.data[key]
+		e, ok := h.data[string(bk)]
 
 		if !ok || e.exptime < time.Now().Unix() {
 			dataOut <- common.GetResponse{
@@ -153,9 +147,7 @@ func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-cha
 	h.mutex.RLock()
 
 	for idx, bk := range cmd.Keys {
-		key := string(bk)
-
-		e, ok := h.data[key]
+		e, ok := h.data[string(bk)]
 
 		if !ok || e.exptime < time.Now().Unix() {
 			dataOut <- common.GetEResponse{
@@ -186,11 +178,9 @@ func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-cha
 }
 
 func (h *Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
-	key := string(cmd.Key)
-
 	h.mutex.Lock()
 
-	e, ok := h.data[key]
+	e, ok := h.data[string(cmd.Key)]
 
 	if !ok || e.exptime < time.Now().Unix() {
 		h.mutex.Unlock()
@@ -204,7 +194,7 @@ func (h *Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	e.instime = time.Now().Unix()
 	e.exptime = e.instime + int64(cmd.Exptime)
 
-	h.data[key] = e
+	h.data[string(cmd.Key)] = e
 
 	h.mutex.Unlock()
 
@@ -225,11 +215,9 @@ func (h *Handler) Delete(cmd common.DeleteRequest) error {
 }
 
 func (h *Handler) Touch(cmd common.TouchRequest) error {
-	key := string(cmd.Key)
-
 	h.mutex.Lock()
 
-	e, ok := h.data[key]
+	e, ok := h.data[string(cmd.Key)]
 
 	if !ok || e.exptime < time.Now().Unix() {
 		h.mutex.Unlock()
@@ -239,7 +227,7 @@ func (h *Handler) Touch(cmd common.TouchRequest) error {
 	e.instime = time.Now().Unix()
 	e.exptime = e.instime + int64(cmd.Exptime)
 
-	h.data[key] = e
+	h.data[string(cmd.Key)] = e
 
 	h.mutex.Unlock()
 
