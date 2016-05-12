@@ -17,6 +17,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"log"
 	"math"
 	"math/rand"
@@ -141,6 +142,11 @@ func worker(prot common.Prot, rw *bufio.ReadWriter, keys chan []byte, wg *sync.W
 		// continue on even if there's errors here
 		if err := prot.Set(rw, key, value); err != nil {
 			log.Println("Error during set:", err.Error())
+			if err == io.EOF {
+				log.Println("End of file. Aborting!")
+				wg.Done()
+				return
+			}
 		}
 
 		opaque := r.Int()
@@ -149,6 +155,11 @@ func worker(prot common.Prot, rw *bufio.ReadWriter, keys chan []byte, wg *sync.W
 		ret, err := prot.GetWithOpaque(rw, key, opaque)
 		if err != nil {
 			log.Println("Error getting data for key", string(key), ":", err.Error())
+			if err == io.EOF {
+				log.Println("End of file. Aborting!")
+				wg.Done()
+				return
+			}
 			continue
 		}
 
