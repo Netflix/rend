@@ -17,7 +17,7 @@ package binprot
 import (
 	"bufio"
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"io"
 
 	"github.com/netflix/rend/client/common"
@@ -25,7 +25,14 @@ import (
 
 type BinProt struct{}
 
-var ErrOpaqueMismatch = errors.New("Opaques do not match")
+type ErrOpaqueMismatch struct {
+	expected uint32
+	got      uint32
+}
+
+func (e ErrOpaqueMismatch) Error() string {
+	return fmt.Sprintf("Opaques do not match: expected %d got %d", e.expected, e.got)
+}
 
 func consumeResponseE(r *bufio.Reader) ([]byte, uint32, uint32, error) {
 	res, err := readRes(r)
@@ -82,7 +89,8 @@ func consumeResponse(r *bufio.Reader) ([]byte, error) {
 	return buf, err
 }
 
-func consumeResponseCheckOpaque(r *bufio.Reader, opaque int) ([]byte, error) {
+func consumeResponseCheckOpaque(r *bufio.Reader, opq int) ([]byte, error) {
+	opaque := uint32(opq)
 	res, err := readRes(r)
 	if err != nil {
 		return nil, err
@@ -103,8 +111,11 @@ func consumeResponseCheckOpaque(r *bufio.Reader, opaque int) ([]byte, error) {
 		return buf, apperr
 	}
 
-	if res.Opaque != uint32(opaque) {
-		return buf, ErrOpaqueMismatch
+	if res.Opaque != opaque {
+		return buf, ErrOpaqueMismatch{
+			expected: opaque,
+			got:      res.Opaque,
+		}
 	}
 
 	return buf, err
