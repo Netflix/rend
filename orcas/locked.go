@@ -146,32 +146,84 @@ func (l *LockedOrca) Touch(req common.TouchRequest) error {
 }
 
 func (l *LockedOrca) Get(req common.GetRequest) error {
-	// Acquire read locks for all keys
-	for _, key := range req.Keys {
+	// Lock for each read key, complete the read, and then move on.
+	// The last key sent through should have a noop at the end to complete the
+	// whole interaction between the client and this server.
+	var ret error
+	for idx, key := range req.Keys {
+		// Acquire read lock (true == read)
 		l.getlock(key, true).Lock()
-	}
 
-	ret := l.wrapped.Get(req)
+		// The last request will have these set to complete the interaction
+		noopOpaque := uint32(0)
+		noopEnd := false
+		if idx == len(req.Keys)-1 {
+			noopOpaque = req.NoopOpaque
+			noopEnd = req.NoopEnd
+		}
 
-	// Release all read locks
-	for _, key := range req.Keys {
+		subreq := common.GetRequest{
+			Keys:       [][]byte{key},
+			Opaques:    []uint32{req.Opaques[idx]},
+			Quiet:      []bool{req.Quiet[idx]},
+			NoopOpaque: noopOpaque,
+			NoopEnd:    noopEnd,
+		}
+
+		// Make the actual request
+		ret = l.wrapped.Get(subreq)
+
+		// release read lock
 		l.getlock(key, true).Unlock()
+
+		// Bail out early if there was an error (misses are not errors in this sense)
+		// This will probably end up breaking the connection anyway, so no worries
+		// about leaving the gets half-done.
+		if ret != nil {
+			break
+		}
 	}
 
 	return ret
 }
 
 func (l *LockedOrca) GetE(req common.GetRequest) error {
-	// Acquire read locks for all keys
-	for _, key := range req.Keys {
+	// Lock for each read key, complete the read, and then move on.
+	// The last key sent through should have a noop at the end to complete the
+	// whole interaction between the client and this server.
+	var ret error
+	for idx, key := range req.Keys {
+		// Acquire read lock (true == read)
 		l.getlock(key, true).Lock()
-	}
 
-	ret := l.wrapped.GetE(req)
+		// The last request will have these set to complete the interaction
+		noopOpaque := uint32(0)
+		noopEnd := false
+		if idx == len(req.Keys)-1 {
+			noopOpaque = req.NoopOpaque
+			noopEnd = req.NoopEnd
+		}
 
-	// Release all read locks
-	for _, key := range req.Keys {
+		subreq := common.GetRequest{
+			Keys:       [][]byte{key},
+			Opaques:    []uint32{req.Opaques[idx]},
+			Quiet:      []bool{req.Quiet[idx]},
+			NoopOpaque: noopOpaque,
+			NoopEnd:    noopEnd,
+		}
+
+		// Make the actual request
+		ret = l.wrapped.GetE(subreq)
+
+		// release read lock
 		l.getlock(key, true).Unlock()
+
+		// Bail out early if there was an error (misses are not errors in this sense)
+		// This will probably end up breaking the connection anyway, so no worries
+		// about leaving the gets half-done.
+		if ret != nil {
+			break
+		}
 	}
 
 	return ret
