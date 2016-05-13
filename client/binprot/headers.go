@@ -52,7 +52,7 @@ const (
 	Touch      = 0x1c
 	GAT        = 0x1d
 	GATQ       = 0x1e
-        GetE       = 0x40
+	GetE       = 0x40
 )
 
 type req struct {
@@ -106,6 +106,7 @@ func writeReq(w io.Writer, opcode, keylen, extralen, bodylen, opaque int) error 
 	}
 
 	_, err := w.Write(buf)
+	//fmt.Printf("% x\n", buf)
 	bufPool.Put(buf)
 	return err
 }

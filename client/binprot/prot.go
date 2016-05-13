@@ -17,6 +17,7 @@ package binprot
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"io"
 
 	"github.com/netflix/rend/client/common"
@@ -24,17 +25,26 @@ import (
 
 type BinProt struct{}
 
+type ErrOpaqueMismatch struct {
+	expected uint32
+	got      uint32
+}
+
+func (e ErrOpaqueMismatch) Error() string {
+	return fmt.Sprintf("Opaques do not match: expected %d got %d", e.expected, e.got)
+}
+
 func consumeResponseE(r *bufio.Reader) ([]byte, uint32, uint32, error) {
-        res, err := readRes(r)
-        if err != nil {
-                return nil, 0, 0, err
-        }
+	res, err := readRes(r)
+	if err != nil {
+		return nil, 0, 0, err
+	}
 
-        apperr := statusToError(res.Status)
+	apperr := statusToError(res.Status)
 
-        // read body in regardless of the error in the header
-        buf := make([]byte, res.BodyLen)
-        io.ReadFull(r, buf)
+	// read body in regardless of the error in the header
+	buf := make([]byte, res.BodyLen)
+	io.ReadFull(r, buf)
 
 	var flags uint32 = 0
 	var expiration uint32 = 0
@@ -42,17 +52,17 @@ func consumeResponseE(r *bufio.Reader) ([]byte, uint32, uint32, error) {
 		flags = binary.BigEndian.Uint32(buf[0:4])
 	}
 	if res.ExtraLen >= 8 {
-        	expiration = binary.BigEndian.Uint32(buf[4:8])
+		expiration = binary.BigEndian.Uint32(buf[4:8])
 	}
-        buf = buf[res.ExtraLen:]
+	buf = buf[res.ExtraLen:]
 
-        resPool.Put(res)
+	resPool.Put(res)
 
-        if apperr != nil && srsErr(apperr) {
-                return buf, flags, expiration, apperr
-        }
+	if apperr != nil && srsErr(apperr) {
+		return buf, flags, expiration, apperr
+	}
 
-        return buf, flags, expiration, err
+	return buf, flags, expiration, err
 }
 
 func consumeResponse(r *bufio.Reader) ([]byte, error) {
@@ -79,14 +89,11 @@ func consumeResponse(r *bufio.Reader) ([]byte, error) {
 	return buf, err
 }
 
-func consumeResponseCheckOpaque(r *bufio.Reader, opaque int) ([]byte, error) {
+func consumeResponseCheckOpaque(r *bufio.Reader, opq int) ([]byte, error) {
+	opaque := uint32(opq)
 	res, err := readRes(r)
 	if err != nil {
 		return nil, err
-	}
-
-	if res.Opaque != uint32(opaque) {
-		panic("SHIT")
 	}
 
 	apperr := statusToError(res.Status)
@@ -102,6 +109,13 @@ func consumeResponseCheckOpaque(r *bufio.Reader, opaque int) ([]byte, error) {
 
 	if apperr != nil && srsErr(apperr) {
 		return buf, apperr
+	}
+
+	if res.Opaque != opaque {
+		return buf, ErrOpaqueMismatch{
+			expected: opaque,
+			got:      res.Opaque,
+		}
 	}
 
 	return buf, err
@@ -221,15 +235,15 @@ func (b BinProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 }
 
 func (b BinProt) GetE(rw *bufio.ReadWriter, key []byte) ([]byte, uint32, uint32, error) {
-        // Header
-        writeReq(rw, GetE, len(key), 0, len(key), 0)
-        // Body
-        rw.Write(key)
+	// Header
+	writeReq(rw, GetE, len(key), 0, len(key), 0)
+	// Body
+	rw.Write(key)
 
-        rw.Flush()
+	rw.Flush()
 
-        // consume all of the response and return
-        return consumeResponseE(rw.Reader)
+	// consume all of the response and return
+	return consumeResponseE(rw.Reader)
 }
 
 func (b BinProt) GetWithOpaque(rw *bufio.ReadWriter, key []byte, opaque int) ([]byte, error) {
