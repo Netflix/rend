@@ -23,8 +23,7 @@ import "net"
 import "time"
 
 // constants and configuration
-// No constant arrays :(
-var letters = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var letters = bytes.Repeat([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 10)
 
 const predataLength = 20 * 1024
 
@@ -52,12 +51,14 @@ func RandData(r *rand.Rand, n int, useCached bool) []byte {
 	}
 
 	b := make([]byte, n)
+	r.Read(b)
 
+	ret := make([]byte, n)
 	for i := range b {
-		b[i] = letters[r.Intn(len(letters))]
+		ret[i] = letters[b[i]]
 	}
 
-	return b
+	return ret
 }
 
 func Connect(host string, port int) (net.Conn, error) {
