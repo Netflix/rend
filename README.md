@@ -1,5 +1,3 @@
-**Note: This is an early stage project under active development. It is not yet in widespread use in Netflix. It is going to change quite a bit from the current state before it is ready. Consider it pre-alpha.**
-
 # Rend - memcached proxy
 
 [![Dev chat at https://gitter.im/Netflix/rend](https://badges.gitter.im/Netflix/rend.svg)](https://gitter.im/Netflix/rend?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -11,7 +9,7 @@ Rend is a proxy that is designed to sit on the same server as both a [memcached]
  * Uses binary protocol locally to efficiently communicate with memcached
  * Comes with a load testing package
 
-Rend is still under active development and is in the testing phases internally. It still needs work to fully productionize. It is being developed in public as a part of Netflix's philosophy toward open sourcing non-differentiating potions of our infrastructure.
+Rend is currently 
 
 ## Motivation
 
@@ -30,9 +28,11 @@ So what was the solution? Take the incoming data and split it into fixed-size ch
  * `memcached ^1.4.24`
  * `go ^1.5.1`
 
-In order to use the proxy, it is required to have a memcached running on the local machine. The recommended version is the latest version, currently 1.4.25. This version has the full set of features used by the proxy as well as a bunch of performance and stability improvements. The version that ships with Mac OS X does not work (it is very old). You can see installation instructions for memcached at memcached.org.
+In order to use the proxy, it is required to have a memcached running on the local machine. The recommended version is the latest version, currently 1.4.25. This version has the full set of features used by the proxy as well as a bunch of performance and stability improvements. The version that ships with Mac OS X does not work (it is very old). You can see installation instructions for Memcached at memcached.org.
 
-As well, to build Rend, a working Go distribution is required. The latest Go version (1.5.2) is used for development. Thanks to the Go 1.0 [compatibility promise](https://golang.org/doc/go1compat), it should be able to be compiled and run on earlier versions, though we do not use or test versions earlier than 1.5.2. The garbage collection improvements in 1.5 help latency numbers, which is why we don't test on older versions.
+To run the project in L1/L2 mode, it is required to run a Rend 
+
+As well, to build Rend, a working Go distribution is required. The latest Go version (1.6.2) is used for development. Thanks to the Go 1.0 [compatibility promise](https://golang.org/doc/go1compat), it should be able to be compiled and run on earlier versions, though we do not use or test versions earlier than 1.6.2. The garbage collection improvements in 1.5 help latency numbers, which is why we don't test on older versions.
 
 ### Get the Source Code
 
@@ -50,21 +50,55 @@ or for development:
 
     go run memproxy.go
 
+## Basic Server
+
+To get a working debug server using the Rend libraries, it takes 21 lines of code, including imports and whitespace:
+
+    package main
+
+    import (
+        "github.com/netflix/rend/handlers"
+        "github.com/netflix/rend/handlers/inmem"
+        "github.com/netflix/rend/orcas"
+        "github.com/netflix/rend/server"
+    )
+
+    func main() {
+        server.ListenAndServe(
+            server.ListenArgs{
+                Type: server.ListenTCP,
+                Port: 11211,
+            },
+            server.Default,
+            orcas.L1Only,
+            inmem.New,
+            handlers.NilHandler(""),
+        )
+    }
+
 ## Testing
 
 ### blast<i></i>.go
 
-send random `set`, `get`, `touch` and `delete` commands. Examples:
+The blast script sends random requests of all types to the target, including:
+* `set`
+* `add`
+* `replace`
+* `get`
+* batch `get`
+* `touch`
+* `get-and-touch`
+* `delete`
 
-Use the binary memcached protocol with 10 worker goroutines (i.e. 10 connections) to send 100,000 requests with a key length of 5.
+Use the binary memcached protocol with 10 worker goroutines (i.e. 10 connections) to send 1,000,000 requests with a key length of 5.
 
-    go run blast.go --binary -w 10 -n 100000 -kl 5
+    go run blast.go --binary -n 1000000 -p 11211 -w 10 -kl 5
 
 ### setget<i></i>.go
 
 Run sets followed by gets, with verification of contents.
 
-    go run setget.go (needs opts)
+    go run setget.go --binary -n 100000 -p 11211 -w 10
 
 ### sizes<i></i>.go
 
