@@ -23,10 +23,13 @@ import (
 )
 
 type entry struct {
-	data    []byte
-	instime int64
-	exptime int64
+	exptime uint32
 	flags   uint32
+	data    []byte
+}
+
+func (e entry) isExpired() bool {
+	return e.exptime != 0 && e.exptime < uint32(time.Now().Unix())
 }
 
 type Handler struct {
@@ -47,11 +50,13 @@ func New() (handlers.Handler, error) {
 func (h *Handler) Set(cmd common.SetRequest) error {
 	h.mutex.Lock()
 
-	instime := time.Now().Unix()
-	exptime := instime + int64(cmd.Exptime)
+	var exptime uint32
+	if cmd.Exptime > 0 {
+		exptime = uint32(time.Now().Unix()) + cmd.Exptime
+	}
+
 	h.data[string(cmd.Key)] = entry{
 		data:    cmd.Data,
-		instime: instime,
 		exptime: exptime,
 		flags:   cmd.Flags,
 	}
@@ -63,17 +68,20 @@ func (h *Handler) Set(cmd common.SetRequest) error {
 func (h *Handler) Add(cmd common.SetRequest) error {
 	h.mutex.Lock()
 
-	if _, ok := h.data[string(cmd.Key)]; ok {
+	e, ok := h.data[string(cmd.Key)]
+
+	if ok || e.isExpired() {
 		h.mutex.Unlock()
 		return common.ErrKeyExists
 	}
 
-	instime := time.Now().Unix()
-	exptime := instime + int64(cmd.Exptime)
+	var exptime uint32
+	if cmd.Exptime > 0 {
+		exptime = uint32(time.Now().Unix()) + cmd.Exptime
+	}
 
 	h.data[string(cmd.Key)] = entry{
 		data:    cmd.Data,
-		instime: instime,
 		exptime: exptime,
 		flags:   cmd.Flags,
 	}
@@ -85,17 +93,20 @@ func (h *Handler) Add(cmd common.SetRequest) error {
 func (h *Handler) Replace(cmd common.SetRequest) error {
 	h.mutex.Lock()
 
-	if _, ok := h.data[string(cmd.Key)]; !ok {
+	e, ok := h.data[string(cmd.Key)]
+
+	if !ok || e.isExpired() {
 		h.mutex.Unlock()
-		return common.ErrKeyExists
+		return common.ErrKeyNotFound
 	}
 
-	instime := time.Now().Unix()
-	exptime := instime + int64(cmd.Exptime)
+	var exptime uint32
+	if cmd.Exptime > 0 {
+		exptime = uint32(time.Now().Unix()) + cmd.Exptime
+	}
 
 	h.data[string(cmd.Key)] = entry{
 		data:    cmd.Data,
-		instime: instime,
 		exptime: exptime,
 		flags:   cmd.Flags,
 	}
@@ -113,7 +124,7 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 	for idx, bk := range cmd.Keys {
 		e, ok := h.data[string(bk)]
 
-		if !ok || e.exptime < time.Now().Unix() {
+		if !ok || e.isExpired() {
 			dataOut <- common.GetResponse{
 				Miss:   true,
 				Quiet:  cmd.Quiet[idx],
@@ -149,7 +160,7 @@ func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-cha
 	for idx, bk := range cmd.Keys {
 		e, ok := h.data[string(bk)]
 
-		if !ok || e.exptime < time.Now().Unix() {
+		if !ok || e.isExpired() {
 			dataOut <- common.GetEResponse{
 				Miss:   true,
 				Quiet:  cmd.Quiet[idx],
@@ -163,7 +174,7 @@ func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-cha
 			Miss:    false,
 			Quiet:   cmd.Quiet[idx],
 			Opaque:  cmd.Opaques[idx],
-			Exptime: uint32(e.exptime - e.instime),
+			Exptime: e.exptime,
 			Flags:   e.flags,
 			Key:     bk,
 			Data:    e.data,
@@ -182,7 +193,7 @@ func (h *Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 
 	e, ok := h.data[string(cmd.Key)]
 
-	if !ok || e.exptime < time.Now().Unix() {
+	if !ok || e.isExpired() {
 		h.mutex.Unlock()
 		return common.GetResponse{
 			Miss:   true,
@@ -191,8 +202,11 @@ func (h *Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 		}, nil
 	}
 
-	e.instime = time.Now().Unix()
-	e.exptime = e.instime + int64(cmd.Exptime)
+	if cmd.Exptime > 0 {
+		e.exptime = uint32(time.Now().Unix()) + cmd.Exptime
+	} else {
+		e.exptime = 0
+	}
 
 	h.data[string(cmd.Key)] = e
 
@@ -219,13 +233,16 @@ func (h *Handler) Touch(cmd common.TouchRequest) error {
 
 	e, ok := h.data[string(cmd.Key)]
 
-	if !ok || e.exptime < time.Now().Unix() {
+	if !ok || e.isExpired() {
 		h.mutex.Unlock()
 		return common.ErrKeyNotFound
 	}
 
-	e.instime = time.Now().Unix()
-	e.exptime = e.instime + int64(cmd.Exptime)
+	if cmd.Exptime > 0 {
+		e.exptime = uint32(time.Now().Unix()) + cmd.Exptime
+	} else {
+		e.exptime = 0
+	}
 
 	h.data[string(cmd.Key)] = e
 

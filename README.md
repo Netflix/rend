@@ -1,38 +1,44 @@
-**Note: This is an early stage project under active development. It is not yet in widespread use in Netflix. It is going to change quite a bit from the current state before it is ready. Consider it pre-alpha.**
+# Rend: Memcached-Compatible Server and Proxy
 
-# Rend - memcached proxy
+[![Dev chat at https://gitter.im/Netflix/rend](https://badges.gitter.im/Netflix/rend.svg)](https://gitter.im/Netflix/rend?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![GoDoc](https://godoc.org/github.com/netflix/rend?status.svg)](https://godoc.org/github.com/netflix/rend)
 
-[![Dev chat at https://gitter.im/Netflix/rend](https://badges.gitter.im/Netflix/rend.svg)](https://gitter.im/Netflix/rend?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
-Rend is a proxy that is designed to sit on the same server as both a [memcached](https://github.com/memcached/memcached) process and an SSD-backed L2 cache, such as [RocksDB](https://github.com/facebook/rocksdb). It is written in [Go](https://github.com/golang/go) and is under active development at Netflix. Some more points about Rend:
+Rend is a proxy whose primary use case is to sit on the same server as both a [memcached](https://github.com/memcached/memcached) process and an SSD-backed L2 cache, such as [RocksDB](https://github.com/facebook/rocksdb). It is written in [Go](https://github.com/golang/go) and is under active development at Netflix. Some more points about Rend:
 
  * Designed to handle tens of thousands of concurrent connections
  * Speaks a subset of the memcached text and binary protocols
  * Uses binary protocol locally to efficiently communicate with memcached
- * Comes with a load testing package
+ * Comes with a load testing and correctness testing client package
+ * Modular design to allow different backends to be plugged in (see [rend-lmdb](https://github.com/netflix/rend-lmdb) for an example)
 
-Rend is still under active development and is in the testing phases internally. It still needs work to fully productionize. It is being developed in public as a part of Netflix's philosophy toward open sourcing non-differentiating potions of our infrastructure.
+Rend is currently in production at Netflix and serving live member traffic. It is serving some of our most important personalization data.
 
 ## Motivation
 
-Caching is used several ways at Netflix. Some people use it as a true working set cache, while others use it as the only storage mechanism for their service. Others use it as a session cache. This means that some services can continue as usual with some data loss, while others will permanently lose data and start to serve fallbacks. The caching project that Rend is built to complement is [EVCache](https://github.com/Netflix/EVCache).
+Caching is used several ways at Netflix. Some people use it as a true working set cache, while others use it as the only storage mechanism for their service. Others use it as a session cache. This means that some services can continue as usual with some data loss, while others will permanently lose data and start to serve fallbacks. Rend is built to complement [EVCache](https://github.com/Netflix/EVCache), which is the main caching solution in use at Netflix.
 
-The genesis of Rend starts with memcached memory management. Internally, memcached keeps a set of slabs for different size data. Slabs are logical groupings of pages, which are a fixed size set on startup. Pages map to real physical memory and are split based on the slab's data size. In versions 1.4.24 and prior, pages were permanently allocated to a particular slab and never released even if empty. As well, if there were many holes in the data in RAM, there was no compaction and therefore memory could get very fragmented over time.
+The genesis of Rend starts with memcached memory management. Internally, memcached keeps a set of slabs for different size data. Slabs are logical groupings of pages, which are a fixed size set on startup. Pages map to physical memory and are split based on the slab's data size. In versions 1.4.24 and prior, pages were permanently allocated to a particular slab and never released even if empty. As well, if there were many holes in the data in RAM, there was no compaction and therefore memory could get very fragmented over time.
 
-The second half of the story is within Netflix. There was a set of data being written daily to a cache en masse during nightly computation. An underlying data source changed in such a way that caused the output of one such process to change drastically in size from one day to the next. When the data set was being written to the cache, it was different enough in size to land in a different memcached slab. The cache was sized to hold one copy of the data, not two, so when the new data was written, the memory filled completely. Once full, memcached was evicting large portions of newly-computed data while holding on to mostly empty memory in a different slab.
+The second half of the story is within Netflix. Every night, a big batch process computes recommendations for each of our members in multiple steps. Each of these steps loads their output into EVCache. An underlying data source changed one day in such a way that caused the output of one batch compute process to change drastically in size. When the data set was being written to the cache, it was different enough in size to land in a different memcached slab. The cache was sized to hold one copy of the data, not two, so when the new data was written, the memory filled completely. Once full, memcached started evicting large portions of newly-computed data while holding on to mostly empty memory in a different slab.
 
-So what was the solution? Take the incoming data and split it into fixed-size chunks prior to inserting into memcached to bypass the complication of the slab allocator. If everything is the same size, there will never be holes that are out of reach for new data. This hardened us against future data changes, which are inevitable. Rend (which means "to tear apart") is the server-side solution to this problem, which also enables much more intelligence on the server at the cost of increased complexity.
+So what was the solution? Take the incoming data and split it into fixed-size chunks prior to inserting into memcached. This bypassed the complication of the slab allocator. If everything is the same size, there will never be holes that are out of reach for new data. This hardened us against future data changes, which are inevitable. Rend (which means "to tear apart") is the server-side solution to this problem, which also enables much more intelligence on the server.
+
+## Components
+
+Rend is a server and a set of libraries that can be used to compose a memcached-compatible server of your own. It consists of packages for protocol parsing, a server loop, request orchestration (for L1 / L2 logic), and a set of handlers that actually communicate with the backing storage. It also includes a metrics library that is unintrusive and very fast. The memproxy.go file acts as the main function for Rend as a server and showcases the usage of all of the available components.
+
+![Rend internals](rend_internals.png "Rend internals")
 
 ## Setup and Prerequisites
 
 ### Dependencies
 
- * `memcached ^1.4.24`
- * `go ^1.5.1`
+To just get started, everything needed is in this repository. The Basic Server section shows how to stand up a simple server
 
-In order to use the proxy, it is required to have a memcached running on the local machine. The recommended version is the latest version, currently 1.4.25. This version has the full set of features used by the proxy as well as a bunch of performance and stability improvements. The version that ships with Mac OS X does not work (it is very old). You can see installation instructions for memcached at memcached.org.
+In order to use the proxy in L1-only mode, it is required to have a memcached-compatible server running on the local machine. For our production deployment, this is Memcached itself. The recommended version is the latest version, currently 1.4.25. This version has the full set of features used by the proxy as well as a bunch of performance and stability improvements. The version that ships with Mac OS X does not work (it is very old). You can see installation instructions for Memcached at https://memcached.org.
 
-As well, to build Rend, a working Go distribution is required. The latest Go version (1.5.2) is used for development. Thanks to the Go 1.0 [compatibility promise](https://golang.org/doc/go1compat), it should be able to be compiled and run on earlier versions, though we do not use or test versions earlier than 1.5.2. The garbage collection improvements in 1.5 help latency numbers, which is why we don't test on older versions.
+To run the project in L1/L2 mode, it is required to run a Rend-based server, as the logic within Rend uses a Memcached protocol extension (the gete command) to retrieve the TTL from the L2. There's plans to make this optional, but it is not yet.
+
+As well, to build Rend, a working Go distribution is required. The latest Go version (1.6.2) is used for development. Thanks to the Go 1.0 [compatibility promise](https://golang.org/doc/go1compat), it should be able to be compiled and run on earlier versions, though we do not use or test versions earlier than 1.6.2. The garbage collection improvements in 1.5 and 1.6 help latency numbers, which is why we don't test on older versions.
 
 ### Get the Source Code
 
@@ -41,43 +47,110 @@ As well, to build Rend, a working Go distribution is required. The latest Go ver
 
 ### Build and Run
 
-For distribution:
+Rend doesn't require any special build steps. It also does not have any external dependencies. The Go toolchain is used to build and run.
 
-    go build memproxy.go
-    ./memproxy
+    go build github.com/netflix/rend
+    ./rend
 
-or for development:
+## Basic Server
 
-    go run memproxy.go
+## Using the default Rend server (memproxy.go)
+
+Getting a basic rend server running is fairly easy:
+
+```
+go get github.com/netflix/rend
+go build github.com/netflix/rend
+./rend --l1-inmem
+```
+
+And in another console window (> means typed input):
+
+```
+$ nc localhost 11211
+> get foo
+END
+> set foo 0 0 6
+> foobar
+STORED
+> get foo
+VALUE foo 0 6
+foobar
+END
+> touch foo 2
+TOUCHED
+> get foo
+VALUE foo 0 6
+foobar
+END
+> get foo
+END
+> quit
+Bye
+```
+
+It should be noted here that the in-memory L1 implementation is functionally correct, but it is for debugging only. It does not free memory when an entry expires.
+
+### Using Rend as Libraries
+
+To get a working debug server using the Rend libraries, it takes 21 lines of code, including imports and whitespace:
+
+    package main
+
+    import (
+        "github.com/netflix/rend/handlers"
+        "github.com/netflix/rend/handlers/inmem"
+        "github.com/netflix/rend/orcas"
+        "github.com/netflix/rend/server"
+    )
+
+    func main() {
+        server.ListenAndServe(
+            server.ListenArgs{
+                Type: server.ListenTCP,
+                Port: 11211,
+            },
+            server.Default,
+            orcas.L1Only,
+            inmem.New,
+            handlers.NilHandler(""),
+        )
+    }
 
 ## Testing
 
+Rend somes with a separately developed client library under the client/ directory. It is used to do load and functional testing of Rend during development.
+
 ### blast<i></i>.go
 
-send random `set`, `get`, `touch` and `delete` commands. Examples:
+The blast script sends random requests of all types to the target, including:
+* `set`
+* `add`
+* `replace`
+* `get`
+* batch `get`
+* `touch`
+* `get-and-touch`
+* `delete`
 
-Use the binary memcached protocol with 10 worker goroutines (i.e. 10 connections) to send 100,000 requests with a key length of 5.
+Use the binary memcached protocol with 10 worker goroutines (i.e. 10 connections) to send 1,000,000 requests with a key length of 5.
 
-    go run blast.go --binary -w 10 -n 100000 -kl 5
+    go run blast.go --binary -n 1000000 -p 11211 -w 10 -kl 5
 
 ### setget<i></i>.go
 
-Run sets followed by gets, with verification of contents.
+Run sets followed by gets, with verification of contents. The data is between 5 and 20k in length.
 
-    go run setget.go (needs opts)
+    go run setget.go --binary -n 100000 -p 11211 -w 10
 
 ### sizes<i></i>.go
 
-Runs sets of a steadily increasing size to catch errors with specific size data.
+Runs sets of a steadily increasing size to catch errors with specific size data. It runs sets from 0 bytes all the way up to 100k for the value.
 
-    go run sizes.go (needs opts)
+    go run sizes.go --binary -p 11211
 
-<br>
-<br>
-<br>
+### fill<i></i>.go
 
-#### Readme TODO:
+Simply sends sets into the cache to test set rate and eviction policy. The following sends 1 billion sets with random 10 character keys on 100 connections:
 
- * links to godoc
- * limitations
- * any known problems
+    go run fill.go --binary -p 11211 -h localhost -kl 10 -w 100 -n 1000000000

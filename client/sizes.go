@@ -14,21 +14,17 @@
 
 package main
 
-import "fmt"
-import "math/rand"
-import "sync"
-import "time"
+import (
+	"bufio"
+	"fmt"
+	"math/rand"
+	"sync"
 
-import "./common"
-import "./f"
-import _ "./sigs"
-import "./binprot"
-import "./textprot"
-
-// Package init
-func init() {
-	rand.Seed(time.Now().UTC().UnixNano())
-}
+	"github.com/netflix/rend/client/binprot"
+	"github.com/netflix/rend/client/common"
+	"github.com/netflix/rend/client/f"
+	"github.com/netflix/rend/client/textprot"
+)
 
 func main() {
 	var prot common.Prot
@@ -50,13 +46,16 @@ func main() {
 				panic("Couldn't connect")
 			}
 
+			r := rand.New(rand.NewSource(common.RandSeed()))
+			rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+
 			// 0 to 100k data
 			for i := 0; i < 102400; i++ {
-				key := common.RandData(f.KeyLength)
-				value := common.RandData(i)
+				key := common.RandData(r, f.KeyLength, false)
+				value := common.RandData(nil, i, true)
 
-				prot.Set(conn, key, value)
-				prot.Get(conn, key)
+				prot.Set(rw, key, value)
+				prot.Get(rw, key)
 			}
 
 			fmt.Println("Done.")
