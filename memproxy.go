@@ -129,7 +129,7 @@ func main() {
 		h2 = memcached.Regular(l2sock)
 	} else {
 		o = orcas.L1Only
-		h2 = handlers.NilHandler("")
+		h2 = handlers.NilHandler
 	}
 
 	// Add the locking wrapper if requested. The locking wrapper can either allow mutltiple readers
