@@ -17,14 +17,11 @@ package handlers
 import "github.com/netflix/rend/common"
 
 type HandlerConst func() (Handler, error)
-type HandlerConstConst func(sockpath string) HandlerConst
 
 // NilHandler is used as a placeholder for when there is no handler needed.
 // Since the Server API is a composition of a few things, including Handlers,
 // there needs to be a placeholder for when it's not needed.
-func NilHandler(sockpath string) HandlerConst {
-	return func() (Handler, error) { return nil, nil }
-}
+func NilHandler() (Handler, error) { return nil, nil }
 
 type Handler interface {
 	Set(cmd common.SetRequest) error
