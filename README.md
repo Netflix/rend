@@ -7,10 +7,10 @@ Rend is a proxy whose primary use case is to sit on the same server as both a [m
  * Designed to handle tens of thousands of concurrent connections
  * Speaks a subset of the memcached text and binary protocols
  * Uses binary protocol locally to efficiently communicate with memcached
- * Comes with a load testing package
- * Modular design to allow different backends to be plugged in (see: [rend-lmdb](https://github.com/netflix/rend-lmdb))
+ * Comes with a load testing and correctness testing client package
+ * Modular design to allow different backends to be plugged in (see [rend-lmdb](https://github.com/netflix/rend-lmdb) for an example)
 
-Rend is currently in production at Netflix and serving live member traffic.
+Rend is currently in production at Netflix and serving live member traffic. It is serving some of our most important personalization data.
 
 ## Motivation
 
@@ -47,18 +47,16 @@ As well, to build Rend, a working Go distribution is required. The latest Go ver
 
 ### Build and Run
 
-For distribution:
+Rend doesn't require any special build steps. It also does not have any external dependencies. The Go toolchain is used to build and run.
 
-    go build memproxy.go
-    ./memproxy
-
-or for development:
-
-    go run memproxy.go
+    go build github.com/netflix/rend
+    ./rend
 
 ## Basic Server
 
 ## Using the default Rend server (memproxy.go)
+
+Getting a basic rend server running is fairly easy:
 
 ```
 go get github.com/netflix/rend
@@ -91,6 +89,8 @@ END
 Bye
 ```
 
+It should be noted here that the in-memory L1 implementation is functionally correct, but it is for debugging only. It does not free memory when an entry expires.
+
 ### Using Rend as Libraries
 
 To get a working debug server using the Rend libraries, it takes 21 lines of code, including imports and whitespace:
@@ -119,6 +119,8 @@ To get a working debug server using the Rend libraries, it takes 21 lines of cod
 
 ## Testing
 
+Rend somes with a separately developed client library under the client/ directory. It is used to do load and functional testing of Rend during development.
+
 ### blast<i></i>.go
 
 The blast script sends random requests of all types to the target, including:
@@ -137,13 +139,18 @@ Use the binary memcached protocol with 10 worker goroutines (i.e. 10 connections
 
 ### setget<i></i>.go
 
-Run sets followed by gets, with verification of contents.
+Run sets followed by gets, with verification of contents. The data is between 5 and 20k in length.
 
     go run setget.go --binary -n 100000 -p 11211 -w 10
 
 ### sizes<i></i>.go
 
-Runs sets of a steadily increasing size to catch errors with specific size data.
+Runs sets of a steadily increasing size to catch errors with specific size data. It runs sets from 0 bytes all the way up to 100k for the value.
 
     go run sizes.go --binary -p 11211
 
+### fill<i></i>.go
+
+Simply sends sets into the cache to test set rate and eviction policy. The following sends 1 billion sets with random 10 character keys on 100 connections:
+
+    go run fill.go --binary -p 11211 -h localhost -kl 10 -w 100 -n 1000000000
