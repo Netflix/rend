@@ -311,19 +311,29 @@ outer:
 
 		missResponse.Flags = metaData.OrigFlags
 
+		cmdbuf := bytes.NewBuffer(make([]byte, 0, int(metaData.NumChunks)*(len(key)+4 /* key suffix */ +binprot.ReqHeaderLen)))
 		// Write all the get commands before reading
 		for i := 0; i < int(metaData.NumChunks); i++ {
 			chunkKey := chunkKey(key, i)
-			if err := binprot.WriteGetQCmd(rw.Writer, chunkKey); err != nil {
+			/*if err := binprot.WriteGetQCmd(rw.Writer, chunkKey); err != nil {
 				errorOut <- err
 				return
-			}
+			}*/
+			// bytes.Buffer doesn't error
+			binprot.WriteGetQCmd(rw.Writer, chunkKey)
 		}
 
 		// The final command must be Get or Noop to guarantee a response
 		// We use Noop to make coding easier, but it's (very) slightly less efficient
 		// since we send 24 extra bytes in each direction
-		if err := binprot.WriteNoopCmd(rw.Writer); err != nil {
+		/*if err := binprot.WriteNoopCmd(rw.Writer); err != nil {
+			errorOut <- err
+			return
+		}*/
+		// bytes.Buffer doesn't error
+		binprot.WriteNoopCmd(rw.Writer)
+
+		if _, err := cmdbuf.WriteTo(rw); err != nil {
 			errorOut <- err
 			return
 		}
