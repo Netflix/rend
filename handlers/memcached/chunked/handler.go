@@ -311,20 +311,20 @@ outer:
 
 		missResponse.Flags = metaData.OrigFlags
 
-		cmdSize := int(metaData.NumChunks) * (len(key) + 4 /* key suffix */ + binprot.ReqHeaderLen)
+		cmdSize := int(metaData.NumChunks)*(len(key)+4 /* key suffix */ +binprot.ReqHeaderLen) + binprot.ReqHeaderLen /* for the noop */
 		cmdbuf := bytes.NewBuffer(make([]byte, 0, cmdSize))
 		// Write all the get commands before reading
 		for i := 0; i < int(metaData.NumChunks); i++ {
 			chunkKey := chunkKey(key, i)
 			// bytes.Buffer doesn't error
-			binprot.WriteGetQCmd(rw.Writer, chunkKey)
+			binprot.WriteGetQCmd(cmdbuf, chunkKey)
 		}
 
 		// The final command must be Get or Noop to guarantee a response
 		// We use Noop to make coding easier, but it's (very) slightly less efficient
 		// since we send 24 extra bytes in each direction
 		// bytes.Buffer doesn't error
-		binprot.WriteNoopCmd(rw.Writer)
+		binprot.WriteNoopCmd(cmdbuf)
 
 		// bufio's ReadFrom will end up doing an io.Copy(cmdbuf, socket), which is more
 		// efficient than writing directly into the bufio or using cmdbuf.WriteTo(rw)
