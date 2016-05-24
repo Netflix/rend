@@ -18,10 +18,52 @@ import (
 	"hash"
 	"hash/fnv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 )
+
+const maxLockSets = 1024
+
+var (
+	locks   = make([][]sync.Locker, maxLockSets)
+	rlocks  = make([][]sync.Locker, maxLockSets)
+	curslot uint32
+)
+
+func getNewLocks(multipleReaders bool, concurrency uint8) (slot uint32) {
+	slot = atomic.AddUint32(&curslot, 1)
+
+	if slot > maxLockSets {
+		panic("Too many lock sets!")
+	}
+
+	locks[slot] = make([]sync.Locker, 1<<concurrency)
+	rlocks[slot] = make([]sync.Locker, 1<<concurrency)
+
+	if multipleReaders {
+		for idx, _ := range locks[slot] {
+			temp := &sync.RWMutex{}
+			locks[slot][idx] = temp
+			rlocks[slot][idx] = temp.RLocker()
+		}
+	} else {
+		for idx, _ := range locks[slot] {
+			temp := &sync.Mutex{}
+			locks[slot][idx] = temp
+			rlocks[slot][idx] = temp
+		}
+	}
+
+	return
+}
+
+func verifyLocksExist(slot uint32) {
+	if cur := atomic.LoadUint32(&curslot); cur < slot {
+		panic("Asked for lock set that does not exist!")
+	}
+}
 
 type LockedOrca struct {
 	wrapped Orca
@@ -37,44 +79,47 @@ type LockedOrca struct {
 // The concurrency param allows 2^(concurrency) operations to happen in
 // parallel. E.g. concurrency of 1 would allow 2 parallel operations, while a
 // concurrency of 4 allows 2^4 = 16 parallel operations.
-func Locked(oc OrcaConst, multipleReaders bool, concurrency uint8) OrcaConst {
+func Locked(oc OrcaConst, multipleReaders bool, concurrency uint8) (OrcaConst, uint32) {
 	if concurrency < 0 {
 		panic("Concurrency level must be at least 0")
 	}
 
-	// keep the same locks for all instances by closing over this slice
-	locks := make([]sync.Locker, 1<<concurrency)
-	rlocks := make([]sync.Locker, 1<<concurrency)
+	slot := getNewLocks(multipleReaders, concurrency)
 
-	if multipleReaders {
-		for idx, _ := range locks {
-			temp := &sync.RWMutex{}
-			locks[idx] = temp
-			rlocks[idx] = temp.RLocker()
-		}
-	} else {
-		for idx, _ := range locks {
-			temp := &sync.Mutex{}
-			locks[idx] = temp
-			rlocks[idx] = temp
-		}
-	}
+	//counts := make([]uint32, 1<<concurrency)
 
-	pool := &sync.Pool{
+	hashpool := &sync.Pool{
 		New: func() interface{} {
 			return fnv.New32a()
 		},
 	}
 
-	//counts := make([]uint32, 1<<concurrency)
+	return func(l1, l2 handlers.Handler, res common.Responder) Orca {
+		return &LockedOrca{
+			wrapped: oc(l1, l2, res),
+			locks:   locks[slot],
+			rlocks:  rlocks[slot],
+			hpool:   hashpool,
+			//counts:  counts,
+		}
+	}, slot
+}
+
+func LockedWithExisting(oc OrcaConst, locksetID uint32) OrcaConst {
+	verifyLocksExist(locksetID)
+
+	hashpool := &sync.Pool{
+		New: func() interface{} {
+			return fnv.New32a()
+		},
+	}
 
 	return func(l1, l2 handlers.Handler, res common.Responder) Orca {
 		return &LockedOrca{
 			wrapped: oc(l1, l2, res),
-			locks:   locks,
-			rlocks:  rlocks,
-			hpool:   pool,
-			//counts:  counts,
+			locks:   locks[locksetID],
+			rlocks:  rlocks[locksetID],
+			hpool:   hashpool,
 		}
 	}
 }
