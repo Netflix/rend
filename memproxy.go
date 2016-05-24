@@ -136,11 +136,12 @@ func main() {
 	// or not, with the same difference in semantics between a sync.Mutex and a sync.RWMutex. If
 	// chunking is enabled, we want to ensure that stricter locking is enabled, since concurrent
 	// sets into L1 with chunking can collide and cause data corruption.
+	var lockset uint32
 	if locked {
 		if chunked || !multiReader {
-			o = orcas.Locked(o, false, uint8(concurrency))
+			o, lockset = orcas.Locked(o, false, uint8(concurrency))
 		} else {
-			o = orcas.Locked(o, true, uint8(concurrency))
+			o, lockset = orcas.Locked(o, true, uint8(concurrency))
 		}
 	}
 
@@ -151,6 +152,12 @@ func main() {
 		l = server.ListenArgs{
 			Type: server.ListenTCP,
 			Port: batchPort,
+		}
+
+		o := orcas.L1L2Batch
+
+		if locked {
+			o = orcas.LockedWithExisting(o, lockset)
 		}
 
 		go server.ListenAndServe(l, server.Default, orcas.L1L2Batch, h1, h2)
