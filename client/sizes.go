@@ -36,11 +36,11 @@ func main() {
 		prot = t
 	}
 
-	var wg sync.WaitGroup
+	wg := &sync.WaitGroup{}
 	wg.Add(f.NumWorkers)
 
 	for i := 0; i < f.NumWorkers; i++ {
-		go func(prot common.Prot, wg sync.WaitGroup) {
+		go func(prot common.Prot, wg *sync.WaitGroup) {
 			conn, err := common.Connect("localhost", f.Port)
 			if err != nil {
 				panic("Couldn't connect")
