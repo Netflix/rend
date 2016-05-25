@@ -65,9 +65,10 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 			metrics.IncCounter(MetricCmdSetErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdSetReplaceStoredL1)
 	}
 
-	metrics.IncCounter(MetricCmdSetReplaceStoredL1)
 	metrics.IncCounter(MetricCmdSetSuccess)
 
 	return l.res.Set(req.Opaque, req.Quiet)
@@ -112,9 +113,10 @@ func (l *L1L2BatchOrca) Add(req common.SetRequest) error {
 			metrics.IncCounter(MetricCmdAddErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdAddReplaceStoredL1)
 	}
 
-	metrics.IncCounter(MetricCmdAddReplaceStoredL1)
 	metrics.IncCounter(MetricCmdAddStored)
 
 	return l.res.Add(req.Opaque, req.Quiet)
@@ -159,9 +161,10 @@ func (l *L1L2BatchOrca) Replace(req common.SetRequest) error {
 			metrics.IncCounter(MetricCmdReplaceErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdReplaceReplaceStoredL1)
 	}
 
-	metrics.IncCounter(MetricCmdReplaceReplaceStoredL1)
 	metrics.IncCounter(MetricCmdReplaceStored)
 
 	return l.res.Replace(req.Opaque, req.Quiet)
