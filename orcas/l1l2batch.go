@@ -50,26 +50,23 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 	}
 	metrics.IncCounter(MetricCmdSetSuccessL2)
 
-	// Invalidate the entry in L1 for batch sets.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdSetDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Replace the entry in L1.
+	req.Quiet = false
+	metrics.IncCounter(MetricCmdSetReplaceL1)
+	if err := l.l1.Replace(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdSetDeleteMissesL1)
+			// For a replace not stored in L1, there's no problem.
+			// There is no hot data to replace
+			metrics.IncCounter(MetricCmdSetReplaceNotStoredL1)
 		} else {
-			metrics.IncCounter(MetricCmdSetDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdSetReplaceErrorsL1)
 			metrics.IncCounter(MetricCmdSetErrors)
 			return err
 		}
 	}
 
-	metrics.IncCounter(MetricCmdSetDeleteSuccessL1)
+	metrics.IncCounter(MetricCmdSetReplaceStoredL1)
+	metrics.IncCounter(MetricCmdSetSuccess)
 
 	return l.res.Set(req.Opaque, req.Quiet)
 }
@@ -100,31 +97,22 @@ func (l *L1L2BatchOrca) Add(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdAddStoredL2)
 
-	// Invalidate the entry in L1 for batch adds. This might not make sense at
-	// first, but does in the context of concurrent requests. We want anything
-	// that is successfully added to the L2 to be gone from L1, regardless of
-	// what else is going on outside the current request. If a concurrent request
-	// completes between L2 and L1 in the non-batch endpoint, we still maintain
-	// correctness, albeit a bit slower.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdAddDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Replace the entry in L1.
+	req.Quiet = false
+	metrics.IncCounter(MetricCmdAddReplaceL1)
+	if err := l.l1.Replace(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdAddDeleteMissesL1)
+			// For a replace not stored in L1, there's no problem.
+			// There is no hot data to replace
+			metrics.IncCounter(MetricCmdAddReplaceNotStoredL1)
 		} else {
-			metrics.IncCounter(MetricCmdAddDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdAddReplaceErrorsL1)
 			metrics.IncCounter(MetricCmdAddErrors)
 			return err
 		}
 	}
 
-	metrics.IncCounter(MetricCmdAddDeleteSuccessL1)
+	metrics.IncCounter(MetricCmdAddReplaceStoredL1)
 	metrics.IncCounter(MetricCmdAddStored)
 
 	return l.res.Add(req.Opaque, req.Quiet)
@@ -156,26 +144,22 @@ func (l *L1L2BatchOrca) Replace(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdReplaceStoredL2)
 
-	// Invalidate the entry in L1 for batch replaces.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdReplaceDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Replace the entry in L1.
+	req.Quiet = false
+	metrics.IncCounter(MetricCmdReplaceReplaceL1)
+	if err := l.l1.Replace(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdReplaceDeleteMissesL1)
+			// For a replace not stored in L1, there's no problem.
+			// There is no hot data to replace
+			metrics.IncCounter(MetricCmdReplaceReplaceNotStoredL1)
 		} else {
-			metrics.IncCounter(MetricCmdReplaceDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdReplaceReplaceErrorsL1)
 			metrics.IncCounter(MetricCmdReplaceErrors)
 			return err
 		}
 	}
 
-	metrics.IncCounter(MetricCmdReplaceDeleteSuccessL1)
+	metrics.IncCounter(MetricCmdReplaceReplaceStoredL1)
 	metrics.IncCounter(MetricCmdReplaceStored)
 
 	return l.res.Replace(req.Opaque, req.Quiet)

@@ -87,10 +87,10 @@ var (
 	MetricCmdSetErrorsL2  = metrics.AddCounter("cmd_set_errors_l2")
 
 	// Batch L1L2 set metrics
-	MetricCmdSetDeleteL1        = metrics.AddCounter("cmd_set_delete_l1")
-	MetricCmdSetDeleteMissesL1  = metrics.AddCounter("cmd_set_delete_misses_l1")
-	MetricCmdSetDeleteErrorsL1  = metrics.AddCounter("cmd_set_delete_errors_l1")
-	MetricCmdSetDeleteSuccessL1 = metrics.AddCounter("cmd_set_delete_success_l1")
+	MetricCmdSetReplaceL1          = metrics.AddCounter("cmd_set_replace_l1")
+	MetricCmdSetReplaceNotStoredL1 = metrics.AddCounter("cmd_set_replace_not_stored_l1")
+	MetricCmdSetReplaceErrorsL1    = metrics.AddCounter("cmd_set_replace_errors_l1")
+	MetricCmdSetReplaceStoredL1    = metrics.AddCounter("cmd_set_replace_stored_l1")
 
 	MetricCmdAdd            = metrics.AddCounter("cmd_add")
 	MetricCmdAddL1          = metrics.AddCounter("cmd_add_l1")
@@ -106,10 +106,10 @@ var (
 	MetricCmdAddErrorsL2    = metrics.AddCounter("cmd_add_errors_l2")
 
 	// Batch L1L2 add metrics
-	MetricCmdAddDeleteL1        = metrics.AddCounter("cmd_add_delete_l1")
-	MetricCmdAddDeleteMissesL1  = metrics.AddCounter("cmd_add_delete_misses_l1")
-	MetricCmdAddDeleteErrorsL1  = metrics.AddCounter("cmd_add_delete_errors_l1")
-	MetricCmdAddDeleteSuccessL1 = metrics.AddCounter("cmd_add_delete_success_l1")
+	MetricCmdAddReplaceL1          = metrics.AddCounter("cmd_add_replace_l1")
+	MetricCmdAddReplaceNotStoredL1 = metrics.AddCounter("cmd_add_replace_not_stored_l1")
+	MetricCmdAddReplaceErrorsL1    = metrics.AddCounter("cmd_add_replace_errors_l1")
+	MetricCmdAddReplaceStoredL1    = metrics.AddCounter("cmd_add_replace_stored_l1")
 
 	MetricCmdReplace            = metrics.AddCounter("cmd_replace")
 	MetricCmdReplaceL1          = metrics.AddCounter("cmd_replace_l1")
@@ -125,10 +125,10 @@ var (
 	MetricCmdReplaceErrorsL2    = metrics.AddCounter("cmd_replace_errors_l2")
 
 	// Batch L1L2 replace metrics
-	MetricCmdReplaceDeleteL1        = metrics.AddCounter("cmd_replace_delete_l1")
-	MetricCmdReplaceDeleteMissesL1  = metrics.AddCounter("cmd_replace_delete_misses_l1")
-	MetricCmdReplaceDeleteErrorsL1  = metrics.AddCounter("cmd_replace_delete_errors_l1")
-	MetricCmdReplaceDeleteSuccessL1 = metrics.AddCounter("cmd_replace_delete_success_l1")
+	MetricCmdReplaceReplaceL1          = metrics.AddCounter("cmd_replace_replace_l1")
+	MetricCmdReplaceReplaceNotStoredL1 = metrics.AddCounter("cmd_replace_replace_not_stored_l1")
+	MetricCmdReplaceReplaceErrorsL1    = metrics.AddCounter("cmd_replace_replace_errors_l1")
+	MetricCmdReplaceReplaceStoredL1    = metrics.AddCounter("cmd_replace_replace_stored_l1")
 
 	MetricCmdDelete         = metrics.AddCounter("cmd_delete")
 	MetricCmdDeleteL1       = metrics.AddCounter("cmd_delete_l1")
