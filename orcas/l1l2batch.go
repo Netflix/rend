@@ -15,6 +15,8 @@
 package orcas
 
 import (
+	"log"
+
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
@@ -253,26 +255,25 @@ func (l *L1L2BatchOrca) Touch(req common.TouchRequest) error {
 	}
 	metrics.IncCounter(MetricCmdTouchHitsL2)
 
-	// Invalidate the entry in L1 for batch touches.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdTouchDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Try touching in L1 to touch hot data. I'd avoid doing anything in L1 here
+	// but it can be a problem if someone decides to touch data down instead of
+	// up to let it naturally expire. If I don't touch or delete in L1 then data
+	// in L1 might live longer. Touching keeps hot data hot, while delete is
+	// more disruptive.
+	metrics.IncCounter(MetricCmdTouchTouchL1)
+	if err := l.l1.Touch(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdTouchDeleteMissesL1)
+			// For a touch miss in L1, there's no problem.
+			metrics.IncCounter(MetricCmdTouchTouchMissesL1)
 		} else {
-			metrics.IncCounter(MetricCmdTouchDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdTouchTouchErrorsL1)
 			metrics.IncCounter(MetricCmdTouchErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdTouchTouchHitsL1)
 	}
 
-	metrics.IncCounter(MetricCmdTouchDeleteSuccessL1)
 	metrics.IncCounter(MetricCmdTouchHits)
 
 	return l.res.Touch(req.Opaque)
@@ -406,6 +407,7 @@ func (l *L1L2BatchOrca) Get(req common.GetRequest) error {
 
 func (l *L1L2BatchOrca) GetE(req common.GetRequest) error {
 	// The L1/L2 batch does not support getE, only L1Only does.
+	log.Println("[WARN] Use of GetE in L1L2 Batch orchestrator")
 	return common.ErrUnknownCmd
 }
 
@@ -442,25 +444,25 @@ func (l *L1L2BatchOrca) Gat(req common.GATRequest) error {
 
 		// Success finding and touching the data in L2, but still need to make
 		// sure that the data is *not* in L1 by invalidating it.
-		delreq := common.DeleteRequest{
+		touchreq := common.TouchRequest{
 			Key:    req.Key,
 			Opaque: req.Opaque,
 		}
 
-		metrics.IncCounter(MetricCmdGatDeleteL1)
-		if err := l.l1.Delete(delreq); err != nil {
+		// Try touching in L1 to touch hot data. See touch impl for reasoning.
+		metrics.IncCounter(MetricCmdGatTouchL1)
+		if err := l.l1.Touch(touchreq); err != nil {
 			if err == common.ErrKeyNotFound {
-				// For a delete miss in L1, there's no problem.
-				// The state we want to exist is already in place.
-				metrics.IncCounter(MetricCmdGatDeleteMissesL1)
+				// For a touch miss in L1, there's no problem.
+				metrics.IncCounter(MetricCmdGatTouchMissesL1)
 			} else {
-				metrics.IncCounter(MetricCmdGatDeleteErrorsL1)
+				metrics.IncCounter(MetricCmdGatTouchErrorsL1)
 				metrics.IncCounter(MetricCmdGatErrors)
 				return err
 			}
+		} else {
+			metrics.IncCounter(MetricCmdGatTouchHitsL1)
 		}
-
-		metrics.IncCounter(MetricCmdGatDeleteSuccessL1)
 
 		// overall operation succeeded
 		metrics.IncCounter(MetricCmdGatHits)

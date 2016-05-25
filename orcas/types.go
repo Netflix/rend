@@ -157,10 +157,10 @@ var (
 	MetricCmdTouchErrorsL2 = metrics.AddCounter("cmd_touch_errors_l2")
 
 	// Batch L1L2 touch metrics
-	MetricCmdTouchDeleteL1        = metrics.AddCounter("cmd_touch_delete_l1")
-	MetricCmdTouchDeleteMissesL1  = metrics.AddCounter("cmd_touch_delete_misses_l1")
-	MetricCmdTouchDeleteErrorsL1  = metrics.AddCounter("cmd_touch_delete_errors_l1")
-	MetricCmdTouchDeleteSuccessL1 = metrics.AddCounter("cmd_touch_delete_success_l1")
+	MetricCmdTouchTouchL1       = metrics.AddCounter("cmd_touch_touch_l1")
+	MetricCmdTouchTouchMissesL1 = metrics.AddCounter("cmd_touch_touch_misses_l1")
+	MetricCmdTouchTouchErrorsL1 = metrics.AddCounter("cmd_touch_touch_errors_l1")
+	MetricCmdTouchTouchHitsL1   = metrics.AddCounter("cmd_touch_touch_hits_l1")
 
 	MetricCmdGat         = metrics.AddCounter("cmd_gat")
 	MetricCmdGatL1       = metrics.AddCounter("cmd_gat_l1")
@@ -185,11 +185,11 @@ var (
 	MetricCmdGatSetErrorsL2    = metrics.AddCounter("cmd_gat_set_errors_l2")
 	MetricCmdGatSetSuccessL2   = metrics.AddCounter("cmd_gat_set_success_l2")
 
-	// Batch L1L2 GAT metrics
-	MetricCmdGatDeleteL1        = metrics.AddCounter("cmd_gat_delete_l1")
-	MetricCmdGatDeleteMissesL1  = metrics.AddCounter("cmd_gat_delete_misses_l1")
-	MetricCmdGatDeleteErrorsL1  = metrics.AddCounter("cmd_gat_delete_errors_l1")
-	MetricCmdGatDeleteSuccessL1 = metrics.AddCounter("cmd_gat_delete_success_l1")
+	// Batch L1L2 gat metrics
+	MetricCmdGatTouchL1       = metrics.AddCounter("cmd_gat_touch_l1")
+	MetricCmdGatTouchMissesL1 = metrics.AddCounter("cmd_gat_touch_misses_l1")
+	MetricCmdGatTouchErrorsL1 = metrics.AddCounter("cmd_gat_touch_errors_l1")
+	MetricCmdGatTouchHitsL1   = metrics.AddCounter("cmd_gat_touch_hits_l1")
 
 	MetricCmdUnknown = metrics.AddCounter("cmd_unknown")
 	MetricCmdNoop    = metrics.AddCounter("cmd_noop")
