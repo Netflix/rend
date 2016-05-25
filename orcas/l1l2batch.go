@@ -15,6 +15,8 @@
 package orcas
 
 import (
+	"log"
+
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
@@ -50,26 +52,24 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 	}
 	metrics.IncCounter(MetricCmdSetSuccessL2)
 
-	// Invalidate the entry in L1 for batch sets.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdSetDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Replace the entry in L1.
+	req.Quiet = false
+	metrics.IncCounter(MetricCmdSetReplaceL1)
+	if err := l.l1.Replace(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdSetDeleteMissesL1)
+			// For a replace not stored in L1, there's no problem.
+			// There is no hot data to replace
+			metrics.IncCounter(MetricCmdSetReplaceNotStoredL1)
 		} else {
-			metrics.IncCounter(MetricCmdSetDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdSetReplaceErrorsL1)
 			metrics.IncCounter(MetricCmdSetErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdSetReplaceStoredL1)
 	}
 
-	metrics.IncCounter(MetricCmdSetDeleteSuccessL1)
+	metrics.IncCounter(MetricCmdSetSuccess)
 
 	return l.res.Set(req.Opaque, req.Quiet)
 }
@@ -100,31 +100,23 @@ func (l *L1L2BatchOrca) Add(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdAddStoredL2)
 
-	// Invalidate the entry in L1 for batch adds. This might not make sense at
-	// first, but does in the context of concurrent requests. We want anything
-	// that is successfully added to the L2 to be gone from L1, regardless of
-	// what else is going on outside the current request. If a concurrent request
-	// completes between L2 and L1 in the non-batch endpoint, we still maintain
-	// correctness, albeit a bit slower.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdAddDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Replace the entry in L1.
+	req.Quiet = false
+	metrics.IncCounter(MetricCmdAddReplaceL1)
+	if err := l.l1.Replace(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdAddDeleteMissesL1)
+			// For a replace not stored in L1, there's no problem.
+			// There is no hot data to replace
+			metrics.IncCounter(MetricCmdAddReplaceNotStoredL1)
 		} else {
-			metrics.IncCounter(MetricCmdAddDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdAddReplaceErrorsL1)
 			metrics.IncCounter(MetricCmdAddErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdAddReplaceStoredL1)
 	}
 
-	metrics.IncCounter(MetricCmdAddDeleteSuccessL1)
 	metrics.IncCounter(MetricCmdAddStored)
 
 	return l.res.Add(req.Opaque, req.Quiet)
@@ -156,26 +148,23 @@ func (l *L1L2BatchOrca) Replace(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdReplaceStoredL2)
 
-	// Invalidate the entry in L1 for batch replaces.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdReplaceDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Replace the entry in L1.
+	req.Quiet = false
+	metrics.IncCounter(MetricCmdReplaceReplaceL1)
+	if err := l.l1.Replace(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdReplaceDeleteMissesL1)
+			// For a replace not stored in L1, there's no problem.
+			// There is no hot data to replace
+			metrics.IncCounter(MetricCmdReplaceReplaceNotStoredL1)
 		} else {
-			metrics.IncCounter(MetricCmdReplaceDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdReplaceReplaceErrorsL1)
 			metrics.IncCounter(MetricCmdReplaceErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdReplaceReplaceStoredL1)
 	}
 
-	metrics.IncCounter(MetricCmdReplaceDeleteSuccessL1)
 	metrics.IncCounter(MetricCmdReplaceStored)
 
 	return l.res.Replace(req.Opaque, req.Quiet)
@@ -269,26 +258,25 @@ func (l *L1L2BatchOrca) Touch(req common.TouchRequest) error {
 	}
 	metrics.IncCounter(MetricCmdTouchHitsL2)
 
-	// Invalidate the entry in L1 for batch touches.
-	delreq := common.DeleteRequest{
-		Key:    req.Key,
-		Opaque: req.Opaque,
-	}
-
-	metrics.IncCounter(MetricCmdTouchDeleteL1)
-	if err := l.l1.Delete(delreq); err != nil {
+	// Try touching in L1 to touch hot data. I'd avoid doing anything in L1 here
+	// but it can be a problem if someone decides to touch data down instead of
+	// up to let it naturally expire. If I don't touch or delete in L1 then data
+	// in L1 might live longer. Touching keeps hot data hot, while delete is
+	// more disruptive.
+	metrics.IncCounter(MetricCmdTouchTouchL1)
+	if err := l.l1.Touch(req); err != nil {
 		if err == common.ErrKeyNotFound {
-			// For a delete miss in L1, there's no problem.
-			// The state we want to exist is already in place.
-			metrics.IncCounter(MetricCmdTouchDeleteMissesL1)
+			// For a touch miss in L1, there's no problem.
+			metrics.IncCounter(MetricCmdTouchTouchMissesL1)
 		} else {
-			metrics.IncCounter(MetricCmdTouchDeleteErrorsL1)
+			metrics.IncCounter(MetricCmdTouchTouchErrorsL1)
 			metrics.IncCounter(MetricCmdTouchErrors)
 			return err
 		}
+	} else {
+		metrics.IncCounter(MetricCmdTouchTouchHitsL1)
 	}
 
-	metrics.IncCounter(MetricCmdTouchDeleteSuccessL1)
 	metrics.IncCounter(MetricCmdTouchHits)
 
 	return l.res.Touch(req.Opaque)
@@ -422,6 +410,7 @@ func (l *L1L2BatchOrca) Get(req common.GetRequest) error {
 
 func (l *L1L2BatchOrca) GetE(req common.GetRequest) error {
 	// The L1/L2 batch does not support getE, only L1Only does.
+	log.Println("[WARN] Use of GetE in L1L2 Batch orchestrator")
 	return common.ErrUnknownCmd
 }
 
@@ -458,25 +447,25 @@ func (l *L1L2BatchOrca) Gat(req common.GATRequest) error {
 
 		// Success finding and touching the data in L2, but still need to make
 		// sure that the data is *not* in L1 by invalidating it.
-		delreq := common.DeleteRequest{
+		touchreq := common.TouchRequest{
 			Key:    req.Key,
 			Opaque: req.Opaque,
 		}
 
-		metrics.IncCounter(MetricCmdGatDeleteL1)
-		if err := l.l1.Delete(delreq); err != nil {
+		// Try touching in L1 to touch hot data. See touch impl for reasoning.
+		metrics.IncCounter(MetricCmdGatTouchL1)
+		if err := l.l1.Touch(touchreq); err != nil {
 			if err == common.ErrKeyNotFound {
-				// For a delete miss in L1, there's no problem.
-				// The state we want to exist is already in place.
-				metrics.IncCounter(MetricCmdGatDeleteMissesL1)
+				// For a touch miss in L1, there's no problem.
+				metrics.IncCounter(MetricCmdGatTouchMissesL1)
 			} else {
-				metrics.IncCounter(MetricCmdGatDeleteErrorsL1)
+				metrics.IncCounter(MetricCmdGatTouchErrorsL1)
 				metrics.IncCounter(MetricCmdGatErrors)
 				return err
 			}
+		} else {
+			metrics.IncCounter(MetricCmdGatTouchHitsL1)
 		}
-
-		metrics.IncCounter(MetricCmdGatDeleteSuccessL1)
 
 		// overall operation succeeded
 		metrics.IncCounter(MetricCmdGatHits)
