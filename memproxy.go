@@ -160,7 +160,7 @@ func main() {
 			o = orcas.LockedWithExisting(o, lockset)
 		}
 
-		go server.ListenAndServe(l, server.Default, orcas.L1L2Batch, h1, h2)
+		go server.ListenAndServe(l, server.Default, o, h1, h2)
 	}
 
 	// Block forever
