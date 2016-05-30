@@ -189,7 +189,7 @@ func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error
 			if VERBOSE {
 				fmt.Println("End of batch response")
 			}
-			return [][]byte{}, nil
+			return ret, nil
 		}
 
 		// then read the value
@@ -203,8 +203,6 @@ func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error
 
 		ret = append(ret, []byte(response))
 	}
-
-	return ret, nil
 }
 
 func (t TextProt) GAT(rw *bufio.ReadWriter, key []byte) ([]byte, error) {

@@ -55,7 +55,7 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handl
 		}
 
 	default:
-		panic(fmt.Sprintf("Unsupported server listen type: %s", l.Type))
+		log.Panicf("Unsupported server listen type: %v", l.Type)
 	}
 
 	for {
