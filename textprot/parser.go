@@ -65,7 +65,7 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 			return nil, common.RequestGet, common.ErrBadRequest
 		}
 
-		keys := make([][]byte, 0)
+		var keys [][]byte
 		for _, key := range clParts[1:] {
 			keys = append(keys, []byte(key))
 		}

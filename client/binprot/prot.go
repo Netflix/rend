@@ -46,8 +46,8 @@ func consumeResponseE(r *bufio.Reader) ([]byte, uint32, uint32, error) {
 	buf := make([]byte, res.BodyLen)
 	io.ReadFull(r, buf)
 
-	var flags uint32 = 0
-	var expiration uint32 = 0
+	var flags uint32
+	var expiration uint32
 	if res.ExtraLen >= 4 {
 		flags = binary.BigEndian.Uint32(buf[0:4])
 	}
@@ -124,7 +124,7 @@ func consumeResponseCheckOpaque(r *bufio.Reader, opq int) ([]byte, error) {
 func consumeBatchResponse(r *bufio.Reader) ([][]byte, error) {
 	opcode := uint8(Get)
 	var apperr error
-	ret := make([][]byte, 0)
+	var ret [][]byte
 
 	for opcode != Noop {
 		res, err := readRes(r)

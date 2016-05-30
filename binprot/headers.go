@@ -61,7 +61,7 @@ type ResponseHeader struct {
 func makeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int) RequestHeader {
 	rh := reqHeadPool.Get().(RequestHeader)
 	rh.Magic = MagicRequest
-	rh.Opcode = uint8(opcode)
+	rh.Opcode = opcode
 	rh.KeyLength = uint16(keyLength)
 	rh.ExtraLength = uint8(extraLength)
 	rh.DataType = uint8(0)

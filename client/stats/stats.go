@@ -136,7 +136,7 @@ func PrintHist(data []int) {
 	}
 
 	// Scan downward over the histogram printing line by line
-	hist := make([]rune, 0)
+	var hist []rune
 	for i := maxHeight; i >= 0; i-- {
 		for j := 0; j < numBuckets; j++ {
 			if i == 0 {

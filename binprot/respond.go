@@ -153,9 +153,9 @@ func (b BinaryResponder) Get(response common.GetResponse) error {
 			return b.Error(response.Opaque, common.RequestGet, common.ErrKeyNotFound)
 		}
 		return nil
-	} else {
-		return getCommon(b.writer, response, OpcodeGet)
 	}
+
+	return getCommon(b.writer, response, OpcodeGet)
 }
 
 func (b BinaryResponder) GetEnd(opaque uint32, noopEnd bool) error {
@@ -174,9 +174,9 @@ func (b BinaryResponder) GAT(response common.GetResponse) error {
 			return b.Error(response.Opaque, common.RequestGat, common.ErrKeyNotFound)
 		}
 		return nil
-	} else {
-		return getCommon(b.writer, response, OpcodeGat)
 	}
+
+	return getCommon(b.writer, response, OpcodeGat)
 }
 
 func (b BinaryResponder) GetE(response common.GetEResponse) error {
@@ -185,19 +185,20 @@ func (b BinaryResponder) GetE(response common.GetEResponse) error {
 			return b.Error(response.Opaque, common.RequestGetE, common.ErrKeyNotFound)
 		}
 		return nil
-	} else {
-		// total body length = extras (flags & exptime, 8 bytes) + data length
-		totalBodyLength := len(response.Data) + 8
-		writeSuccessResponseHeader(b.writer, common.RequestGetE, 0, 8, totalBodyLength, response.Opaque, false)
-		binary.Write(b.writer, binary.BigEndian, response.Flags)
-		binary.Write(b.writer, binary.BigEndian, response.Exptime)
-		b.writer.Write(response.Data)
-		if err := b.writer.Flush(); err != nil {
-			return err
-		}
-		metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(totalBodyLength))
-		return nil
 	}
+
+	// total body length = extras (flags & exptime, 8 bytes) + data length
+	totalBodyLength := len(response.Data) + 8
+	writeSuccessResponseHeader(b.writer, common.RequestGetE, 0, 8, totalBodyLength, response.Opaque, false)
+	binary.Write(b.writer, binary.BigEndian, response.Flags)
+	binary.Write(b.writer, binary.BigEndian, response.Exptime)
+	b.writer.Write(response.Data)
+
+	if err := b.writer.Flush(); err != nil {
+		return err
+	}
+	metrics.IncCounterBy(common.MetricBytesWrittenRemote, uint64(totalBodyLength))
+	return nil
 }
 
 func (b BinaryResponder) Delete(opaque uint32) error {
@@ -281,11 +282,11 @@ func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraL
 	header := resHeadPool.Get().(ResponseHeader)
 
 	header.Magic = MagicResponse
-	header.Opcode = uint8(opcode)
+	header.Opcode = opcode
 	header.KeyLength = uint16(keyLength)
 	header.ExtraLength = uint8(extraLength)
 	header.DataType = uint8(0)
-	header.Status = uint16(StatusSuccess)
+	header.Status = StatusSuccess
 	header.TotalBodyLength = uint32(totalBodyLength)
 	header.OpaqueToken = opaque
 	header.CASToken = uint64(0)

@@ -43,13 +43,13 @@ func getNewLocks(multipleReaders bool, concurrency uint8) (slot uint32) {
 	rlocks[slot] = make([]sync.Locker, 1<<concurrency)
 
 	if multipleReaders {
-		for idx, _ := range locks[slot] {
+		for idx := range locks[slot] {
 			temp := &sync.RWMutex{}
 			locks[slot][idx] = temp
 			rlocks[slot][idx] = temp.RLocker()
 		}
 	} else {
-		for idx, _ := range locks[slot] {
+		for idx := range locks[slot] {
 			temp := &sync.Mutex{}
 			locks[slot][idx] = temp
 			rlocks[slot][idx] = temp
@@ -57,12 +57,6 @@ func getNewLocks(multipleReaders bool, concurrency uint8) (slot uint32) {
 	}
 
 	return
-}
-
-func verifyLocksExist(slot uint32) {
-	if cur := atomic.LoadUint32(&curslot); cur < slot {
-		panic("Asked for lock set that does not exist!")
-	}
 }
 
 type LockedOrca struct {
@@ -106,7 +100,9 @@ func Locked(oc OrcaConst, multipleReaders bool, concurrency uint8) (OrcaConst, u
 }
 
 func LockedWithExisting(oc OrcaConst, locksetID uint32) OrcaConst {
-	verifyLocksExist(locksetID)
+	if cur := atomic.LoadUint32(&curslot); cur < locksetID {
+		panic("Asked for lock set that does not exist!")
+	}
 
 	hashpool := &sync.Pool{
 		New: func() interface{} {
@@ -145,9 +141,9 @@ func (l *LockedOrca) getlock(key []byte, read bool) sync.Locker {
 
 	if read {
 		return l.rlocks[bucket]
-	} else {
-		return l.locks[bucket]
 	}
+
+	return l.locks[bucket]
 }
 
 func (l *LockedOrca) Set(req common.SetRequest) error {

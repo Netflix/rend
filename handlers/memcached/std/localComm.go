@@ -48,11 +48,8 @@ func simpleCmdLocal(rw *bufio.ReadWriter) error {
 	// Read in the message bytes from the body
 	n, err := rw.Discard(int(resHeader.TotalBodyLength))
 	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func getLocal(rw *bufio.ReadWriter, readExp bool) (data []byte, flags, exp uint32, err error) {

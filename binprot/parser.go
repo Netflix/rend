@@ -280,9 +280,9 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 }
 
 func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {
-	keys := make([][]byte, 0)
-	opaques := make([]uint32, 0)
-	quiet := make([]bool, 0)
+	var keys [][]byte
+	var opaques []uint32
+	var quiet []bool
 	var noopOpaque uint32
 	var noopEnd bool
 
@@ -343,9 +343,9 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 }
 
 func readBatchGetE(r io.Reader, header RequestHeader) (common.GetRequest, error) {
-	keys := make([][]byte, 0)
-	opaques := make([]uint32, 0)
-	quiet := make([]bool, 0)
+	var keys [][]byte
+	var opaques []uint32
+	var quiet []bool
 	var noopOpaque uint32
 	var noopEnd bool
 

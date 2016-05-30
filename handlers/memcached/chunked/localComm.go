@@ -31,8 +31,8 @@ func getAndTouchMetadata(rw *bufio.ReadWriter, key []byte, exptime uint32) ([]by
 	if err := binprot.WriteGATCmd(rw, metaKey, exptime); err != nil {
 		return nil, emptyMeta, err
 	}
-	metadata, err := getMetadataCommon(rw)
-	return metaKey, metadata, err
+	metaData, err := getMetadataCommon(rw)
+	return metaKey, metaData, err
 }
 
 func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
@@ -40,8 +40,8 @@ func getMetadata(rw *bufio.ReadWriter, key []byte) ([]byte, metadata, error) {
 	if err := binprot.WriteGetCmd(rw, metaKey); err != nil {
 		return nil, emptyMeta, err
 	}
-	metadata, err := getMetadataCommon(rw)
-	return metaKey, metadata, err
+	metaData, err := getMetadataCommon(rw)
+	return metaKey, metaData, err
 }
 
 func getMetadataCommon(rw *bufio.ReadWriter) (metadata, error) {

@@ -52,7 +52,7 @@ func main() {
 	// create and fill key channels to drive workers
 	perChan := int(math.Ceil(float64(f.NumOps) / float64(f.NumWorkers)))
 	chans := make([]chan []byte, f.NumWorkers)
-	for i, _ := range chans {
+	for i := range chans {
 		chans[i] = make(chan []byte, perChan)
 	}
 	fillKeys(chans)

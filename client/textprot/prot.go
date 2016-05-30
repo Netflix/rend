@@ -173,7 +173,7 @@ func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error
 
 	rw.Flush()
 
-	ret := make([][]byte, 0)
+	var ret [][]byte
 
 	for {
 		// read the header line

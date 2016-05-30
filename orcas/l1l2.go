@@ -346,9 +346,9 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 
 	var err error
 	//var lastres common.GetResponse
-	l2keys := make([][]byte, 0)
-	l2opaques := make([]uint32, 0)
-	l2quiets := make([]bool, 0)
+	var l2keys [][]byte
+	var l2opaques []uint32
+	var l2quiets []bool
 
 	// Read all the responses back from L1.
 	// The contract is that the resChan will have GetResponse's for get hits and misses,
@@ -425,9 +425,9 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 					if err := l.l1.Set(setreq); err != nil {
 						metrics.IncCounter(MetricCmdGetSetErrorsL1)
 						return err
-					} else {
-						metrics.IncCounter(MetricCmdGetSetSucessL1)
 					}
+
+					metrics.IncCounter(MetricCmdGetSetSucessL1)
 
 					// overall operation is considered a hit
 					metrics.IncCounter(MetricCmdGetHits)
