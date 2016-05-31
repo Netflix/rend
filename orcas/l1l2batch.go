@@ -340,6 +340,14 @@ func (l *L1L2BatchOrca) Get(req common.GetRequest) error {
 		}
 	}
 
+	// leave early on all hits
+	if len(l2keys) == 0 {
+		if err != nil {
+			return err
+		}
+		return l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
+	}
+
 	// Time for the same dance with L2
 	req = common.GetRequest{
 		Keys:       l2keys,
