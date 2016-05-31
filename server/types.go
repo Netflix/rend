@@ -57,8 +57,8 @@ var (
 	HistReplace = metrics.AddHistogram("replace", false)
 	HistDelete  = metrics.AddHistogram("delete", false)
 	HistTouch   = metrics.AddHistogram("touch", false)
-	HistGet     = metrics.AddHistogram("get", true) // sampled
-	HistGat     = metrics.AddHistogram("gat", true) // sampled
+	HistGet     = metrics.AddHistogram("get", false) // not sampled until configurable
+	HistGat     = metrics.AddHistogram("gat", false) // not sampled until configurable
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )
