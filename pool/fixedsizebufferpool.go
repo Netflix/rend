@@ -12,11 +12,11 @@ type FixedSizeBufferPool struct {
 	bufsize  int
 	count    uint64
 	lenmask  uint64
-	padding1 [7]uint64
+	_        [7]uint64
 	readIdx  uint64
-	padding2 [7]uint64
+	_        [7]uint64
 	writeIdx uint64
-	padding3 [7]uint64
+	_        [7]uint64
 }
 
 // NewFixedSizeBufferPool creates a pool of buffers that can be shared among
