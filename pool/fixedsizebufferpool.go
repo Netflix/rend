@@ -31,7 +31,7 @@ func NewFixedSizeBufferPool(bufsize int, scale uint8) *FixedSizeBufferPool {
 		bufsize: bufsize,
 		count:   count,
 		lenmask: count - 1,
-		readIdx: 0xFFFFFFFFFFFFFFFF, // start at "-1" to rollover to 0
+		readIdx: 0xFFFFFFFFFFFFFFFF, // start at "-1" to overflow to 0
 	}
 }
 
@@ -48,7 +48,6 @@ func (p *FixedSizeBufferPool) Get() ([]byte, uint64) {
 
 	// Wait for writers to catch up enough before returning
 	for atomic.LoadUint64(&p.writeIdx)+p.count <= idx {
-		println(atomic.LoadUint64(&p.writeIdx))
 		runtime.Gosched()
 	}
 
