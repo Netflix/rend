@@ -37,8 +37,9 @@ import (
 )
 
 type metric struct {
-	d  time.Duration
-	op common.Op
+	d    time.Duration
+	op   common.Op
+	miss bool
 }
 
 var (
@@ -94,7 +95,11 @@ func main() {
 		protString = "text"
 	}
 
-	fmt.Printf("Performing %v operations total with:\n\t%v communication goroutines\n\tcommands %v\n\tover the %v protocol\n\n", f.NumOps, f.NumWorkers, usedCmds, protString)
+	fmt.Printf("Performing %v operations total with:\n"+
+		"\t%v communication goroutines\n"+
+		"\tcommands %v\n"+
+		"\tover the %v protocol\n\n",
+		f.NumOps, f.NumWorkers, usedCmds, protString)
 
 	tasks := make(chan *common.Task)
 	taskGens := new(sync.WaitGroup)
@@ -142,12 +147,22 @@ func main() {
 		// consolidate some metrics
 		// bucketize the timings based on operation
 		// print min, max, average, 50%, 90%
-		cons := make(map[common.Op][]int)
+		hits := make(map[common.Op][]int)
+		misses := make(map[common.Op][]int)
+
 		for m := range metrics {
-			if _, ok := cons[m.op]; ok {
-				cons[m.op] = append(cons[m.op], int(m.d.Nanoseconds()))
+			if m.miss {
+				if _, ok := misses[m.op]; ok {
+					misses[m.op] = append(misses[m.op], int(m.d.Nanoseconds()))
+				} else {
+					misses[m.op] = []int{int(m.d.Nanoseconds())}
+				}
 			} else {
-				cons[m.op] = []int{int(m.d.Nanoseconds())}
+				if _, ok := hits[m.op]; ok {
+					hits[m.op] = append(hits[m.op], int(m.d.Nanoseconds()))
+				} else {
+					hits[m.op] = []int{int(m.d.Nanoseconds())}
+				}
 			}
 
 			metricPool.Put(m)
@@ -158,12 +173,36 @@ func main() {
 				continue
 			}
 
-			times := cons[op]
+			times := hits[op]
 			sort.Ints(times)
 			s := stats.Get(times)
 
 			fmt.Println()
-			fmt.Println(op.String())
+			fmt.Printf("%s hits (n = %d)\n", op.String(), len(times))
+			fmt.Printf("Min: %fms\n", s.Min)
+			fmt.Printf("Max: %fms\n", s.Max)
+			fmt.Printf("Avg: %fms\n", s.Avg)
+			fmt.Printf("p50: %fms\n", s.P50)
+			fmt.Printf("p75: %fms\n", s.P75)
+			fmt.Printf("p90: %fms\n", s.P90)
+			fmt.Printf("p95: %fms\n", s.P95)
+			fmt.Printf("p99: %fms\n", s.P99)
+			fmt.Println()
+
+			stats.PrintHist(times)
+
+			times = misses[op]
+
+			if len(times) == 0 {
+				fmt.Printf("\nNo %s misses\n\n", op.String())
+				continue
+			}
+
+			sort.Ints(times)
+			s = stats.Get(times)
+
+			fmt.Println()
+			fmt.Printf("%s misses (n = %d)\n", op.String(), len(times))
 			fmt.Printf("Min: %fms\n", s.Min)
 			fmt.Printf("Max: %fms\n", s.Max)
 			fmt.Printf("Avg: %fms\n", s.Avg)
@@ -251,7 +290,7 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 
 		if err != nil {
 			// don't print get misses, adds not stored, and replaces not stored
-			if !(err == binprot.ErrKeyNotFound || err == binprot.ErrKeyExists) {
+			if !isMiss(err) {
 				fmt.Printf("Error performing operation %s on key %s: %s\n", item.Cmd, item.Key, err.Error())
 			}
 			// if the socket was closed, stop. Otherwise keep on hammering.
@@ -263,6 +302,7 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		m := metricPool.Get().(metric)
 		m.d = time.Since(start)
 		m.op = item.Cmd
+		m.miss = isMiss(err)
 		metrics <- m
 
 		taskPool.Put(item)
@@ -270,6 +310,10 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 
 	conn.Close()
 	comms.Done()
+}
+
+func isMiss(err error) bool {
+	return err == common.ErrKeyNotFound || err == common.ErrKeyExists || err == common.ErrItemNotStored
 }
 
 func batchkeys(r *rand.Rand, key []byte) [][]byte {

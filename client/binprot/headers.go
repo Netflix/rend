@@ -18,6 +18,8 @@ import (
 	"errors"
 	"io"
 	"sync"
+
+	"github.com/netflix/rend/client/common"
 )
 
 const (
@@ -154,56 +156,38 @@ func readRes(r io.Reader) (res, error) {
 	return res, nil
 }
 
-var (
-	ErrKeyNotFound   = errors.New("Key not found")
-	ErrKeyExists     = errors.New("Key exists")
-	ErrValTooLarge   = errors.New("Value too large")
-	ErrInvalidArgs   = errors.New("Invalid arguments")
-	ErrItemNotStored = errors.New("Item not stored")
-	ErrIncDecInval   = errors.New("Incr/Decr on non-numeric value.")
-	ErrVBucket       = errors.New("The vbucket belongs to another server")
-	ErrAuth          = errors.New("Authentication error")
-	ErrAuthCont      = errors.New("Authentication continue")
-	ErrUnknownCmd    = errors.New("Unknown command")
-	ErrNoMem         = errors.New("Out of memory")
-	ErrNotSupported  = errors.New("Not supported")
-	ErrInternal      = errors.New("Internal error")
-	ErrBusy          = errors.New("Busy")
-	ErrTemp          = errors.New("Temporary failure")
-)
-
 func statusToError(status uint16) error {
 	switch status {
 	case uint16(0x01):
-		return ErrKeyNotFound
+		return common.ErrKeyNotFound
 	case uint16(0x02):
-		return ErrKeyExists
+		return common.ErrKeyExists
 	case uint16(0x03):
-		return ErrValTooLarge
+		return common.ErrValTooLarge
 	case uint16(0x04):
-		return ErrInvalidArgs
+		return common.ErrInvalidArgs
 	case uint16(0x05):
-		return ErrItemNotStored
+		return common.ErrItemNotStored
 	case uint16(0x06):
-		return ErrIncDecInval
+		return common.ErrIncDecInval
 	case uint16(0x07):
-		return ErrVBucket
+		return common.ErrVBucket
 	case uint16(0x08):
-		return ErrAuth
+		return common.ErrAuth
 	case uint16(0x09):
-		return ErrAuthCont
+		return common.ErrAuthCont
 	case uint16(0x81):
-		return ErrUnknownCmd
+		return common.ErrUnknownCmd
 	case uint16(0x82):
-		return ErrNoMem
+		return common.ErrNoMem
 	case uint16(0x83):
-		return ErrNotSupported
+		return common.ErrNotSupported
 	case uint16(0x84):
-		return ErrInternal
+		return common.ErrInternal
 	case uint16(0x85):
-		return ErrBusy
+		return common.ErrBusy
 	case uint16(0x86):
-		return ErrTemp
+		return common.ErrTemp
 	}
 
 	return nil
@@ -211,9 +195,9 @@ func statusToError(status uint16) error {
 
 func srsErr(err error) bool {
 	switch err {
-	case ErrKeyNotFound:
-	case ErrKeyExists:
-	case ErrItemNotStored:
+	case common.ErrKeyNotFound:
+	case common.ErrKeyExists:
+	case common.ErrItemNotStored:
 		return false
 	}
 

@@ -14,7 +14,10 @@
 
 package common
 
-import "bufio"
+import (
+	"bufio"
+	"errors"
+)
 
 type Prot interface {
 	// Yes, the abstraction is a little bit leaky, but the code
@@ -29,6 +32,24 @@ type Prot interface {
 	Delete(rw *bufio.ReadWriter, key []byte) error
 	Touch(rw *bufio.ReadWriter, key []byte) error
 }
+
+var (
+	ErrKeyNotFound   = errors.New("Key not found")
+	ErrKeyExists     = errors.New("Key exists")
+	ErrValTooLarge   = errors.New("Value too large")
+	ErrInvalidArgs   = errors.New("Invalid arguments")
+	ErrItemNotStored = errors.New("Item not stored")
+	ErrIncDecInval   = errors.New("Incr/Decr on non-numeric value.")
+	ErrVBucket       = errors.New("The vbucket belongs to another server")
+	ErrAuth          = errors.New("Authentication error")
+	ErrAuthCont      = errors.New("Authentication continue")
+	ErrUnknownCmd    = errors.New("Unknown command")
+	ErrNoMem         = errors.New("Out of memory")
+	ErrNotSupported  = errors.New("Not supported")
+	ErrInternal      = errors.New("Internal error")
+	ErrBusy          = errors.New("Busy")
+	ErrTemp          = errors.New("Temporary failure")
+)
 
 type Op int
 

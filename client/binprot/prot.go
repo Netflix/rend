@@ -58,11 +58,7 @@ func consumeResponseE(r *bufio.Reader) ([]byte, uint32, uint32, error) {
 
 	resPool.Put(res)
 
-	if apperr != nil && srsErr(apperr) {
-		return buf, flags, expiration, apperr
-	}
-
-	return buf, flags, expiration, err
+	return buf, flags, expiration, apperr
 }
 
 func consumeResponse(r *bufio.Reader) ([]byte, error) {
@@ -82,11 +78,7 @@ func consumeResponse(r *bufio.Reader) ([]byte, error) {
 
 	resPool.Put(res)
 
-	if apperr != nil && srsErr(apperr) {
-		return buf, apperr
-	}
-
-	return buf, err
+	return buf, apperr
 }
 
 func consumeResponseCheckOpaque(r *bufio.Reader, opq int) ([]byte, error) {
@@ -107,10 +99,6 @@ func consumeResponseCheckOpaque(r *bufio.Reader, opq int) ([]byte, error) {
 
 	resPool.Put(res)
 
-	if apperr != nil && srsErr(apperr) {
-		return buf, apperr
-	}
-
 	if res.Opaque != opaque {
 		return buf, ErrOpaqueMismatch{
 			expected: opaque,
@@ -118,7 +106,7 @@ func consumeResponseCheckOpaque(r *bufio.Reader, opq int) ([]byte, error) {
 		}
 	}
 
-	return buf, err
+	return buf, apperr
 }
 
 func consumeBatchResponse(r *bufio.Reader) ([][]byte, error) {
