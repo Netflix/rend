@@ -21,6 +21,7 @@ import (
 
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/pool"
 )
 
 const ReqHeaderLen = 24
@@ -73,11 +74,12 @@ func makeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int
 	return rh
 }
 
-var bufPool = &sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 24, 24)
-	},
-}
+const (
+	headerBufSize   = 24
+	headerPoolScale = 10
+)
+
+var bufPool = pool.NewFixedSizeBufferPool(headerBufSize, headerPoolScale)
 
 var resHeadPool = &sync.Pool{
 	New: func() interface{} {
@@ -101,17 +103,17 @@ var (
 )
 
 func readRequestHeader(r io.Reader) (RequestHeader, error) {
-	buf := bufPool.Get().([]byte)
+	buf, token := bufPool.Get()
 
 	br, err := io.ReadAtLeast(r, buf, ReqHeaderLen)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
-		bufPool.Put(buf)
+		bufPool.Put(token)
 		return emptyReqHeader, err
 	}
 
 	if buf[0] != MagicRequest {
-		bufPool.Put(buf)
+		bufPool.Put(token)
 		metrics.IncCounter(MetricBinaryRequestHeadersBadMagic)
 		return emptyReqHeader, ErrBadMagic
 	}
@@ -133,14 +135,14 @@ func readRequestHeader(r io.Reader) (RequestHeader, error) {
 	//rh.CASToken = binary.BigEndian.Uint64(buf[16:24])
 	rh.CASToken = 0
 
-	bufPool.Put(buf)
+	bufPool.Put(token)
 	metrics.IncCounter(MetricBinaryRequestHeadersParsed)
 
 	return rh, nil
 }
 
 func writeRequestHeader(w io.Writer, rh RequestHeader) error {
-	buf := bufPool.Get().([]byte)
+	buf, token := bufPool.Get()
 
 	buf[0] = rh.Magic
 	buf[1] = rh.Opcode
@@ -160,22 +162,22 @@ func writeRequestHeader(w io.Writer, rh RequestHeader) error {
 
 	n, err := w.Write(buf)
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
-	bufPool.Put(buf)
+	bufPool.Put(token)
 	return err
 }
 
 func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
-	buf := bufPool.Get().([]byte)
+	buf, token := bufPool.Get()
 
 	br, err := io.ReadAtLeast(r, buf, resHeaderLen)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
-		bufPool.Put(buf)
+		bufPool.Put(token)
 		return emptyResHeader, err
 	}
 
 	if buf[0] != MagicResponse {
-		bufPool.Put(buf)
+		bufPool.Put(token)
 		metrics.IncCounter(MetricBinaryResponseHeadersBadMagic)
 		return emptyResHeader, ErrBadMagic
 	}
@@ -195,14 +197,14 @@ func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	//rh.CASToken = binary.BigEndian.Uint64(buf[16:24])
 	rh.CASToken = 0
 
-	bufPool.Put(buf)
+	bufPool.Put(token)
 	metrics.IncCounter(MetricBinaryResponseHeadersParsed)
 
 	return rh, nil
 }
 
 func writeResponseHeader(w io.Writer, rh ResponseHeader) error {
-	buf := bufPool.Get().([]byte)
+	buf, token := bufPool.Get()
 
 	buf[0] = rh.Magic
 	buf[1] = rh.Opcode
@@ -221,6 +223,6 @@ func writeResponseHeader(w io.Writer, rh ResponseHeader) error {
 
 	n, err := w.Write(buf)
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
-	bufPool.Put(buf)
+	bufPool.Put(token)
 	return err
 }
