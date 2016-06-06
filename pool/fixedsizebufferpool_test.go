@@ -1,6 +1,7 @@
 package pool_test
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 
@@ -11,7 +12,7 @@ const (
 	poolBufSize  = 24
 	poolBufScale = 4
 	numWorkers   = 40
-	numOps       = 10000
+	numOps       = 100000
 )
 
 func TestFixedSizeBufferPool(t *testing.T) {
@@ -42,6 +43,14 @@ func worker(t *testing.T, id int, p *pool.FixedSizeBufferPool, start chan struct
 
 		for j := 1; j <= poolBufSize; j++ {
 			buf[j-1] = byte(id) + byte(j)
+		}
+
+		runtime.Gosched()
+
+		for j := 1; j <= poolBufSize; j++ {
+			if buf[j-1] != (byte(id) + byte(j)) {
+				t.Fatalf("Caught inconsistency in data: expected %d, got %d", byte(id)+byte(j), buf[j-1])
+			}
 		}
 
 		p.Put(bid)
