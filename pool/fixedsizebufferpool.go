@@ -37,7 +37,6 @@ func NewFixedSizeBufferPool(bufsize int, scale uint8) *FixedSizeBufferPool {
 
 func (p *FixedSizeBufferPool) Get() ([]byte, uint64) {
 	idx := atomic.AddUint64(&p.readIdx, 1)
-
 	realIdx := (idx & p.lenmask) * uint64(p.bufsize)
 
 	bufHeader := reflect.SliceHeader{
@@ -59,8 +58,7 @@ func (p *FixedSizeBufferPool) Get() ([]byte, uint64) {
 func (p *FixedSizeBufferPool) Put(idx uint64) {
 	// Get in line, waiting for the previous buffer to be put in before continuing
 	//
-	//
-	//    ______ note that this NOT is very important as we want to wait on NOT swapped
+	//    _ note that this ! is very important as we want to wait on NOT swapped
 	//   /
 	//  |
 	//  v

@@ -9,9 +9,9 @@ import (
 
 const (
 	poolBufSize  = 24
-	poolBufScale = 10
-	numWorkers   = 10
-	numOps       = 100000
+	poolBufScale = 4
+	numWorkers   = 40
+	numOps       = 10000
 )
 
 func TestFixedSizeBufferPool(t *testing.T) {
@@ -29,13 +29,13 @@ func TestFixedSizeBufferPool(t *testing.T) {
 	close(start)
 	end.Wait()
 
-	t.Log("Test done")
+	//t.Log("Test done")
 }
 
 func worker(t *testing.T, id int, p *pool.FixedSizeBufferPool, start chan struct{}, end *sync.WaitGroup) {
 	<-start
 
-	t.Logf("Worker %d started", id)
+	//t.Logf("Worker %d started", id)
 
 	for i := 0; i < numOps; i++ {
 		buf, bid := p.Get()
@@ -47,6 +47,6 @@ func worker(t *testing.T, id int, p *pool.FixedSizeBufferPool, start chan struct
 		p.Put(bid)
 	}
 
-	t.Logf("Worker %d done", id)
+	//t.Logf("Worker %d done", id)
 	end.Done()
 }
