@@ -109,6 +109,14 @@ const (
 	// RequestReplace will perform the same operations as set, but only if the key already exists
 	RequestReplace
 
+	// RequestAppend appends data to the end of the already existing data for a given key. Does not
+	// change the flags or TTL values even if they are given.
+	RequestAppend
+
+	// RequestPrepend appends data to the end of the already existing data for a given key. Does not
+	// change the flags or TTL values even if they are given.
+	RequestPrepend
+
 	// RequestDelete deletes a piece of data from all levels of cache
 	RequestDelete
 
@@ -140,6 +148,8 @@ type Responder interface {
 	Set(opaque uint32, quiet bool) error
 	Add(opaque uint32, quiet bool) error
 	Replace(opaque uint32, quiet bool) error
+	Append(opaque uint32, quiet bool) error
+	Prepend(opaque uint32, quiet bool) error
 	Get(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
 	GetE(response GetEResponse) error
