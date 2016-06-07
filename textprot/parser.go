@@ -60,6 +60,12 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 	case "replace":
 		return setRequest(t.reader, clParts, common.RequestReplace)
 
+	case "append":
+		return setRequest(t.reader, clParts, common.RequestAppend)
+
+	case "prepend":
+		return setRequest(t.reader, clParts, common.RequestPrepend)
+
 	case "get":
 		if len(clParts) < 2 {
 			return nil, common.RequestGet, common.ErrBadRequest

@@ -44,6 +44,14 @@ func (t TextResponder) Replace(opaque uint32, quiet bool) error {
 	return t.resp("STORED")
 }
 
+func (t TextResponder) Append(opaque uint32, quiet bool) error {
+	return t.resp("STORED")
+}
+
+func (t TextResponder) Prepend(opaque uint32, quiet bool) error {
+	return t.resp("STORED")
+}
+
 func (t TextResponder) Get(response common.GetResponse) error {
 	if response.Miss {
 		// A miss is a no-op in the text world
