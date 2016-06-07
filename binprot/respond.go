@@ -147,6 +147,20 @@ func (b BinaryResponder) Replace(opaque uint32, quiet bool) error {
 	return nil
 }
 
+func (b BinaryResponder) Append(opaque uint32, quiet bool) error {
+	if !quiet {
+		return writeSuccessResponseHeader(b.writer, OpcodeAppend, 0, 0, 0, opaque, true)
+	}
+	return nil
+}
+
+func (b BinaryResponder) Prepend(opaque uint32, quiet bool) error {
+	if !quiet {
+		return writeSuccessResponseHeader(b.writer, OpcodePrepend, 0, 0, 0, opaque, true)
+	}
+	return nil
+}
+
 func (b BinaryResponder) Get(response common.GetResponse) error {
 	if response.Miss {
 		if !response.Quiet {
