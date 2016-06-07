@@ -164,7 +164,7 @@ func (b BinaryResponder) Prepend(opaque uint32, quiet bool) error {
 func (b BinaryResponder) Get(response common.GetResponse) error {
 	if response.Miss {
 		if !response.Quiet {
-			return b.Error(response.Opaque, common.RequestGet, common.ErrKeyNotFound)
+			return b.Error(response.Opaque, common.RequestGet, common.ErrKeyNotFound, false)
 		}
 		return nil
 	}
@@ -185,7 +185,7 @@ func (b BinaryResponder) GetEnd(opaque uint32, noopEnd bool) error {
 func (b BinaryResponder) GAT(response common.GetResponse) error {
 	if response.Miss {
 		if !response.Quiet {
-			return b.Error(response.Opaque, common.RequestGat, common.ErrKeyNotFound)
+			return b.Error(response.Opaque, common.RequestGat, common.ErrKeyNotFound, false)
 		}
 		return nil
 	}
@@ -196,7 +196,7 @@ func (b BinaryResponder) GAT(response common.GetResponse) error {
 func (b BinaryResponder) GetE(response common.GetEResponse) error {
 	if response.Miss {
 		if !response.Quiet {
-			return b.Error(response.Opaque, common.RequestGetE, common.ErrKeyNotFound)
+			return b.Error(response.Opaque, common.RequestGetE, common.ErrKeyNotFound, false)
 		}
 		return nil
 	}
@@ -243,36 +243,51 @@ func (b BinaryResponder) Version(opaque uint32) error {
 	return b.writer.Flush()
 }
 
-func (b BinaryResponder) Error(opaque uint32, reqType common.RequestType, err error) error {
+func (b BinaryResponder) Error(opaque uint32, reqType common.RequestType, err error, quiet bool) error {
 	// TODO: proper opcode
-	return writeErrorResponseHeader(b.writer, reqTypeToOpcode(reqType), errorToCode(err), opaque)
+	return writeErrorResponseHeader(b.writer, reqTypeToOpcode(reqType, quiet), errorToCode(err), opaque)
 }
 
 // Mae sure this includes all possibilities in the github.com/netflix/rend/common.RequestType enum
-func reqTypeToOpcode(reqType common.RequestType) uint8 {
-	switch reqType {
-	case common.RequestGet:
+func reqTypeToOpcode(rt common.RequestType, quiet bool) uint8 {
+	switch {
+	case rt == common.RequestGet && quiet:
 		return OpcodeGet
-	case common.RequestGat:
+	case rt == common.RequestGet && !quiet:
+		return OpcodeGet
+	case rt == common.RequestGat:
 		return OpcodeGat
-	case common.RequestGetE:
+	case rt == common.RequestGetE:
 		return OpcodeGetE
-	case common.RequestSet:
+	case rt == common.RequestSet && quiet:
+		return OpcodeSetQ
+	case rt == common.RequestSet && !quiet:
 		return OpcodeSet
-	case common.RequestAdd:
+	case rt == common.RequestAdd && quiet:
+		return OpcodeAddQ
+	case rt == common.RequestAdd && !quiet:
 		return OpcodeAdd
-	case common.RequestReplace:
+	case rt == common.RequestReplace && quiet:
+		return OpcodeReplaceQ
+	case rt == common.RequestReplace && !quiet:
 		return OpcodeReplace
-	case common.RequestDelete:
+	case rt == common.RequestAppend && quiet:
+		return OpcodeAppendQ
+	case rt == common.RequestAppend && !quiet:
+		return OpcodeAppend
+	case rt == common.RequestPrepend && quiet:
+		return OpcodePrependQ
+	case rt == common.RequestPrepend && !quiet:
+		return OpcodePrepend
+	case rt == common.RequestDelete && quiet:
+		return OpcodeDeleteQ
+	case rt == common.RequestDelete && !quiet:
 		return OpcodeDelete
-	case common.RequestTouch:
+	case rt == common.RequestTouch:
 		return OpcodeTouch
-	case common.RequestUnknown:
-		fallthrough
 	default:
 		return OpcodeInvalid
 	}
-	// TODO: append...
 }
 
 func getCommon(w *bufio.Writer, response common.GetResponse, opcode uint8) error {

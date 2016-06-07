@@ -320,10 +320,13 @@ func (l *L1OnlyOrca) Unknown(req common.Request) error {
 }
 
 func (l *L1OnlyOrca) Error(req common.Request, reqType common.RequestType, err error) {
-	opaque := uint32(0)
+	var opaque uint32
+	var quiet bool
+
 	if req != nil {
-		opaque = req.Opq()
+		opaque = req.GetOpaque()
+		quiet = req.IsQuiet()
 	}
 
-	l.res.Error(opaque, reqType, err)
+	l.res.Error(opaque, reqType, err, quiet)
 }
