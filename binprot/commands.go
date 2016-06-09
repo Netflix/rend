@@ -63,6 +63,18 @@ func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) e
 	return writeDataCmdCommon(w, OpcodeReplace, key, flags, exptime, dataSize)
 }
 
+func WriteAppendCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+	//fmt.Printf("Append: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, dataSize, totalBodyLength)
+	return writeDataCmdCommon(w, OpcodeAppend, key, flags, exptime, dataSize)
+}
+
+func WritePrependCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+	//fmt.Printf("Prepend: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, dataSize, totalBodyLength)
+	return writeDataCmdCommon(w, OpcodePrepend, key, flags, exptime, dataSize)
+}
+
 // Key commands send the header and key only
 func writeKeyCmd(w io.Writer, opcode uint8, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength
