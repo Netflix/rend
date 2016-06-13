@@ -203,7 +203,7 @@ func (b BinaryResponder) GetE(response common.GetEResponse) error {
 
 	// total body length = extras (flags & exptime, 8 bytes) + data length
 	totalBodyLength := len(response.Data) + 8
-	writeSuccessResponseHeader(b.writer, common.RequestGetE, 0, 8, totalBodyLength, response.Opaque, false)
+	writeSuccessResponseHeader(b.writer, OpcodeGetE, 0, 8, totalBodyLength, response.Opaque, false)
 	binary.Write(b.writer, binary.BigEndian, response.Flags)
 	binary.Write(b.writer, binary.BigEndian, response.Exptime)
 	b.writer.Write(response.Data)

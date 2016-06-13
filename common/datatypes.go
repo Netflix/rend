@@ -87,7 +87,7 @@ type RequestType int
 const (
 	// RequestUnknown means the parser doesn't know what the request represents. Valid protocol
 	// parsing but invalid values.
-	RequestUnknown = iota
+	RequestUnknown RequestType = iota
 
 	// RequestGet represents both a single get and a multi-get, which take differen forms in
 	// different protocols. This means it can also be the accumulation of many GETQ commands.
