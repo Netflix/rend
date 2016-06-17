@@ -65,6 +65,26 @@ var (
 	MetricCmdGatMissesTokenL1 = metrics.AddCounter("cmd_gat_misses_token_l1")
 	MetricCmdGatMissesTokenL2 = metrics.AddCounter("cmd_gat_misses_token_l2")
 
+	MetricCmdAppendMissesMeta    = metrics.AddCounter("cmd_append_misses_meta")
+	MetricCmdAppendMissesMetaL1  = metrics.AddCounter("cmd_append_misses_meta_l1")
+	MetricCmdAppendMissesMetaL2  = metrics.AddCounter("cmd_append_misses_meta_l2")
+	MetricCmdAppendMissesChunk   = metrics.AddCounter("cmd_append_misses_chunk")
+	MetricCmdAppendMissesChunkL1 = metrics.AddCounter("cmd_append_misses_chunk_l1")
+	MetricCmdAppendMissesChunkL2 = metrics.AddCounter("cmd_append_misses_chunk_l2")
+	MetricCmdAppendMissesToken   = metrics.AddCounter("cmd_append_misses_token")
+	MetricCmdAppendMissesTokenL1 = metrics.AddCounter("cmd_append_misses_token_l1")
+	MetricCmdAppendMissesTokenL2 = metrics.AddCounter("cmd_append_misses_token_l2")
+
+	MetricCmdPrependMissesMeta    = metrics.AddCounter("cmd_prepend_misses_meta")
+	MetricCmdPrependMissesMetaL1  = metrics.AddCounter("cmd_prepend_misses_meta_l1")
+	MetricCmdPrependMissesMetaL2  = metrics.AddCounter("cmd_prepend_misses_meta_l2")
+	MetricCmdPrependMissesChunk   = metrics.AddCounter("cmd_prepend_misses_chunk")
+	MetricCmdPrependMissesChunkL1 = metrics.AddCounter("cmd_prepend_misses_chunk_l1")
+	MetricCmdPrependMissesChunkL2 = metrics.AddCounter("cmd_prepend_misses_chunk_l2")
+	MetricCmdPrependMissesToken   = metrics.AddCounter("cmd_prepend_misses_token")
+	MetricCmdPrependMissesTokenL1 = metrics.AddCounter("cmd_prepend_misses_token_l1")
+	MetricCmdPrependMissesTokenL2 = metrics.AddCounter("cmd_prepend_misses_token_l2")
+
 	progStart = time.Now().Unix()
 )
 
@@ -297,6 +317,14 @@ func (h Handler) handleSetCommon(cmd common.SetRequest, reqType common.RequestTy
 	}
 
 	return nil
+}
+
+func (h Handler) Append(cmd common.SetRequest) error {
+	return h.handleAppendPrependCommon(cmd, common.RequestAppend)
+}
+
+func (h Handler) Prepend(cmd common.SetRequest) error {
+	return h.handleAppendPrependCommon(cmd, common.RequestPrepend)
 }
 
 func (h Handler) handleAppendPrependCommon(cmd common.SetRequest, reqType common.RequestType) error {
