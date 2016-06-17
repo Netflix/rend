@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"io"
 	"math"
+	"time"
 
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
@@ -63,6 +64,8 @@ var (
 	MetricCmdGatMissesToken   = metrics.AddCounter("cmd_gat_misses_token")
 	MetricCmdGatMissesTokenL1 = metrics.AddCounter("cmd_gat_misses_token_l1")
 	MetricCmdGatMissesTokenL2 = metrics.AddCounter("cmd_gat_misses_token_l2")
+
+	progStart = time.Now().Unix()
 )
 
 func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
@@ -105,15 +108,15 @@ func (h Handler) Close() error {
 }
 
 func (h Handler) Set(cmd common.SetRequest) error {
-	return h.realHandleSet(cmd, common.RequestSet)
+	return h.handleSetCommon(cmd, common.RequestSet)
 }
 
 func (h Handler) Add(cmd common.SetRequest) error {
-	return h.realHandleSet(cmd, common.RequestAdd)
+	return h.handleSetCommon(cmd, common.RequestAdd)
 }
 
 func (h Handler) Replace(cmd common.SetRequest) error {
-	return h.realHandleSet(cmd, common.RequestReplace)
+	return h.handleSetCommon(cmd, common.RequestReplace)
 }
 
 const (
@@ -146,7 +149,33 @@ func chunkSize(keylen int) (dataSize, fullSize uint32) {
 	return
 }
 
-func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType) error {
+// The maximum differential TTL allowed by memcached
+const realTimeMaxDelta = 60 * 60 * 24 * 30
+
+// Takes a TTL in seconds and returns the unix time in seconds when the item will expire.
+func exptime(ttl uint32) (exp uint32, expired bool) {
+	// zero is the special forever case
+	if ttl == 0 {
+		return 0, false
+	}
+
+	now := uint32(time.Now().Unix())
+
+	// The memcached protocol has a... "quirk" where any expiration time over 30
+	// days is considered to be a unix timestamp.
+	if ttl > realTimeMaxDelta {
+		return ttl, (ttl < now)
+	}
+
+	// otherwise, this is a normal differential TTL
+	return now + ttl, false
+}
+
+func (h Handler) handleSetCommon(cmd common.SetRequest, reqType common.RequestType) error {
+	exp, expired := exptime(cmd.Exptime)
+	if expired {
+		return nil
+	}
 
 	// Specialized chunk reader to make the code here much simpler
 	dataSize, fullSize := chunkSize(len(cmd.Key))
@@ -161,6 +190,8 @@ func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType
 		NumChunks: uint32(numChunks),
 		ChunkSize: dataSize,
 		Token:     token,
+		Instime:   uint32(time.Now().Unix()),
+		Exptime:   exp,
 	}
 
 	// Write metadata key
@@ -266,6 +297,124 @@ func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType
 	}
 
 	return nil
+}
+
+func (h Handler) handleAppendPrependCommon(cmd common.SetRequest, reqType common.RequestType) error {
+	// read data, (ap|pre)pend, write out
+
+	switch reqType {
+	case common.RequestAppend, common.RequestPrepend:
+	default:
+		// I know. It’s all wrong. By rights we shouldn’t even be here. But we are.
+		panic("Bad request type")
+	}
+
+	_, metaData, err := getMetadata(h.rw, cmd.Key)
+	if err != nil {
+		if err == common.ErrKeyNotFound {
+			switch reqType {
+			case common.RequestAppend:
+				metrics.IncCounter(MetricCmdAppendMissesMeta)
+			case common.RequestPrepend:
+				metrics.IncCounter(MetricCmdPrependMissesMeta)
+			}
+
+			return common.ErrKeyNotFound
+		}
+
+		return err
+	}
+
+	// Write all the get commands before reading
+	cmdSize := int(metaData.NumChunks)*(len(cmd.Key)+4 /* key suffix */ +binprot.ReqHeaderLen) + binprot.ReqHeaderLen /* for the noop */
+	cmdbuf := bytes.NewBuffer(make([]byte, 0, cmdSize))
+	for i := 0; i < int(metaData.NumChunks); i++ {
+		chunkKey := chunkKey(cmd.Key, i)
+		binprot.WriteGetQCmd(cmdbuf, chunkKey)
+	}
+	binprot.WriteNoopCmd(cmdbuf)
+
+	// Write everyhing and flush to ensure it's sent
+	if _, err := h.rw.ReadFrom(cmdbuf); err != nil {
+		return err
+	}
+	if err := h.rw.Flush(); err != nil {
+		return err
+	}
+
+	dataBuf := make([]byte, int(metaData.Length)+len(cmd.Data))
+	tokenBuf := make([]byte, tokenSize)
+
+	// Now that all the headers are sent, start reading in the data chunks. We read until the header
+	// for the Noop command comes back, keeping track of how many chunks are read. This means that
+	// there is no fast fail when a chunk is missing, but all the data is read in so there's no
+	// problem with unread, buffered data that should have been discarded. If the number of chunks
+	// doesn't match, we throw away the data and call it a miss.
+	var chunk int
+	var miss bool
+	var lastErr error
+
+	for {
+		opcodeNoop, err := getLocalIntoBuf(h.rw.Reader, metaData, tokenBuf, dataBuf, chunk, int(metaData.ChunkSize))
+		if err != nil {
+			if err == common.ErrKeyNotFound {
+				if !miss {
+					switch reqType {
+					case common.RequestAppend:
+						metrics.IncCounter(MetricCmdAppendMissesChunk)
+					case common.RequestPrepend:
+						metrics.IncCounter(MetricCmdPrependMissesChunk)
+					}
+					miss = true
+				}
+				continue
+			}
+
+			lastErr = err
+		}
+
+		if opcodeNoop {
+			break
+		}
+
+		if !bytes.Equal(metaData.Token[:], tokenBuf) {
+			if !miss {
+				switch reqType {
+				case common.RequestAppend:
+					metrics.IncCounter(MetricCmdAppendMissesToken)
+				case common.RequestPrepend:
+					metrics.IncCounter(MetricCmdPrependMissesToken)
+				}
+				miss = true
+			}
+		}
+
+		chunk++
+	}
+
+	if lastErr != nil {
+		return lastErr
+	}
+	if miss {
+		//fmt.Println("Get miss because of missing chunk")
+		return common.ErrKeyNotFound
+	}
+
+	// append or prepend, the meat of the request
+	if reqType == common.RequestAppend {
+		dataBuf = append(dataBuf, cmd.Data...)
+	} else {
+		dataBuf = append(cmd.Data, dataBuf...)
+	}
+
+	// now put it again. Insert time won't be exact, here, but the expiration is still valid
+	setcmd := common.SetRequest{
+		Key:     cmd.Key,
+		Data:    dataBuf,
+		Flags:   metaData.OrigFlags,
+		Exptime: metaData.Exptime,
+	}
+	return h.handleSetCommon(setcmd, common.RequestSet)
 }
 
 func (h Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {

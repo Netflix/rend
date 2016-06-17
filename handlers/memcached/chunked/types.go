@@ -22,13 +22,15 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-const metadataSize = 16 + tokenSize
+const metadataSize = 24 + tokenSize
 
 type metadata struct {
 	Length    uint32
 	OrigFlags uint32
 	NumChunks uint32
 	ChunkSize uint32
+	Instime   uint32
+	Exptime   uint32
 	Token     [tokenSize]byte
 }
 
@@ -46,7 +48,9 @@ func readMetadata(r io.Reader) (metadata, error) {
 	m.OrigFlags = binary.BigEndian.Uint32(buf[4:8])
 	m.NumChunks = binary.BigEndian.Uint32(buf[8:12])
 	m.ChunkSize = binary.BigEndian.Uint32(buf[12:16])
-	copy(m.Token[:], buf[16:])
+	m.Instime = binary.BigEndian.Uint32(buf[16:20])
+	m.Exptime = binary.BigEndian.Uint32(buf[20:24])
+	copy(m.Token[:], buf[24:])
 
 	return m, nil
 }
@@ -58,6 +62,8 @@ func writeMetadata(w io.Writer, md metadata) error {
 	binary.BigEndian.PutUint32(buf[4:8], md.OrigFlags)
 	binary.BigEndian.PutUint32(buf[8:12], md.NumChunks)
 	binary.BigEndian.PutUint32(buf[12:16], md.ChunkSize)
+	binary.BigEndian.PutUint32(buf[16:20], md.Instime)
+	binary.BigEndian.PutUint32(buf[20:24], md.Exptime)
 
 	n, err := w.Write(buf)
 	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
