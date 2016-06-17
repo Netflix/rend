@@ -35,7 +35,6 @@ func L1L2(l1, l2 handlers.Handler, res common.Responder) Orca {
 }
 
 func (l *L1L2Orca) Set(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdSet)
 	//log.Println("set", string(req.Key))
 
 	// Try L2 first
@@ -79,7 +78,6 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 }
 
 func (l *L1L2Orca) Add(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdAdd)
 	//log.Println("add", string(req.Key))
 
 	// Add in L2 first, since it has the larger state
@@ -145,7 +143,6 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 }
 
 func (l *L1L2Orca) Replace(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdReplace)
 	//log.Println("replace", string(req.Key))
 
 	// Add in L2 first, since it has the larger state
@@ -214,7 +211,6 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 }
 
 func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
-	metrics.IncCounter(MetricCmdDelete)
 	//log.Println("delete", string(req.Key))
 
 	// Try L2 first
@@ -272,7 +268,6 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 }
 
 func (l *L1L2Orca) Touch(req common.TouchRequest) error {
-	metrics.IncCounter(MetricCmdTouch)
 	//log.Println("touch", string(req.Key))
 
 	// Try L2 first
@@ -331,7 +326,6 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 }
 
 func (l *L1L2Orca) Get(req common.GetRequest) error {
-	metrics.IncCounter(MetricCmdGet)
 	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
 	//debugString := "get"
 	//for _, k := range req.Keys {
@@ -481,7 +475,6 @@ func (l *L1L2Orca) GetE(req common.GetRequest) error {
 }
 
 func (l *L1L2Orca) Gat(req common.GATRequest) error {
-	metrics.IncCounter(MetricCmdGat)
 	//log.Println("gat", string(req.Key))
 
 	// Try L1 first, since it'll be faster if it succeeds
@@ -619,22 +612,18 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 }
 
 func (l *L1L2Orca) Noop(req common.NoopRequest) error {
-	metrics.IncCounter(MetricCmdNoop)
 	return l.res.Noop(req.Opaque)
 }
 
 func (l *L1L2Orca) Quit(req common.QuitRequest) error {
-	metrics.IncCounter(MetricCmdQuit)
 	return l.res.Quit(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2Orca) Version(req common.VersionRequest) error {
-	metrics.IncCounter(MetricCmdVersion)
 	return l.res.Version(req.Opaque)
 }
 
 func (l *L1L2Orca) Unknown(req common.Request) error {
-	metrics.IncCounter(MetricCmdUnknown)
 	return common.ErrUnknownCmd
 }
 

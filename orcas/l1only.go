@@ -33,7 +33,6 @@ func L1Only(l1, l2 handlers.Handler, res common.Responder) Orca {
 }
 
 func (l *L1OnlyOrca) Set(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdSet)
 	//log.Println("set", string(req.Key))
 
 	metrics.IncCounter(MetricCmdSetL1)
@@ -54,7 +53,6 @@ func (l *L1OnlyOrca) Set(req common.SetRequest) error {
 }
 
 func (l *L1OnlyOrca) Add(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdAdd)
 	//log.Println("add", string(req.Key))
 
 	metrics.IncCounter(MetricCmdAddL1)
@@ -78,7 +76,6 @@ func (l *L1OnlyOrca) Add(req common.SetRequest) error {
 }
 
 func (l *L1OnlyOrca) Replace(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdReplace)
 	//log.Println("replace", string(req.Key))
 
 	metrics.IncCounter(MetricCmdReplaceL1)
@@ -102,7 +99,6 @@ func (l *L1OnlyOrca) Replace(req common.SetRequest) error {
 }
 
 func (l *L1OnlyOrca) Delete(req common.DeleteRequest) error {
-	metrics.IncCounter(MetricCmdDelete)
 	//log.Println("delete", string(req.Key))
 
 	metrics.IncCounter(MetricCmdDeleteL1)
@@ -126,7 +122,6 @@ func (l *L1OnlyOrca) Delete(req common.DeleteRequest) error {
 }
 
 func (l *L1OnlyOrca) Touch(req common.TouchRequest) error {
-	metrics.IncCounter(MetricCmdTouch)
 	//log.Println("touch", string(req.Key))
 
 	metrics.IncCounter(MetricCmdTouchL1)
@@ -150,7 +145,6 @@ func (l *L1OnlyOrca) Touch(req common.TouchRequest) error {
 }
 
 func (l *L1OnlyOrca) Get(req common.GetRequest) error {
-	metrics.IncCounter(MetricCmdGet)
 	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
 	//debugString := "get"
 	//for _, k := range req.Keys {
@@ -212,7 +206,6 @@ func (l *L1OnlyOrca) GetE(req common.GetRequest) error {
 	// For an L1 only orchestrator, this will fail if the backend is memcached.
 	// It should be talking to another rend-based server, such as the L2 for the
 	// EVCache server project.
-	metrics.IncCounter(MetricCmdGetE)
 	metrics.IncCounterBy(MetricCmdGetEKeys, uint64(len(req.Keys)))
 	//debugString := "gete"
 	//for _, k := range req.Keys {
@@ -271,7 +264,6 @@ func (l *L1OnlyOrca) GetE(req common.GetRequest) error {
 }
 
 func (l *L1OnlyOrca) Gat(req common.GATRequest) error {
-	metrics.IncCounter(MetricCmdGat)
 	//log.Println("gat", string(req.Key))
 
 	metrics.IncCounter(MetricCmdGatL1)
@@ -300,22 +292,18 @@ func (l *L1OnlyOrca) Gat(req common.GATRequest) error {
 }
 
 func (l *L1OnlyOrca) Noop(req common.NoopRequest) error {
-	metrics.IncCounter(MetricCmdNoop)
 	return l.res.Noop(req.Opaque)
 }
 
 func (l *L1OnlyOrca) Quit(req common.QuitRequest) error {
-	metrics.IncCounter(MetricCmdQuit)
 	return l.res.Quit(req.Opaque, req.Quiet)
 }
 
 func (l *L1OnlyOrca) Version(req common.VersionRequest) error {
-	metrics.IncCounter(MetricCmdVersion)
 	return l.res.Version(req.Opaque)
 }
 
 func (l *L1OnlyOrca) Unknown(req common.Request) error {
-	metrics.IncCounter(MetricCmdUnknown)
 	return common.ErrUnknownCmd
 }
 
