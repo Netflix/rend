@@ -38,6 +38,16 @@ var (
 	MetricCmdTouchMissesChunkL1 = metrics.AddCounter("cmd_touch_misses_chunk_l1")
 	MetricCmdTouchMissesChunkL2 = metrics.AddCounter("cmd_touch_misses_chunk_l2")
 
+	MetricCmdTouchMetaSet            = metrics.AddCounter("cmd_touch_meta_set")
+	MetricCmdTouchMetaSetL1          = metrics.AddCounter("cmd_touch_meta_set_l1")
+	MetricCmdTouchMetaSetL2          = metrics.AddCounter("cmd_touch_meta_set_l2")
+	MetricCmdTouchMetaSetErrors      = metrics.AddCounter("cmd_touch_meta_set_errors")
+	MetricCmdTouchMetaSetErrorsL1    = metrics.AddCounter("cmd_touch_meta_set_errors_l1")
+	MetricCmdTouchMetaSetErrorsL2    = metrics.AddCounter("cmd_touch_meta_set_errors_l2")
+	MetricCmdTouchMetaSetSuccesses   = metrics.AddCounter("cmd_touch_meta_set_successes")
+	MetricCmdTouchMetaSetSuccessesL1 = metrics.AddCounter("cmd_touch_meta_set_successes_l1")
+	MetricCmdTouchMetaSetSuccessesL2 = metrics.AddCounter("cmd_touch_meta_set_successes_l2")
+
 	MetricCmdDeleteMissesMeta    = metrics.AddCounter("cmd_delete_misses_meta")
 	MetricCmdDeleteMissesMetaL1  = metrics.AddCounter("cmd_delete_misses_meta_l1")
 	MetricCmdDeleteMissesMetaL2  = metrics.AddCounter("cmd_delete_misses_meta_l2")
@@ -798,16 +808,32 @@ func (h Handler) Touch(cmd common.TouchRequest) error {
 		return common.ErrKeyNotFound
 	}
 
-	// Then touch the metadata
-	if err := binprot.WriteTouchCmd(h.rw.Writer, metaKey, cmd.Exptime); err != nil {
+	// Overwrite the metadata with the new expiration time
+	metrics.IncCounter(MetricCmdTouchMetaSet)
+	metaData.Exptime, _ = exptime(cmd.Exptime)
+	if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, metaData.OrigFlags, cmd.Exptime, metadataSize); err != nil {
 		return err
 	}
-	if err := simpleCmdLocal(h.rw, true); err != nil {
-		if err == common.ErrKeyNotFound {
-			metrics.IncCounter(MetricCmdTouchMissesMeta)
+
+	// Write value
+	writeMetadata(h.rw, metaData)
+	if err := h.rw.Flush(); err != nil {
+		return err
+	}
+
+	// Read server's response
+	resHeader, err := readResponseHeader(h.rw.Reader)
+	if err != nil {
+		metrics.IncCounter(MetricCmdTouchMetaSetErrors)
+		// Discard response body
+		n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
+		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		if ioerr != nil {
+			return ioerr
 		}
 		return err
 	}
+	metrics.IncCounter(MetricCmdTouchMetaSetSuccesses)
 
 	return nil
 }
