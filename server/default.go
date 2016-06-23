@@ -143,6 +143,8 @@ func (s *DefaultServer) Loop() {
 			metrics.ObserveHist(HistTouch, dur)
 		case common.RequestGet:
 			metrics.ObserveHist(HistGet, dur)
+		case common.RequestGetE:
+			metrics.ObserveHist(HistGetE, dur)
 		case common.RequestGat:
 			metrics.ObserveHist(HistGat, dur)
 		}
