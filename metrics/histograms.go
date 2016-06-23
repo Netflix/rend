@@ -21,15 +21,15 @@ import (
 )
 
 const (
-	numHists = 1024
-	buflen   = 0x7FFF // max index, 32769 entries
+	maxNumHists = 1024
+	buflen      = 0x7FFF // max index, 32769 entries
 )
 
 var (
-	hnames    = make([]string, numHists)
-	hsampled  = make([]bool, numHists)
-	hists     = make([]*hist, numHists)
-	bhists    = make([]*bhist, numHists)
+	hnames    = make([]string, maxNumHists)
+	hsampled  = make([]bool, maxNumHists)
+	hists     = make([]*hist, maxNumHists)
+	bhists    = make([]*bhist, maxNumHists)
 	curHistID = new(uint32)
 )
 
@@ -85,7 +85,7 @@ func newBHist() *bhist {
 func AddHistogram(name string, sampled bool) uint32 {
 	idx := atomic.AddUint32(curHistID, 1)
 
-	if idx >= numHists {
+	if idx >= maxNumHists {
 		panic("Too many histograms")
 	}
 
