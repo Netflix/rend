@@ -1,44 +1,84 @@
 package metrics
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+	"unsafe"
+)
 
 const maxNumGauges = 1024
 
 var (
-	gnames     = make([]string, maxNumGauges)
-	gauges     = make([]uint64, maxNumGauges)
-	curGaugeID = new(uint32)
+	intgnames       = make([]string, maxNumGauges)
+	floatgnames     = make([]string, maxNumGauges)
+	intgauges       = make([]uint64, maxNumGauges)
+	floatgauges     = make([]uint64, maxNumGauges)
+	curIntGaugeID   = new(uint32)
+	curFloatGaugeID = new(uint32)
 )
 
 func init() {
 	// start with "-1" so the first metric ID overflows to 0
-	atomic.StoreUint32(curGaugeID, 0xFFFFFFFF)
+	atomic.StoreUint32(curIntGaugeID, 0xFFFFFFFF)
+	atomic.StoreUint32(curFloatGaugeID, 0xFFFFFFFF)
 }
 
 // Registers a gauge and returns an ID that can be used to access it
 // There is a maximum of 1024 gauges, after which adding a new one will panic
-func AddGauge(name string) uint32 {
-	id := atomic.AddUint32(curGaugeID, 1)
+func AddIntGauge(name string) uint32 {
+	id := atomic.AddUint32(curIntGaugeID, 1)
 
 	if id >= maxNumGauges {
 		panic("Too many gauges")
 	}
 
-	gnames[id] = name
+	intgnames[id] = name
 	return id
 }
 
-func SetGauge(id uint32, value uint64) {
-	atomic.StoreUint64(&gauges[id], value)
-}
+// Registers a gauge and returns an ID that can be used to access it
+// There is a maximum of 1024 gauges, after which adding a new one will panic
+func AddFloatGauge(name string) uint32 {
+	id := atomic.AddUint32(curFloatGaugeID, 1)
 
-func getAllGauges() map[string]uint64 {
-	ret := make(map[string]uint64)
-	numIDs := int(atomic.LoadUint32(curGaugeID))
-
-	for i := 0; i < numIDs; i++ {
-		ret[gnames[i]] = atomic.LoadUint64(&gauges[i])
+	if id >= maxNumGauges {
+		panic("Too many gauges")
 	}
 
-	return ret
+	floatgnames[id] = name
+	return id
+}
+
+func SetIntGauge(id uint32, value uint64) {
+	atomic.StoreUint64(&intgauges[id], value)
+}
+
+func SetFloatGauge(id uint32, value float64) {
+	// The float64 value needs to be converted into an int64 here because
+	// there is no atomic store for float values. This is a literal
+	// reinterpretation of the same exact bits.
+	v2 := *(*uint64)(unsafe.Pointer(&value))
+	atomic.StoreUint64(&floatgauges[id], v2)
+}
+
+func getAllGauges() (map[string]uint64, map[string]float64) {
+	retint := make(map[string]uint64)
+	numIDs := int(atomic.LoadUint32(curIntGaugeID))
+
+	for i := 0; i < numIDs; i++ {
+		retint[intgnames[i]] = atomic.LoadUint64(&intgauges[i])
+	}
+
+	retfloat := make(map[string]float64)
+	numIDs = int(atomic.LoadUint32(curFloatGaugeID))
+
+	for i := 0; i < numIDs; i++ {
+		// The int64 bit pattern of the float value needs to be converted back
+		// into a float64 here. This is a literal reinterpretation of the same
+		// exact bits.
+		intval := atomic.LoadUint64(&floatgauges[i])
+		floatval := *(*float64)(unsafe.Pointer(&intval))
+		retfloat[floatgnames[i]] = floatval
+	}
+
+	return retint, retfloat
 }
