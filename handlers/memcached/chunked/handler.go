@@ -344,7 +344,7 @@ func (h Handler) handleAppendPrependCommon(cmd common.SetRequest, reqType common
 	case common.RequestAppend, common.RequestPrepend:
 	default:
 		// I know. It’s all wrong. By rights we shouldn’t even be here. But we are.
-		panic("Bad request type")
+		panic("Bad request type in appendPrependCommon!")
 	}
 
 	_, metaData, err := getMetadata(h.rw, cmd.Key)

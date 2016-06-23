@@ -26,6 +26,8 @@ type Orca interface {
 	Set(req common.SetRequest) error
 	Add(req common.SetRequest) error
 	Replace(req common.SetRequest) error
+	Append(req common.SetRequest) error
+	Prepend(req common.SetRequest) error
 	Delete(req common.DeleteRequest) error
 	Touch(req common.TouchRequest) error
 	Get(req common.GetRequest) error
@@ -124,6 +126,30 @@ var (
 	MetricCmdReplaceReplaceNotStoredL1 = metrics.AddCounter("cmd_replace_replace_not_stored_l1")
 	MetricCmdReplaceReplaceErrorsL1    = metrics.AddCounter("cmd_replace_replace_errors_l1")
 	MetricCmdReplaceReplaceStoredL1    = metrics.AddCounter("cmd_replace_replace_stored_l1")
+
+	MetricCmdAppendL1          = metrics.AddCounter("cmd_append_l1")
+	MetricCmdAppendL2          = metrics.AddCounter("cmd_append_l2")
+	MetricCmdAppendStored      = metrics.AddCounter("cmd_append_stored")
+	MetricCmdAppendStoredL1    = metrics.AddCounter("cmd_append_stored_l1")
+	MetricCmdAppendStoredL2    = metrics.AddCounter("cmd_append_stored_l2")
+	MetricCmdAppendNotStored   = metrics.AddCounter("cmd_append_not_stored")
+	MetricCmdAppendNotStoredL1 = metrics.AddCounter("cmd_append_not_stored_l1")
+	MetricCmdAppendNotStoredL2 = metrics.AddCounter("cmd_append_not_stored_l2")
+	MetricCmdAppendErrors      = metrics.AddCounter("cmd_append_errors")
+	MetricCmdAppendErrorsL1    = metrics.AddCounter("cmd_append_errors_l1")
+	MetricCmdAppendErrorsL2    = metrics.AddCounter("cmd_append_errors_l2")
+
+	MetricCmdPrependL1          = metrics.AddCounter("cmd_prepend_l1")
+	MetricCmdPrependL2          = metrics.AddCounter("cmd_prepend_l2")
+	MetricCmdPrependStored      = metrics.AddCounter("cmd_prepend_stored")
+	MetricCmdPrependStoredL1    = metrics.AddCounter("cmd_prepend_stored_l1")
+	MetricCmdPrependStoredL2    = metrics.AddCounter("cmd_prepend_stored_l2")
+	MetricCmdPrependNotStored   = metrics.AddCounter("cmd_prepend_not_stored")
+	MetricCmdPrependNotStoredL1 = metrics.AddCounter("cmd_prepend_not_stored_l1")
+	MetricCmdPrependNotStoredL2 = metrics.AddCounter("cmd_prepend_not_stored_l2")
+	MetricCmdPrependErrors      = metrics.AddCounter("cmd_prepend_errors")
+	MetricCmdPrependErrorsL1    = metrics.AddCounter("cmd_prepend_errors_l1")
+	MetricCmdPrependErrorsL2    = metrics.AddCounter("cmd_prepend_errors_l2")
 
 	MetricCmdDeleteL1       = metrics.AddCounter("cmd_delete_l1")
 	MetricCmdDeleteL2       = metrics.AddCounter("cmd_delete_l2")

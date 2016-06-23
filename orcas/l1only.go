@@ -98,6 +98,52 @@ func (l *L1OnlyOrca) Replace(req common.SetRequest) error {
 	return err
 }
 
+func (l *L1OnlyOrca) Append(req common.SetRequest) error {
+	//log.Println("append", string(req.Key))
+
+	metrics.IncCounter(MetricCmdAppendL1)
+	err := l.l1.Append(req)
+
+	if err == nil {
+		metrics.IncCounter(MetricCmdAppendStoredL1)
+		metrics.IncCounter(MetricCmdAppendStored)
+
+		err = l.res.Append(req.Opaque, req.Quiet)
+
+	} else if err == common.ErrKeyNotFound {
+		metrics.IncCounter(MetricCmdAppendNotStoredL1)
+		metrics.IncCounter(MetricCmdAppendNotStored)
+	} else {
+		metrics.IncCounter(MetricCmdAppendErrorsL1)
+		metrics.IncCounter(MetricCmdAppendErrors)
+	}
+
+	return err
+}
+
+func (l *L1OnlyOrca) Prepend(req common.SetRequest) error {
+	//log.Println("prepend", string(req.Key))
+
+	metrics.IncCounter(MetricCmdPrependL1)
+	err := l.l1.Prepend(req)
+
+	if err == nil {
+		metrics.IncCounter(MetricCmdPrependStoredL1)
+		metrics.IncCounter(MetricCmdPrependStored)
+
+		err = l.res.Prepend(req.Opaque, req.Quiet)
+
+	} else if err == common.ErrKeyNotFound {
+		metrics.IncCounter(MetricCmdPrependNotStoredL1)
+		metrics.IncCounter(MetricCmdPrependNotStored)
+	} else {
+		metrics.IncCounter(MetricCmdPrependErrorsL1)
+		metrics.IncCounter(MetricCmdPrependErrors)
+	}
+
+	return err
+}
+
 func (l *L1OnlyOrca) Delete(req common.DeleteRequest) error {
 	//log.Println("delete", string(req.Key))
 
