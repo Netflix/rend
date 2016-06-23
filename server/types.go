@@ -57,6 +57,8 @@ var (
 	MetricCmdSet     = metrics.AddCounter("cmd_set")
 	MetricCmdAdd     = metrics.AddCounter("cmd_add")
 	MetricCmdReplace = metrics.AddCounter("cmd_replace")
+	MetricCmdAppend  = metrics.AddCounter("cmd_append")
+	MetricCmdPrepend = metrics.AddCounter("cmd_prepend")
 	MetricCmdDelete  = metrics.AddCounter("cmd_delete")
 	MetricCmdTouch   = metrics.AddCounter("cmd_touch")
 	MetricCmdGat     = metrics.AddCounter("cmd_gat")
