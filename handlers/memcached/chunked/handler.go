@@ -380,7 +380,7 @@ func (h Handler) handleAppendPrependCommon(cmd common.SetRequest, reqType common
 		return err
 	}
 
-	dataBuf := make([]byte, int(metaData.Length)+len(cmd.Data))
+	dataBuf := make([]byte, int(metaData.Length))
 	tokenBuf := make([]byte, tokenSize)
 
 	// Now that all the headers are sent, start reading in the data chunks. We read until the header
