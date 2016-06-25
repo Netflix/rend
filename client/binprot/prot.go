@@ -210,6 +210,40 @@ func (b BinProt) Replace(rw *bufio.ReadWriter, key, value []byte) error {
 	return err
 }
 
+func (b BinProt) Append(rw *bufio.ReadWriter, key, value []byte) error {
+	// Append packet contains the req header and key only
+
+	// Header
+	bodylen := len(key) + len(value)
+	writeReq(rw, Append, len(key), 0, bodylen, 0)
+	// Body / data
+	rw.Write(key)
+	rw.Write(value)
+
+	rw.Flush()
+
+	// consume all of the response and discard
+	_, err := consumeResponse(rw.Reader)
+	return err
+}
+
+func (b BinProt) Prepend(rw *bufio.ReadWriter, key, value []byte) error {
+	// Append packet contains the req header and key only
+
+	// Header
+	bodylen := len(key) + len(value)
+	writeReq(rw, Prepend, len(key), 0, bodylen, 0)
+	// Body / data
+	rw.Write(key)
+	rw.Write(value)
+
+	rw.Flush()
+
+	// consume all of the response and discard
+	_, err := consumeResponse(rw.Reader)
+	return err
+}
+
 func (b BinProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	// Header
 	writeReq(rw, Get, len(key), 0, len(key), 0)

@@ -25,6 +25,8 @@ type Prot interface {
 	Set(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Add(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Replace(rw *bufio.ReadWriter, key []byte, value []byte) error
+	Append(rw *bufio.ReadWriter, key []byte, value []byte) error
+	Prepend(rw *bufio.ReadWriter, key []byte, value []byte) error
 	Get(rw *bufio.ReadWriter, key []byte) ([]byte, error)
 	GetWithOpaque(rw *bufio.ReadWriter, key []byte, opaque int) ([]byte, error)
 	GAT(rw *bufio.ReadWriter, key []byte) ([]byte, error)
@@ -54,17 +56,19 @@ var (
 type Op int
 
 const (
-	Get = iota
+	Get Op = iota
 	Bget
 	Gat
 	Set
 	Add
 	Replace
+	Append
+	Prepend
 	Touch
 	Delete
 )
 
-var AllOps = []Op{Get, Bget, Gat, Set, Add, Replace, Touch, Delete}
+var AllOps = []Op{Get, Bget, Gat, Set, Add, Replace, Append, Prepend, Touch, Delete}
 
 func (o Op) String() string {
 	switch o {
@@ -74,6 +78,10 @@ func (o Op) String() string {
 		return "Add"
 	case Replace:
 		return "Replace"
+	case Append:
+		return "Append"
+	case Prepend:
+		return "Prepend"
 	case Get:
 		return "Get"
 	case Gat:

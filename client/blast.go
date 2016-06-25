@@ -84,14 +84,14 @@ func main() {
 	if f.Binary {
 		var b binprot.BinProt
 		prot = b
-		numCmds = 8
-		usedCmds = "get, batch get, get and touch, set, add, replace, touch, delete"
+		numCmds = 10
+		usedCmds = "get, batch get, get and touch, set, add, replace, append, prepend, touch, delete"
 		protString = "binary"
 	} else {
 		var t textprot.TextProt
 		prot = t
-		numCmds = 7
-		usedCmds = "get, batch get, set, add, replace, touch, delete"
+		numCmds = 9
+		usedCmds = "get, batch get, set, add, replace, append, prepend, touch, delete"
 		protString = "text"
 	}
 
@@ -117,6 +117,8 @@ func main() {
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Set)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Add)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Replace)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Append)
+		go cmdGenerator(tasks, taskGens, opsPerTask, common.Prepend)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Get)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Bget)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Delete)
