@@ -84,7 +84,7 @@ func (s *DefaultServer) Loop() {
 			err = s.orca.Append(request.(common.SetRequest))
 		case common.RequestPrepend:
 			metrics.IncCounter(MetricCmdPrepend)
-			err = s.orca.Append(request.(common.SetRequest))
+			err = s.orca.Prepend(request.(common.SetRequest))
 		case common.RequestDelete:
 			metrics.IncCounter(MetricCmdDelete)
 			err = s.orca.Delete(request.(common.DeleteRequest))
