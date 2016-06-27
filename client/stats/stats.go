@@ -73,12 +73,12 @@ func avg(data []int) float64 {
 }
 
 func p(data []int, p float64) float64 {
-	idx := pIdx(data, p)
+	idx := pIdx(len(data), p)
 	return float64(data[idx])
 }
 
-func pIdx(data []int, p float64) int {
-	return int(math.Ceil(float64(len(data)) * p))
+func pIdx(datalen int, p float64) int {
+	return int(math.Min(math.Ceil(float64(datalen)*p), float64(datalen-1)))
 }
 
 const numBuckets = 100
@@ -91,7 +91,7 @@ func PrintHist(data []int) {
 		return
 	}
 	// Cut the data at the 99th percentile
-	p99Idx := pIdx(data, 0.99)
+	p99Idx := pIdx(len(data), 0.99)
 	data = data[:p99Idx]
 
 	buckets := make([]int, numBuckets)

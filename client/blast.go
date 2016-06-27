@@ -276,6 +276,10 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 			err = prot.Add(rw, item.Key, item.Value)
 		case common.Replace:
 			err = prot.Replace(rw, item.Key, item.Value)
+		case common.Append:
+			err = prot.Append(rw, item.Key, item.Value)
+		case common.Prepend:
+			err = prot.Prepend(rw, item.Key, item.Value)
 		case common.Get:
 			_, err = prot.Get(rw, item.Key)
 		case common.Gat:

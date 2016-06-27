@@ -228,7 +228,7 @@ func (b BinProt) Append(rw *bufio.ReadWriter, key, value []byte) error {
 }
 
 func (b BinProt) Prepend(rw *bufio.ReadWriter, key, value []byte) error {
-	// Append packet contains the req header and key only
+	// Prepend packet contains the req header and key only
 
 	// Header
 	bodylen := len(key) + len(value)
