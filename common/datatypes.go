@@ -50,7 +50,7 @@ var (
 	ErrKeyExists      = errors.New("ERROR Key already exists")
 	ErrValueTooBig    = errors.New("ERROR Value too big")
 	ErrInvalidArgs    = errors.New("ERROR Invalid arguments")
-	ErrItemNotStored  = errors.New("ERROR Item not stored (CAS didn't match)")
+	ErrItemNotStored  = errors.New("ERROR Item not stored")
 	ErrBadIncDecValue = errors.New("ERROR Bad increment/decrement value")
 	ErrAuth           = errors.New("ERROR Authentication error")
 	ErrUnknownCmd     = errors.New("ERROR Unknown command")

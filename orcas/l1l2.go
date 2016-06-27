@@ -230,7 +230,7 @@ func (l *L1L2Orca) Append(req common.SetRequest) error {
 	if err != nil {
 		// Appending in L2 did not succeed. Don't try in L1 since this means L2
 		// may not have succeeded.
-		if err == common.ErrKeyNotFound {
+		if err == common.ErrItemNotStored {
 			metrics.IncCounter(MetricCmdAppendNotStoredL2)
 			metrics.IncCounter(MetricCmdAppendNotStored)
 			return err
@@ -253,10 +253,10 @@ func (l *L1L2Orca) Append(req common.SetRequest) error {
 		// concurrent delete happened or that the data has just been pushed out
 		// of L1. Append will not bring data back into L1 as it's not necessarily
 		// going to be immediately read.
-		if err == common.ErrKeyNotFound {
+		if err == common.ErrItemNotStored || err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdAppendNotStoredL1)
 			metrics.IncCounter(MetricCmdAppendStored)
-			return nil
+			return l.res.Append(req.Opaque, req.Quiet)
 		}
 
 		metrics.IncCounter(MetricCmdAppendErrorsL1)
@@ -266,7 +266,7 @@ func (l *L1L2Orca) Append(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdAppendStoredL1)
 	metrics.IncCounter(MetricCmdAppendStored)
-	return nil
+	return l.res.Append(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2Orca) Prepend(req common.SetRequest) error {
@@ -278,7 +278,7 @@ func (l *L1L2Orca) Prepend(req common.SetRequest) error {
 	if err != nil {
 		// Prepending in L2 did not succeed. Don't try in L1 since this means L2
 		// may not have succeeded.
-		if err == common.ErrKeyNotFound {
+		if err == common.ErrItemNotStored {
 			metrics.IncCounter(MetricCmdPrependNotStoredL2)
 			metrics.IncCounter(MetricCmdPrependNotStored)
 			return err
@@ -301,10 +301,10 @@ func (l *L1L2Orca) Prepend(req common.SetRequest) error {
 		// concurrent delete happened or that the data has just been pushed out
 		// of L1. Prepend will not bring data back into L1 as it's not necessarily
 		// going to be immediately read.
-		if err == common.ErrKeyNotFound {
+		if err == common.ErrItemNotStored || err == common.ErrKeyNotFound {
 			metrics.IncCounter(MetricCmdPrependNotStoredL1)
 			metrics.IncCounter(MetricCmdPrependStored)
-			return nil
+			return l.res.Prepend(req.Opaque, req.Quiet)
 		}
 
 		metrics.IncCounter(MetricCmdPrependErrorsL1)
@@ -314,7 +314,7 @@ func (l *L1L2Orca) Prepend(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdPrependStoredL1)
 	metrics.IncCounter(MetricCmdPrependStored)
-	return nil
+	return l.res.Prepend(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
