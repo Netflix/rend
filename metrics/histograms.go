@@ -35,7 +35,7 @@ var (
 
 func init() {
 	// start at "-1" so the first ID is 0
-	atomic.StoreUint32(curHistID, 0xFFFFFFFF)
+	atomic.StoreUint32(curHistID, 0)
 }
 
 // The hist struct holds a primary and secondary data structure so the reader of
@@ -83,7 +83,7 @@ func newBHist() *bhist {
 }
 
 func AddHistogram(name string, sampled bool) uint32 {
-	idx := atomic.AddUint32(curHistID, 1)
+	idx := atomic.AddUint32(curHistID, 1) - 1
 
 	if idx >= maxNumHists {
 		panic("Too many histograms")

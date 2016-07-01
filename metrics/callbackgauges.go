@@ -17,15 +17,14 @@ var (
 )
 
 func init() {
-	// start with "-1" so the first metric ID overflows to 0
-	atomic.StoreUint32(curIntCbID, 0xFFFFFFFF)
-	atomic.StoreUint32(curFloatCbID, 0xFFFFFFFF)
+	atomic.StoreUint32(curIntCbID, 0)
+	atomic.StoreUint32(curFloatCbID, 0)
 }
 
 // Registers a gauge callback which will be called every time metrics are requested.
 // There is a maximum of 1024 callbacks, after which adding a new one will panic
 func RegisterIntGaugeCallback(name string, cb IntGaugeCallback) {
-	id := atomic.AddUint32(curIntCbID, 1)
+	id := atomic.AddUint32(curIntCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
 		panic("Too many callbacks")
@@ -38,7 +37,7 @@ func RegisterIntGaugeCallback(name string, cb IntGaugeCallback) {
 // Registers a gauge callback which will be called every time metrics are requested.
 // There is a maximum of 1024 callbacks, after which adding a new one will panic
 func RegisterFloatGaugeCallback(name string, cb FloatGaugeCallback) {
-	id := atomic.AddUint32(curFloatCbID, 1)
+	id := atomic.AddUint32(curFloatCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
 		panic("Too many callbacks")

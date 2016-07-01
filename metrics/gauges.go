@@ -17,15 +17,14 @@ var (
 )
 
 func init() {
-	// start with "-1" so the first metric ID overflows to 0
-	atomic.StoreUint32(curIntGaugeID, 0xFFFFFFFF)
-	atomic.StoreUint32(curFloatGaugeID, 0xFFFFFFFF)
+	atomic.StoreUint32(curIntGaugeID, 0)
+	atomic.StoreUint32(curFloatGaugeID, 0)
 }
 
 // Registers a gauge and returns an ID that can be used to access it
 // There is a maximum of 1024 gauges, after which adding a new one will panic
 func AddIntGauge(name string) uint32 {
-	id := atomic.AddUint32(curIntGaugeID, 1)
+	id := atomic.AddUint32(curIntGaugeID, 1) - 1
 
 	if id >= maxNumGauges {
 		panic("Too many gauges")
@@ -38,7 +37,7 @@ func AddIntGauge(name string) uint32 {
 // Registers a gauge and returns an ID that can be used to access it
 // There is a maximum of 1024 gauges, after which adding a new one will panic
 func AddFloatGauge(name string) uint32 {
-	id := atomic.AddUint32(curFloatGaugeID, 1)
+	id := atomic.AddUint32(curFloatGaugeID, 1) - 1
 
 	if id >= maxNumGauges {
 		panic("Too many gauges")
