@@ -5,7 +5,7 @@ import "sync/atomic"
 type IntGaugeCallback func() uint64
 type FloatGaugeCallback func() float64
 
-const maxNumCallbacks = 1024
+const maxNumCallbacks = 8192
 
 var (
 	intcbnames     = make([]string, maxNumCallbacks)
