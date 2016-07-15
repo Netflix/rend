@@ -24,11 +24,6 @@ var (
 	curCounterID = new(uint32)
 )
 
-func init() {
-	// start with "-1" so the first metric ID overflows to 0
-	atomic.StoreUint32(curCounterID, 0)
-}
-
 // Registers a counter and returns an ID that can be used to access it
 // There is a maximum of 1024 metrics, after which adding a new one will panic
 func AddCounter(name string) uint32 {

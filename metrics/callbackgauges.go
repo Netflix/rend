@@ -16,11 +16,6 @@ var (
 	curFloatCbID   = new(uint32)
 )
 
-func init() {
-	atomic.StoreUint32(curIntCbID, 0)
-	atomic.StoreUint32(curFloatCbID, 0)
-}
-
 // Registers a gauge callback which will be called every time metrics are requested.
 // There is a maximum of 1024 callbacks, after which adding a new one will panic
 func RegisterIntGaugeCallback(name string, cb IntGaugeCallback) {
