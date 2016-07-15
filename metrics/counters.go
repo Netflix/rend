@@ -16,25 +16,20 @@ package metrics
 
 import "sync/atomic"
 
-const numMetrics = 1024
+const maxNumCounters = 1024
 
 var (
-	cnames       = make([]string, numMetrics)
-	counters     = make([]uint64, numMetrics)
+	cnames       = make([]string, maxNumCounters)
+	counters     = make([]uint64, maxNumCounters)
 	curCounterID = new(uint32)
 )
-
-func init() {
-	// start with "-1" so the first metric ID overflows to 0
-	atomic.StoreUint32(curCounterID, 0xFFFFFFFF)
-}
 
 // Registers a counter and returns an ID that can be used to access it
 // There is a maximum of 1024 metrics, after which adding a new one will panic
 func AddCounter(name string) uint32 {
-	id := atomic.AddUint32(curCounterID, 1)
+	id := atomic.AddUint32(curCounterID, 1) - 1
 
-	if id >= numMetrics {
+	if id >= maxNumCounters {
 		panic("Too many counters")
 	}
 

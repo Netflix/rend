@@ -37,7 +37,9 @@ func init() {
 func printMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
+	//////////////////////////
 	// Runtime memory stats
+	//////////////////////////
 	runtime.ReadMemStats(memstats)
 	// General statistics.
 	fmt.Fprintf(w, "%smem_alloc %d\n", prefix, memstats.Alloc)            // bytes allocated and not yet freed
@@ -86,7 +88,9 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%salloc_size_%d_frees %d\n", prefix, b.Size, b.Frees)
 	}
 
+	//////////////////////////
 	// Histograms
+	//////////////////////////
 	hists := getAllHistograms()
 	for name, dat := range hists {
 		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, dat.count)
@@ -109,7 +113,9 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, 100, pctls[21])
 	}
 
+	//////////////////////////
 	// Bucketized histograms
+	//////////////////////////
 	// Buckets are based on the number of leading zeros in the number
 	// so each is less than or equal to that number of ones. Therefore
 	// bucket 0 means the number was greater than 0x7FFF_FFFF_FFFF_FFFF
@@ -125,10 +131,34 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Application stats
+	//////////////////////////
+	// Counters
+	//////////////////////////
 	ctrs := getAllCounters()
 	for name, val := range ctrs {
 		fmt.Fprintf(w, "%s%s %d\n", prefix, name, val)
+	}
+
+	//////////////////////////
+	// Gauges
+	//////////////////////////
+	intg, floatg := getAllGauges()
+	for name, val := range intg {
+		fmt.Fprintf(w, "%s%s %d\n", prefix, name, val)
+	}
+	for name, val := range floatg {
+		fmt.Fprintf(w, "%s%s %f\n", prefix, name, val)
+	}
+
+	//////////////////////////
+	// Gauge Callbacks
+	//////////////////////////
+	intg, floatg = getAllCallbackGauges()
+	for name, val := range intg {
+		fmt.Fprintf(w, "%s%s %d\n", prefix, name, val)
+	}
+	for name, val := range floatg {
+		fmt.Fprintf(w, "%s%s %f\n", prefix, name, val)
 	}
 }
 
