@@ -26,6 +26,8 @@ type Orca interface {
 	Set(req common.SetRequest) error
 	Add(req common.SetRequest) error
 	Replace(req common.SetRequest) error
+	Append(req common.SetRequest) error
+	Prepend(req common.SetRequest) error
 	Delete(req common.DeleteRequest) error
 	Touch(req common.TouchRequest) error
 	Get(req common.GetRequest) error
@@ -39,7 +41,6 @@ type Orca interface {
 }
 
 var (
-	MetricCmdGet         = metrics.AddCounter("cmd_get")
 	MetricCmdGetL1       = metrics.AddCounter("cmd_get_l1")
 	MetricCmdGetL2       = metrics.AddCounter("cmd_get_l2")
 	MetricCmdGetHits     = metrics.AddCounter("cmd_get_hits")
@@ -60,7 +61,6 @@ var (
 	MetricCmdGetSetErrorsL1 = metrics.AddCounter("cmd_get_set_errors_l1")
 	MetricCmdGetSetSucessL1 = metrics.AddCounter("cmd_get_set_success_l1")
 
-	MetricCmdGetE         = metrics.AddCounter("cmd_gete")
 	MetricCmdGetEL1       = metrics.AddCounter("cmd_gete_l1")
 	MetricCmdGetEL2       = metrics.AddCounter("cmd_gete_l2")
 	MetricCmdGetEHits     = metrics.AddCounter("cmd_gete_hits")
@@ -76,7 +76,6 @@ var (
 	MetricCmdGetEKeysL1   = metrics.AddCounter("cmd_gete_keys_l1")
 	MetricCmdGetEKeysL2   = metrics.AddCounter("cmd_gete_keys_l2")
 
-	MetricCmdSet          = metrics.AddCounter("cmd_set")
 	MetricCmdSetL1        = metrics.AddCounter("cmd_set_l1")
 	MetricCmdSetL2        = metrics.AddCounter("cmd_set_l2")
 	MetricCmdSetSuccess   = metrics.AddCounter("cmd_set_success")
@@ -92,7 +91,6 @@ var (
 	MetricCmdSetReplaceErrorsL1    = metrics.AddCounter("cmd_set_replace_errors_l1")
 	MetricCmdSetReplaceStoredL1    = metrics.AddCounter("cmd_set_replace_stored_l1")
 
-	MetricCmdAdd            = metrics.AddCounter("cmd_add")
 	MetricCmdAddL1          = metrics.AddCounter("cmd_add_l1")
 	MetricCmdAddL2          = metrics.AddCounter("cmd_add_l2")
 	MetricCmdAddStored      = metrics.AddCounter("cmd_add_stored")
@@ -111,7 +109,6 @@ var (
 	MetricCmdAddReplaceErrorsL1    = metrics.AddCounter("cmd_add_replace_errors_l1")
 	MetricCmdAddReplaceStoredL1    = metrics.AddCounter("cmd_add_replace_stored_l1")
 
-	MetricCmdReplace            = metrics.AddCounter("cmd_replace")
 	MetricCmdReplaceL1          = metrics.AddCounter("cmd_replace_l1")
 	MetricCmdReplaceL2          = metrics.AddCounter("cmd_replace_l2")
 	MetricCmdReplaceStored      = metrics.AddCounter("cmd_replace_stored")
@@ -130,7 +127,30 @@ var (
 	MetricCmdReplaceReplaceErrorsL1    = metrics.AddCounter("cmd_replace_replace_errors_l1")
 	MetricCmdReplaceReplaceStoredL1    = metrics.AddCounter("cmd_replace_replace_stored_l1")
 
-	MetricCmdDelete         = metrics.AddCounter("cmd_delete")
+	MetricCmdAppendL1          = metrics.AddCounter("cmd_append_l1")
+	MetricCmdAppendL2          = metrics.AddCounter("cmd_append_l2")
+	MetricCmdAppendStored      = metrics.AddCounter("cmd_append_stored")
+	MetricCmdAppendStoredL1    = metrics.AddCounter("cmd_append_stored_l1")
+	MetricCmdAppendStoredL2    = metrics.AddCounter("cmd_append_stored_l2")
+	MetricCmdAppendNotStored   = metrics.AddCounter("cmd_append_not_stored")
+	MetricCmdAppendNotStoredL1 = metrics.AddCounter("cmd_append_not_stored_l1")
+	MetricCmdAppendNotStoredL2 = metrics.AddCounter("cmd_append_not_stored_l2")
+	MetricCmdAppendErrors      = metrics.AddCounter("cmd_append_errors")
+	MetricCmdAppendErrorsL1    = metrics.AddCounter("cmd_append_errors_l1")
+	MetricCmdAppendErrorsL2    = metrics.AddCounter("cmd_append_errors_l2")
+
+	MetricCmdPrependL1          = metrics.AddCounter("cmd_prepend_l1")
+	MetricCmdPrependL2          = metrics.AddCounter("cmd_prepend_l2")
+	MetricCmdPrependStored      = metrics.AddCounter("cmd_prepend_stored")
+	MetricCmdPrependStoredL1    = metrics.AddCounter("cmd_prepend_stored_l1")
+	MetricCmdPrependStoredL2    = metrics.AddCounter("cmd_prepend_stored_l2")
+	MetricCmdPrependNotStored   = metrics.AddCounter("cmd_prepend_not_stored")
+	MetricCmdPrependNotStoredL1 = metrics.AddCounter("cmd_prepend_not_stored_l1")
+	MetricCmdPrependNotStoredL2 = metrics.AddCounter("cmd_prepend_not_stored_l2")
+	MetricCmdPrependErrors      = metrics.AddCounter("cmd_prepend_errors")
+	MetricCmdPrependErrorsL1    = metrics.AddCounter("cmd_prepend_errors_l1")
+	MetricCmdPrependErrorsL2    = metrics.AddCounter("cmd_prepend_errors_l2")
+
 	MetricCmdDeleteL1       = metrics.AddCounter("cmd_delete_l1")
 	MetricCmdDeleteL2       = metrics.AddCounter("cmd_delete_l2")
 	MetricCmdDeleteHits     = metrics.AddCounter("cmd_delete_hits")
@@ -143,7 +163,6 @@ var (
 	MetricCmdDeleteErrorsL1 = metrics.AddCounter("cmd_delete_errors_l1")
 	MetricCmdDeleteErrorsL2 = metrics.AddCounter("cmd_delete_errors_l2")
 
-	MetricCmdTouch         = metrics.AddCounter("cmd_touch")
 	MetricCmdTouchL1       = metrics.AddCounter("cmd_touch_l1")
 	MetricCmdTouchL2       = metrics.AddCounter("cmd_touch_l2")
 	MetricCmdTouchHits     = metrics.AddCounter("cmd_touch_hits")
@@ -162,7 +181,6 @@ var (
 	MetricCmdTouchTouchErrorsL1 = metrics.AddCounter("cmd_touch_touch_errors_l1")
 	MetricCmdTouchTouchHitsL1   = metrics.AddCounter("cmd_touch_touch_hits_l1")
 
-	MetricCmdGat         = metrics.AddCounter("cmd_gat")
 	MetricCmdGatL1       = metrics.AddCounter("cmd_gat_l1")
 	MetricCmdGatL2       = metrics.AddCounter("cmd_gat_l2")
 	MetricCmdGatHits     = metrics.AddCounter("cmd_gat_hits")
@@ -190,9 +208,4 @@ var (
 	MetricCmdGatTouchMissesL1 = metrics.AddCounter("cmd_gat_touch_misses_l1")
 	MetricCmdGatTouchErrorsL1 = metrics.AddCounter("cmd_gat_touch_errors_l1")
 	MetricCmdGatTouchHitsL1   = metrics.AddCounter("cmd_gat_touch_hits_l1")
-
-	MetricCmdUnknown = metrics.AddCounter("cmd_unknown")
-	MetricCmdNoop    = metrics.AddCounter("cmd_noop")
-	MetricCmdQuit    = metrics.AddCounter("cmd_quit")
-	MetricCmdVersion = metrics.AddCounter("cmd_version")
 )

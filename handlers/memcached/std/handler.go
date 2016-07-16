@@ -58,37 +58,42 @@ func (h Handler) Close() error {
 }
 
 func (h Handler) Set(cmd common.SetRequest) error {
-	return h.realHandleSet(cmd, common.RequestSet)
+	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+		return err
+	}
+	return h.handleSetCommon(cmd)
 }
 
 func (h Handler) Add(cmd common.SetRequest) error {
-	return h.realHandleSet(cmd, common.RequestAdd)
+	if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+		return err
+	}
+	return h.handleSetCommon(cmd)
 }
 
 func (h Handler) Replace(cmd common.SetRequest) error {
-	return h.realHandleSet(cmd, common.RequestReplace)
+	if err := binprot.WriteReplaceCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+		return err
+	}
+	return h.handleSetCommon(cmd)
 }
 
-func (h Handler) realHandleSet(cmd common.SetRequest, reqType common.RequestType) error {
-	// TODO: should there be a unique flags value for regular data?
-	// Write command header
-	switch reqType {
-	case common.RequestSet:
-		if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-			return err
-		}
-	case common.RequestAdd:
-		if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-			return err
-		}
-	case common.RequestReplace:
-		if err := binprot.WriteReplaceCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-			return err
-		}
-	default:
-		// I know. It's all wrong. By rights we shouldn't even be here. But we are.
-		panic("Unrecognized request type in realHandleSet!")
+func (h Handler) Append(cmd common.SetRequest) error {
+	if err := binprot.WriteAppendCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+		return err
 	}
+	return h.handleSetCommon(cmd)
+}
+
+func (h Handler) Prepend(cmd common.SetRequest) error {
+	if err := binprot.WritePrependCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+		return err
+	}
+	return h.handleSetCommon(cmd)
+}
+
+func (h Handler) handleSetCommon(cmd common.SetRequest) error {
+	// TODO: should there be a unique flags value for regular data?
 
 	// Write value
 	h.rw.Write(cmd.Data)

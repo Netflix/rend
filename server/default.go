@@ -71,30 +71,48 @@ func (s *DefaultServer) Loop() {
 		// TODO: handle nil
 		switch reqType {
 		case common.RequestSet:
+			metrics.IncCounter(MetricCmdSet)
 			err = s.orca.Set(request.(common.SetRequest))
 		case common.RequestAdd:
+			metrics.IncCounter(MetricCmdAdd)
 			err = s.orca.Add(request.(common.SetRequest))
 		case common.RequestReplace:
+			metrics.IncCounter(MetricCmdReplace)
 			err = s.orca.Replace(request.(common.SetRequest))
+		case common.RequestAppend:
+			metrics.IncCounter(MetricCmdAppend)
+			err = s.orca.Append(request.(common.SetRequest))
+		case common.RequestPrepend:
+			metrics.IncCounter(MetricCmdPrepend)
+			err = s.orca.Prepend(request.(common.SetRequest))
 		case common.RequestDelete:
+			metrics.IncCounter(MetricCmdDelete)
 			err = s.orca.Delete(request.(common.DeleteRequest))
 		case common.RequestTouch:
+			metrics.IncCounter(MetricCmdTouch)
 			err = s.orca.Touch(request.(common.TouchRequest))
 		case common.RequestGet:
+			metrics.IncCounter(MetricCmdGet)
 			err = s.orca.Get(request.(common.GetRequest))
 		case common.RequestGetE:
+			metrics.IncCounter(MetricCmdGetE)
 			err = s.orca.GetE(request.(common.GetRequest))
 		case common.RequestGat:
+			metrics.IncCounter(MetricCmdGat)
 			err = s.orca.Gat(request.(common.GATRequest))
 		case common.RequestNoop:
+			metrics.IncCounter(MetricCmdNoop)
 			err = s.orca.Noop(request.(common.NoopRequest))
 		case common.RequestQuit:
+			metrics.IncCounter(MetricCmdQuit)
 			s.orca.Quit(request.(common.QuitRequest))
 			abort(s.conns, err)
 			return
 		case common.RequestVersion:
+			metrics.IncCounter(MetricCmdVersion)
 			err = s.orca.Version(request.(common.VersionRequest))
 		case common.RequestUnknown:
+			metrics.IncCounter(MetricCmdUnknown)
 			err = s.orca.Unknown(request)
 		}
 

@@ -63,6 +63,34 @@ func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) e
 	return writeDataCmdCommon(w, OpcodeReplace, key, flags, exptime, dataSize)
 }
 
+func writeAppendPrependCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, dataSize uint32) error {
+	// opcode, keyLength, extraLength, totalBodyLength
+	// key + body
+	totalBodyLength := len(key) + int(dataSize)
+	header := makeRequestHeader(opcode, len(key), 0, totalBodyLength)
+
+	writeRequestHeader(w, header)
+
+	n, err := w.Write(key)
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+
+	reqHeadPool.Put(header)
+
+	return err
+}
+
+func WriteAppendCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+	//fmt.Printf("Append: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, dataSize, totalBodyLength)
+	return writeAppendPrependCmdCommon(w, OpcodeAppend, key, flags, exptime, dataSize)
+}
+
+func WritePrependCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+	//fmt.Printf("Prepend: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
+	//string(key), flags, exptime, dataSize, totalBodyLength)
+	return writeAppendPrependCmdCommon(w, OpcodePrepend, key, flags, exptime, dataSize)
+}
+
 // Key commands send the header and key only
 func writeKeyCmd(w io.Writer, opcode uint8, key []byte) error {
 	// opcode, keyLength, extraLength, totalBodyLength

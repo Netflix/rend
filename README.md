@@ -127,6 +127,8 @@ The blast script sends random requests of all types to the target, including:
 * `set`
 * `add`
 * `replace`
+* `append`
+* `prepend`
 * `get`
 * batch `get`
 * `touch`
@@ -154,3 +156,14 @@ Runs sets of a steadily increasing size to catch errors with specific size data.
 Simply sends sets into the cache to test set rate and eviction policy. The following sends 1 billion sets with random 10 character keys on 100 connections:
 
     go run fill.go --binary -p 11211 -h localhost -kl 10 -w 100 -n 1000000000
+
+### setops<i></i>.go
+
+Sends all different kinds of set operations at the target, including:
+* `set`
+* `add`
+* `replace`
+* `append`
+* `prepend`
+
+    go run setops.go --binary -p 11211 -n 1000000 -w 10 -kl 3

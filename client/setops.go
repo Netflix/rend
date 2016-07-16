@@ -77,21 +77,15 @@ func main() {
 	}
 
 	var prot common.Prot
-	var numCmds int
-	var usedCmds string
+	numCmds := 5
+	usedCmds := "set, add, replace, append, prepend"
 	var protString string
 
 	if f.Binary {
-		var b binprot.BinProt
-		prot = b
-		numCmds = 10
-		usedCmds = "get, batch get, get and touch, set, add, replace, append, prepend, touch, delete"
+		prot = binprot.BinProt{}
 		protString = "binary"
 	} else {
-		var t textprot.TextProt
-		prot = t
-		numCmds = 9
-		usedCmds = "get, batch get, set, add, replace, append, prepend, touch, delete"
+		prot = textprot.TextProt{}
 		protString = "text"
 	}
 
@@ -119,14 +113,6 @@ func main() {
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Replace)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Append)
 		go cmdGenerator(tasks, taskGens, opsPerTask, common.Prepend)
-		go cmdGenerator(tasks, taskGens, opsPerTask, common.Get)
-		go cmdGenerator(tasks, taskGens, opsPerTask, common.Bget)
-		go cmdGenerator(tasks, taskGens, opsPerTask, common.Delete)
-		go cmdGenerator(tasks, taskGens, opsPerTask, common.Touch)
-
-		if f.Binary {
-			go cmdGenerator(tasks, taskGens, opsPerTask, common.Gat)
-		}
 	}
 
 	// spawn communicators
@@ -170,10 +156,7 @@ func main() {
 			metricPool.Put(m)
 		}
 
-		for _, op := range common.AllOps {
-			if f.Text && op == common.Gat {
-				continue
-			}
+		for _, op := range []common.Op{common.Set, common.Add, common.Replace, common.Append, common.Prepend} {
 
 			times := hits[op]
 			sort.Ints(times)
@@ -262,7 +245,6 @@ func taskValue(r *rand.Rand, cmd common.Op) []byte {
 }
 
 func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, metrics chan<- metric, comms *sync.WaitGroup) {
-	r := rand.New(rand.NewSource(common.RandSeed()))
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 
 	for item := range tasks {
@@ -280,22 +262,10 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 			err = prot.Append(rw, item.Key, item.Value)
 		case common.Prepend:
 			err = prot.Prepend(rw, item.Key, item.Value)
-		case common.Get:
-			_, err = prot.Get(rw, item.Key)
-		case common.Gat:
-			_, err = prot.GAT(rw, item.Key)
-		case common.Bget:
-			bk := batchkeys(r, item.Key)
-			_, err = prot.BatchGet(rw, bk)
-			bkpool.Put(bk)
-		case common.Delete:
-			err = prot.Delete(rw, item.Key)
-		case common.Touch:
-			err = prot.Touch(rw, item.Key)
 		}
 
 		if err != nil {
-			// don't print get misses, adds not stored, and replaces not stored
+			// don't print not stored
 			if !isMiss(err) {
 				fmt.Printf("Error performing operation %s on key %s: %s\n", item.Cmd, item.Key, err.Error())
 			}

@@ -37,7 +37,6 @@ func L1L2Batch(l1, l2 handlers.Handler, res common.Responder) Orca {
 }
 
 func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdSet)
 	//log.Println("set", string(req.Key))
 
 	// Try L2 first
@@ -75,7 +74,6 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 }
 
 func (l *L1L2BatchOrca) Add(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdAdd)
 	//log.Println("add", string(req.Key))
 
 	// Add in L2 first, since it has the larger state
@@ -123,7 +121,6 @@ func (l *L1L2BatchOrca) Add(req common.SetRequest) error {
 }
 
 func (l *L1L2BatchOrca) Replace(req common.SetRequest) error {
-	metrics.IncCounter(MetricCmdReplace)
 	//log.Println("replace", string(req.Key))
 
 	// Add in L2 first, since it has the larger state
@@ -170,8 +167,114 @@ func (l *L1L2BatchOrca) Replace(req common.SetRequest) error {
 	return l.res.Replace(req.Opaque, req.Quiet)
 }
 
+func (l *L1L2BatchOrca) Append(req common.SetRequest) error {
+	//log.Println("append", string(req.Key))
+
+	// Ordering of append and prepend operations won't matter much unless
+	// there's a concurrent set that interleaves. In the case of a delete, the
+	// append will fail to work the second time (in L1) and the delete will not
+	// interfere. This append technically still succeeds if L1 doesn't work
+	// and L2 succeeded because data is allowed to be in L2 and not L1.
+	//
+	// With a set, we can get data appended (or prepended) only in L1 if a set
+	// completes both L2 and L1 between the L2 and L1 of this operation. This is
+	// an accepted risk which can be solved by the locking wrapper if it
+	// commonly happens.
+
+	metrics.IncCounter(MetricCmdAppendL2)
+	err := l.l2.Append(req)
+
+	if err != nil {
+		// Appending in L2 did not succeed. Don't try in L1 since this means L2
+		// may not have succeeded.
+		if err == common.ErrItemNotStored {
+			metrics.IncCounter(MetricCmdAppendNotStoredL2)
+			metrics.IncCounter(MetricCmdAppendNotStored)
+			return err
+		}
+
+		metrics.IncCounter(MetricCmdAppendErrorsL2)
+		metrics.IncCounter(MetricCmdAppendErrors)
+		return err
+	}
+
+	// L2 succeeded, so it's time to try L1. If L1 fails with a not found, we're
+	// still good since L1 is allowed to not have the data when L2 does. If
+	// there's an error, we need to fail because we're not in an unknown state
+	// where L1 possibly doesn't have the append when L2 does. We don't recover
+	// from this but instead fail the request and let the client retry.
+	err = l.l1.Append(req)
+
+	if err != nil {
+		// Not stored in L1 is still fine. There's a possibility that a
+		// concurrent delete happened or that the data has just been pushed out
+		// of L1. Append will not bring data back into L1 as it's not necessarily
+		// going to be immediately read.
+		if err == common.ErrItemNotStored || err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdAppendNotStoredL1)
+			metrics.IncCounter(MetricCmdAppendStored)
+			return l.res.Append(req.Opaque, req.Quiet)
+		}
+
+		metrics.IncCounter(MetricCmdAppendErrorsL1)
+		metrics.IncCounter(MetricCmdAppendErrors)
+		return err
+	}
+
+	metrics.IncCounter(MetricCmdAppendStoredL1)
+	metrics.IncCounter(MetricCmdAppendStored)
+	return l.res.Append(req.Opaque, req.Quiet)
+}
+
+func (l *L1L2BatchOrca) Prepend(req common.SetRequest) error {
+	//log.Println("prepend", string(req.Key))
+
+	metrics.IncCounter(MetricCmdPrependL2)
+	err := l.l2.Prepend(req)
+
+	if err != nil {
+		// Prepending in L2 did not succeed. Don't try in L1 since this means L2
+		// may not have succeeded.
+		if err == common.ErrItemNotStored {
+			metrics.IncCounter(MetricCmdPrependNotStoredL2)
+			metrics.IncCounter(MetricCmdPrependNotStored)
+			return err
+		}
+
+		metrics.IncCounter(MetricCmdPrependErrorsL2)
+		metrics.IncCounter(MetricCmdPrependErrors)
+		return err
+	}
+
+	// L2 succeeded, so it's time to try L1. If L1 fails with a not found, we're
+	// still good since L1 is allowed to not have the data when L2 does. If
+	// there's an error, we need to fail because we're not in an unknown state
+	// where L1 possibly doesn't have the Prepend when L2 does. We don't recover
+	// from this but instead fail the request and let the client retry.
+	err = l.l1.Prepend(req)
+
+	if err != nil {
+		// Not stored in L1 is still fine. There's a possibility that a
+		// concurrent delete happened or that the data has just been pushed out
+		// of L1. Prepend will not bring data back into L1 as it's not necessarily
+		// going to be immediately read.
+		if err == common.ErrItemNotStored || err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdPrependNotStoredL1)
+			metrics.IncCounter(MetricCmdPrependStored)
+			return l.res.Prepend(req.Opaque, req.Quiet)
+		}
+
+		metrics.IncCounter(MetricCmdPrependErrorsL1)
+		metrics.IncCounter(MetricCmdPrependErrors)
+		return err
+	}
+
+	metrics.IncCounter(MetricCmdPrependStoredL1)
+	metrics.IncCounter(MetricCmdPrependStored)
+	return l.res.Prepend(req.Opaque, req.Quiet)
+}
+
 func (l *L1L2BatchOrca) Delete(req common.DeleteRequest) error {
-	metrics.IncCounter(MetricCmdDelete)
 	//log.Println("delete", string(req.Key))
 
 	// Try L2 first
@@ -229,7 +332,6 @@ func (l *L1L2BatchOrca) Delete(req common.DeleteRequest) error {
 }
 
 func (l *L1L2BatchOrca) Touch(req common.TouchRequest) error {
-	metrics.IncCounter(MetricCmdTouch)
 	//log.Println("touch", string(req.Key))
 
 	// Try L2 first
@@ -283,7 +385,6 @@ func (l *L1L2BatchOrca) Touch(req common.TouchRequest) error {
 }
 
 func (l *L1L2BatchOrca) Get(req common.GetRequest) error {
-	metrics.IncCounter(MetricCmdGet)
 	metrics.IncCounterBy(MetricCmdGetKeys, uint64(len(req.Keys)))
 	//debugString := "get"
 	//for _, k := range req.Keys {
@@ -423,7 +524,6 @@ func (l *L1L2BatchOrca) GetE(req common.GetRequest) error {
 }
 
 func (l *L1L2BatchOrca) Gat(req common.GATRequest) error {
-	metrics.IncCounter(MetricCmdGat)
 	//log.Println("gat", string(req.Key))
 
 	// Perform L2 for correctness, invalidate in L1 later
@@ -483,30 +583,29 @@ func (l *L1L2BatchOrca) Gat(req common.GATRequest) error {
 }
 
 func (l *L1L2BatchOrca) Noop(req common.NoopRequest) error {
-	metrics.IncCounter(MetricCmdNoop)
 	return l.res.Noop(req.Opaque)
 }
 
 func (l *L1L2BatchOrca) Quit(req common.QuitRequest) error {
-	metrics.IncCounter(MetricCmdQuit)
 	return l.res.Quit(req.Opaque, req.Quiet)
 }
 
 func (l *L1L2BatchOrca) Version(req common.VersionRequest) error {
-	metrics.IncCounter(MetricCmdVersion)
 	return l.res.Version(req.Opaque)
 }
 
 func (l *L1L2BatchOrca) Unknown(req common.Request) error {
-	metrics.IncCounter(MetricCmdUnknown)
 	return common.ErrUnknownCmd
 }
 
 func (l *L1L2BatchOrca) Error(req common.Request, reqType common.RequestType, err error) {
-	opaque := uint32(0)
+	var opaque uint32
+	var quiet bool
+
 	if req != nil {
-		opaque = req.Opq()
+		opaque = req.GetOpaque()
+		quiet = req.IsQuiet()
 	}
 
-	l.res.Error(opaque, reqType, err)
+	l.res.Error(opaque, reqType, err, quiet)
 }

@@ -50,7 +50,7 @@ var (
 	ErrKeyExists      = errors.New("ERROR Key already exists")
 	ErrValueTooBig    = errors.New("ERROR Value too big")
 	ErrInvalidArgs    = errors.New("ERROR Invalid arguments")
-	ErrItemNotStored  = errors.New("ERROR Item not stored (CAS didn't match)")
+	ErrItemNotStored  = errors.New("ERROR Item not stored")
 	ErrBadIncDecValue = errors.New("ERROR Bad increment/decrement value")
 	ErrAuth           = errors.New("ERROR Authentication error")
 	ErrUnknownCmd     = errors.New("ERROR Unknown command")
@@ -87,7 +87,7 @@ type RequestType int
 const (
 	// RequestUnknown means the parser doesn't know what the request represents. Valid protocol
 	// parsing but invalid values.
-	RequestUnknown = iota
+	RequestUnknown RequestType = iota
 
 	// RequestGet represents both a single get and a multi-get, which take differen forms in
 	// different protocols. This means it can also be the accumulation of many GETQ commands.
@@ -108,6 +108,14 @@ const (
 
 	// RequestReplace will perform the same operations as set, but only if the key already exists
 	RequestReplace
+
+	// RequestAppend appends data to the end of the already existing data for a given key. Does not
+	// change the flags or TTL values even if they are given.
+	RequestAppend
+
+	// RequestPrepend appends data to the end of the already existing data for a given key. Does not
+	// change the flags or TTL values even if they are given.
+	RequestPrepend
 
 	// RequestDelete deletes a piece of data from all levels of cache
 	RequestDelete
@@ -140,6 +148,8 @@ type Responder interface {
 	Set(opaque uint32, quiet bool) error
 	Add(opaque uint32, quiet bool) error
 	Replace(opaque uint32, quiet bool) error
+	Append(opaque uint32, quiet bool) error
+	Prepend(opaque uint32, quiet bool) error
 	Get(response GetResponse) error
 	GetEnd(opaque uint32, noopEnd bool) error
 	GetE(response GetEResponse) error
@@ -149,11 +159,12 @@ type Responder interface {
 	Noop(opaque uint32) error
 	Quit(opaque uint32, quiet bool) error
 	Version(opaque uint32) error
-	Error(opaque uint32, reqType RequestType, err error) error
+	Error(opaque uint32, reqType RequestType, err error, quiet bool) error
 }
 
 type Request interface {
-	Opq() uint32
+	GetOpaque() uint32
+	IsQuiet() bool
 }
 
 // SetRequest corresponds to common.RequestSet. It contains all the information required to fulfill
@@ -167,8 +178,12 @@ type SetRequest struct {
 	Quiet   bool
 }
 
-func (r SetRequest) Opq() uint32 {
+func (r SetRequest) GetOpaque() uint32 {
 	return r.Opaque
+}
+
+func (r SetRequest) IsQuiet() bool {
+	return r.Quiet
 }
 
 // GetRequest corresponds to common.RequestGet. It contains all the information required to fulfill
@@ -182,11 +197,15 @@ type GetRequest struct {
 	NoopEnd    bool
 }
 
-func (r GetRequest) Opq() uint32 {
+func (r GetRequest) GetOpaque() uint32 {
 	// TODO: better implementation?
 	// It's nonsensical but the best way to react in this case since it's a bad situation already.
 	// Typically if this method was needed we're already in a fatal error sitation.
 	return 0
+}
+
+func (r GetRequest) IsQuiet() bool {
+	return false
 }
 
 // DeleteRequest corresponds to common.RequestDelete. It contains all the information required to
@@ -194,10 +213,15 @@ func (r GetRequest) Opq() uint32 {
 type DeleteRequest struct {
 	Key    []byte
 	Opaque uint32
+	Quiet  bool
 }
 
-func (r DeleteRequest) Opq() uint32 {
+func (r DeleteRequest) GetOpaque() uint32 {
 	return r.Opaque
+}
+
+func (r DeleteRequest) IsQuiet() bool {
+	return r.Quiet
 }
 
 // TouchRequest corresponds to common.RequestTouch. It contains all the information required to
@@ -206,10 +230,15 @@ type TouchRequest struct {
 	Key     []byte
 	Exptime uint32
 	Opaque  uint32
+	Quiet   bool
 }
 
-func (r TouchRequest) Opq() uint32 {
+func (r TouchRequest) GetOpaque() uint32 {
 	return r.Opaque
+}
+
+func (r TouchRequest) IsQuiet() bool {
+	return r.Quiet
 }
 
 // GATRequest corresponds to common.RequestGat. It contains all the information required to fulfill
@@ -218,10 +247,15 @@ type GATRequest struct {
 	Key     []byte
 	Exptime uint32
 	Opaque  uint32
+	Quiet   bool
 }
 
-func (r GATRequest) Opq() uint32 {
+func (r GATRequest) GetOpaque() uint32 {
 	return r.Opaque
+}
+
+func (r GATRequest) IsQuiet() bool {
+	return r.Quiet
 }
 
 // QuitRequest corresponds to common.RequestQuit. It contains all the information required to
@@ -231,8 +265,12 @@ type QuitRequest struct {
 	Quiet  bool
 }
 
-func (r QuitRequest) Opq() uint32 {
+func (r QuitRequest) GetOpaque() uint32 {
 	return r.Opaque
+}
+
+func (r QuitRequest) IsQuiet() bool {
+	return r.Quiet
 }
 
 // NoopRequest corresponds to common.RequestNoop. It contains all the information required to
@@ -241,8 +279,12 @@ type NoopRequest struct {
 	Opaque uint32
 }
 
-func (r NoopRequest) Opq() uint32 {
+func (r NoopRequest) GetOpaque() uint32 {
 	return r.Opaque
+}
+
+func (r NoopRequest) IsQuiet() bool {
+	return false
 }
 
 // VersionRequest corresponds to common.RequestVersion. It contains all the information required to
@@ -251,8 +293,12 @@ type VersionRequest struct {
 	Opaque uint32
 }
 
-func (r VersionRequest) Opq() uint32 {
+func (r VersionRequest) GetOpaque() uint32 {
 	return r.Opaque
+}
+
+func (r VersionRequest) IsQuiet() bool {
+	return false
 }
 
 // GetResponse is used in both RequestGet and RequestGat handling. Both respond in the same manner

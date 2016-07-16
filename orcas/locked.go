@@ -170,6 +170,22 @@ func (l *LockedOrca) Replace(req common.SetRequest) error {
 	return ret
 }
 
+func (l *LockedOrca) Append(req common.SetRequest) error {
+	lock := l.getlock(req.Key, false)
+	lock.Lock()
+	ret := l.wrapped.Append(req)
+	lock.Unlock()
+	return ret
+}
+
+func (l *LockedOrca) Prepend(req common.SetRequest) error {
+	lock := l.getlock(req.Key, false)
+	lock.Lock()
+	ret := l.wrapped.Prepend(req)
+	lock.Unlock()
+	return ret
+}
+
 func (l *LockedOrca) Delete(req common.DeleteRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()

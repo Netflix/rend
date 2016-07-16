@@ -71,6 +71,7 @@ func (h *Handler) Add(cmd common.SetRequest) error {
 	e, ok := h.data[string(cmd.Key)]
 
 	if ok || e.isExpired() {
+		delete(h.data, string(cmd.Key))
 		h.mutex.Unlock()
 		return common.ErrKeyExists
 	}
@@ -96,6 +97,7 @@ func (h *Handler) Replace(cmd common.SetRequest) error {
 	e, ok := h.data[string(cmd.Key)]
 
 	if !ok || e.isExpired() {
+		delete(h.data, string(cmd.Key))
 		h.mutex.Unlock()
 		return common.ErrKeyNotFound
 	}
@@ -115,6 +117,48 @@ func (h *Handler) Replace(cmd common.SetRequest) error {
 	return nil
 }
 
+func (h *Handler) Append(cmd common.SetRequest) error {
+	h.mutex.Lock()
+
+	e, ok := h.data[string(cmd.Key)]
+
+	if !ok || e.isExpired() {
+		delete(h.data, string(cmd.Key))
+		h.mutex.Unlock()
+		return common.ErrKeyNotFound
+	}
+
+	h.data[string(cmd.Key)] = entry{
+		data:    append(e.data, cmd.Data...),
+		exptime: e.exptime,
+		flags:   e.flags,
+	}
+
+	h.mutex.Unlock()
+	return nil
+}
+
+func (h *Handler) Prepend(cmd common.SetRequest) error {
+	h.mutex.Lock()
+
+	e, ok := h.data[string(cmd.Key)]
+
+	if !ok || e.isExpired() {
+		delete(h.data, string(cmd.Key))
+		h.mutex.Unlock()
+		return common.ErrKeyNotFound
+	}
+
+	h.data[string(cmd.Key)] = entry{
+		data:    append(cmd.Data, e.data...),
+		exptime: e.exptime,
+		flags:   e.flags,
+	}
+
+	h.mutex.Unlock()
+	return nil
+}
+
 func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {
 	dataOut := make(chan common.GetResponse, len(cmd.Keys))
 	errorOut := make(chan error)
@@ -125,6 +169,7 @@ func (h *Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan 
 		e, ok := h.data[string(bk)]
 
 		if !ok || e.isExpired() {
+			delete(h.data, string(bk))
 			dataOut <- common.GetResponse{
 				Miss:   true,
 				Quiet:  cmd.Quiet[idx],
@@ -161,6 +206,7 @@ func (h *Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-cha
 		e, ok := h.data[string(bk)]
 
 		if !ok || e.isExpired() {
+			delete(h.data, string(bk))
 			dataOut <- common.GetEResponse{
 				Miss:   true,
 				Quiet:  cmd.Quiet[idx],
@@ -194,6 +240,7 @@ func (h *Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	e, ok := h.data[string(cmd.Key)]
 
 	if !ok || e.isExpired() {
+		delete(h.data, string(cmd.Key))
 		h.mutex.Unlock()
 		return common.GetResponse{
 			Miss:   true,
@@ -234,6 +281,7 @@ func (h *Handler) Touch(cmd common.TouchRequest) error {
 	e, ok := h.data[string(cmd.Key)]
 
 	if !ok || e.isExpired() {
+		delete(h.data, string(cmd.Key))
 		h.mutex.Unlock()
 		return common.ErrKeyNotFound
 	}

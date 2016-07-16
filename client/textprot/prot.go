@@ -99,6 +99,28 @@ func (t TextProt) Replace(rw *bufio.ReadWriter, key []byte, value []byte) error 
 	return nil
 }
 
+func (t TextProt) Append(rw *bufio.ReadWriter, key []byte, value []byte) error {
+	if _, err := fmt.Fprintf(rw, "append %s 0 0 %v\r\n%s\r\n", string(key), len(value), string(value)); err != nil {
+		return err
+	}
+
+	rw.Flush()
+
+	_, err := rw.ReadString('\n')
+	return err
+}
+
+func (t TextProt) Prepend(rw *bufio.ReadWriter, key []byte, value []byte) error {
+	if _, err := fmt.Fprintf(rw, "prepend %s 0 0 %v\r\n%s\r\n", string(key), len(value), string(value)); err != nil {
+		return err
+	}
+
+	rw.Flush()
+
+	_, err := rw.ReadString('\n')
+	return err
+}
+
 func (t TextProt) GetWithOpaque(rw *bufio.ReadWriter, key []byte, opaque int) ([]byte, error) {
 	return t.Get(rw, key)
 }

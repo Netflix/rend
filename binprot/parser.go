@@ -149,6 +149,16 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 	case OpcodeReplaceQ:
 		return setRequest(b.reader, reqHeader, common.RequestReplace, true)
 
+	case OpcodeAppend:
+		return appendPrependRequest(b.reader, reqHeader, common.RequestAppend, false)
+	case OpcodeAppendQ:
+		return appendPrependRequest(b.reader, reqHeader, common.RequestAppend, true)
+
+	case OpcodePrepend:
+		return appendPrependRequest(b.reader, reqHeader, common.RequestPrepend, false)
+	case OpcodePrependQ:
+		return appendPrependRequest(b.reader, reqHeader, common.RequestPrepend, true)
+
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
 		if err != nil {
@@ -442,6 +452,34 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 		Key:     key,
 		Flags:   flags,
 		Exptime: exptime,
+		Opaque:  reqHeader.OpaqueToken,
+		Data:    dataBuf,
+	}, reqType, nil
+}
+
+func appendPrependRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool) (common.SetRequest, common.RequestType, error) {
+	// key, value
+	key, err := readString(r, reqHeader.KeyLength)
+	if err != nil {
+		log.Println("Error reading key")
+		return common.SetRequest{}, reqType, err
+	}
+
+	realLength := reqHeader.TotalBodyLength - uint32(reqHeader.KeyLength)
+
+	// Read in the body of the set request
+	dataBuf := make([]byte, realLength)
+	n, err := io.ReadAtLeast(r, dataBuf, int(realLength))
+	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
+	if err != nil {
+		return common.SetRequest{}, reqType, err
+	}
+
+	return common.SetRequest{
+		Quiet:   quiet,
+		Key:     key,
+		Flags:   0,
+		Exptime: 0,
 		Opaque:  reqHeader.OpaqueToken,
 		Data:    dataBuf,
 	}, reqType, nil
