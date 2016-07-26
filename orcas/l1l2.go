@@ -43,7 +43,9 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 	// Try L2 first
 	metrics.IncCounter(MetricCmdSetL2)
 	start := time.Now().UnixNano()
+
 	err := l.l2.Set(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistSetL2, uint64(dur))
 
@@ -72,7 +74,9 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 	// and that the client will reconnect to try again.
 	metrics.IncCounter(MetricCmdSetL1)
 	start = time.Now().UnixNano()
+
 	err = l.l1.Set(req)
+
 	dur = time.Now().UnixNano() - start
 	metrics.ObserveHist(HistSetL1, uint64(dur))
 
@@ -94,7 +98,9 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 	// Add in L2 first, since it has the larger state
 	metrics.IncCounter(MetricCmdAddL2)
 	start := time.Now().UnixNano()
+
 	err := l.l2.Add(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistAddL2, uint64(dur))
 
@@ -127,7 +133,9 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 	// the L1 to have the data.
 	metrics.IncCounter(MetricCmdAddL1)
 	start = time.Now().UnixNano()
+
 	err = l.l1.Add(req)
+
 	dur = time.Now().UnixNano() - start
 	metrics.ObserveHist(HistAddL1, uint64(dur))
 
@@ -165,7 +173,9 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	// Replace in L2 first, since it has the larger state
 	metrics.IncCounter(MetricCmdReplaceL2)
 	start := time.Now().UnixNano()
+
 	err := l.l2.Replace(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistReplaceL2, uint64(dur))
 
@@ -206,7 +216,9 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	// possibly interleave to produce inconsistency in L2 and L1.
 	metrics.IncCounter(MetricCmdReplaceL1)
 	start = time.Now().UnixNano()
+
 	err = l.l1.Replace(req)
+
 	dur = time.Now().UnixNano() - start
 	metrics.ObserveHist(HistReplaceL1, uint64(dur))
 
@@ -249,7 +261,9 @@ func (l *L1L2Orca) Append(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdAppendL2)
 	start := time.Now().UnixNano()
+
 	err := l.l2.Append(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistAppendL2, uint64(dur))
 
@@ -274,7 +288,9 @@ func (l *L1L2Orca) Append(req common.SetRequest) error {
 	// from this but instead fail the request and let the client retry.
 	metrics.IncCounter(MetricCmdAppendL1)
 	start = time.Now().UnixNano()
+
 	err = l.l1.Append(req)
+
 	dur = time.Now().UnixNano() - start
 	metrics.ObserveHist(HistAppendL1, uint64(dur))
 
@@ -304,7 +320,9 @@ func (l *L1L2Orca) Prepend(req common.SetRequest) error {
 
 	metrics.IncCounter(MetricCmdPrependL2)
 	start := time.Now().UnixNano()
+
 	err := l.l2.Prepend(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistPrependL2, uint64(dur))
 
@@ -329,7 +347,9 @@ func (l *L1L2Orca) Prepend(req common.SetRequest) error {
 	// from this but instead fail the request and let the client retry.
 	metrics.IncCounter(MetricCmdPrependL1)
 	start = time.Now().UnixNano()
+
 	err = l.l1.Prepend(req)
+
 	dur = time.Now().UnixNano() - start
 	metrics.ObserveHist(HistPrependL1, uint64(dur))
 
@@ -360,7 +380,9 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 	// Try L2 first
 	metrics.IncCounter(MetricCmdDeleteL2)
 	start := time.Now().UnixNano()
+
 	err := l.l2.Delete(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistDeleteL2, uint64(dur))
 
@@ -393,7 +415,9 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 	// missing then no other request can undo part of this request.
 	metrics.IncCounter(MetricCmdDeleteL1)
 	start = time.Now().UnixNano()
+
 	err = l.l1.Delete(req)
+
 	dur = time.Now().UnixNano() - start
 	metrics.ObserveHist(HistDeleteL1, uint64(dur))
 
@@ -425,7 +449,9 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 	// Try L2 first
 	metrics.IncCounter(MetricCmdTouchL2)
 	start := time.Now().UnixNano()
+
 	err := l.l2.Touch(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistTouchL2, uint64(dur))
 
@@ -458,7 +484,9 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 	// outlive L2. This situation is uncommon and is therefore discounted.
 	metrics.IncCounter(MetricCmdTouchL1)
 	start = time.Now().UnixNano()
+
 	err = l.l1.Touch(req)
+
 	dur = time.Now().UnixNano() - start
 	metrics.ObserveHist(HistTouchL1, uint64(dur))
 
@@ -497,6 +525,7 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 	metrics.IncCounter(MetricCmdGetL1)
 	metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
 	start := time.Now().UnixNano()
+
 	resChan, errChan := l.l1.Get(req)
 
 	var err error
@@ -567,7 +596,9 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 	metrics.IncCounter(MetricCmdGetEL2)
 	metrics.IncCounterBy(MetricCmdGetEKeysL2, uint64(len(l2keys)))
 	start = time.Now().UnixNano()
+
 	resChanE, errChan := l.l2.GetE(req)
+
 	for {
 		select {
 		case res, ok := <-resChanE:
@@ -654,7 +685,9 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 	// Try L1 first
 	metrics.IncCounter(MetricCmdGatL1)
 	start := time.Now().UnixNano()
+
 	res, err := l.l1.GAT(req)
+
 	dur := time.Now().UnixNano() - start
 	metrics.ObserveHist(HistGatL1, uint64(dur))
 
@@ -679,7 +712,9 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 
 		metrics.IncCounter(MetricCmdGatL2)
 		start = time.Now().UnixNano()
+
 		res, err = l.l2.GAT(req)
+
 		dur = time.Now().UnixNano() - start
 		metrics.ObserveHist(HistGatL2, uint64(dur))
 
@@ -718,7 +753,9 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 
 		metrics.IncCounter(MetricCmdGatAddL1)
 		start = time.Now().UnixNano()
+
 		err = l.l1.Add(setreq)
+
 		dur := time.Now().UnixNano() - start
 		metrics.ObserveHist(HistAddL1, uint64(dur))
 
@@ -778,7 +815,9 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 
 		metrics.IncCounter(MetricCmdGatSetL2)
 		start = time.Now().UnixNano()
+
 		err := l.l2.Set(setreq)
+
 		dur := time.Now().UnixNano() - start
 		metrics.ObserveHist(HistSetL2, uint64(dur))
 
