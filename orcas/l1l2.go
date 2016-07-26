@@ -15,6 +15,7 @@
 package orcas
 
 import (
+	"log"
 	"time"
 
 	"github.com/netflix/rend/common"
@@ -643,6 +644,7 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 
 func (l *L1L2Orca) GetE(req common.GetRequest) error {
 	// The L1/L2 does not support getE, only L1Only does.
+	log.Println("[WARN] Use of GetE in L1L2 Batch orchestrator")
 	return common.ErrUnknownCmd
 }
 
