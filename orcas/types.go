@@ -199,15 +199,19 @@ var (
 	MetricCmdGatAddErrorsL1    = metrics.AddCounter("cmd_gat_add_errors_l1")
 	MetricCmdGatAddStoredL1    = metrics.AddCounter("cmd_gat_add_stored_l1")
 	MetricCmdGatAddNotStoredL1 = metrics.AddCounter("cmd_gat_add_not_stored_l1")
-	MetricCmdGatSetL2          = metrics.AddCounter("cmd_gat_set_l2")
-	MetricCmdGatSetErrorsL2    = metrics.AddCounter("cmd_gat_set_errors_l2")
-	MetricCmdGatSetSuccessL2   = metrics.AddCounter("cmd_gat_set_success_l2")
+	MetricCmdGatTouchL2        = metrics.AddCounter("cmd_gat_touch_l2")
+	MetricCmdGatTouchHitsL2    = metrics.AddCounter("cmd_gat_touch_hits_l2")
+	MetricCmdGatTouchMissesL2  = metrics.AddCounter("cmd_gat_touch_misses_l2")
+	MetricCmdGatTouchErrorsL2  = metrics.AddCounter("cmd_gat_touch_errors_l2")
 
 	// Batch L1L2 gat metrics
 	MetricCmdGatTouchL1       = metrics.AddCounter("cmd_gat_touch_l1")
 	MetricCmdGatTouchMissesL1 = metrics.AddCounter("cmd_gat_touch_misses_l1")
 	MetricCmdGatTouchErrorsL1 = metrics.AddCounter("cmd_gat_touch_errors_l1")
 	MetricCmdGatTouchHitsL1   = metrics.AddCounter("cmd_gat_touch_hits_l1")
+
+	// Special metrics
+	MetricInconsistencyDetected = metrics.AddCounter("inconsistency_detected")
 
 	// Histograms for sub-operations
 	HistSetL1     = metrics.AddHistogram("set_l1", false)
