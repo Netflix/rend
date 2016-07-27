@@ -705,6 +705,7 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 			if err == common.ErrKeyNotFound {
 				// this is a problem. L1 had the item but L2 doesn't. To avoid an
 				// inconsistent view, return the same ErrNotFound and fail the op.
+				metrics.IncCounter(MetricInconsistencyDetected)
 				metrics.IncCounter(MetricCmdGatTouchMissesL2)
 				metrics.IncCounter(MetricCmdGatMisses)
 			} else {

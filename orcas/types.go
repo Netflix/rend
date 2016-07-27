@@ -209,4 +209,7 @@ var (
 	MetricCmdGatTouchMissesL1 = metrics.AddCounter("cmd_gat_touch_misses_l1")
 	MetricCmdGatTouchErrorsL1 = metrics.AddCounter("cmd_gat_touch_errors_l1")
 	MetricCmdGatTouchHitsL1   = metrics.AddCounter("cmd_gat_touch_hits_l1")
+
+	// Special metrics
+	MetricInconsistencyDetected = metrics.AddCounter("inconsistency_detected")
 )
