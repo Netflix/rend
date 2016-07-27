@@ -668,8 +668,10 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 	} else {
 		metrics.IncCounter(MetricCmdGatHitsL1)
 
-		// Set in L2 to play to the L2's strengths (fast writes) and avoid some
-		// pitfalls (slow touches and replaces, which require reads)
+		// Touch in L2. This used to be a set operation, but touch allows the L2
+		// to have more control over the operation than a set does. This helps
+		// migrations internally at Netflix because we can choose to discount
+		// touch commands in L2 but not sets.
 		//
 		// The first possibility is a Set. A set into L2 would possibly cause a
 		// concurrent delete to not take, meaning the delete could say it was
@@ -691,25 +693,30 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 		// not be using which is then async TTL'd out. I am explicitly
 		// discounting the concurrent delete situation here and accepting that
 		// they might not be exactly correct.
-		setreq := common.SetRequest{
+		touchreq := common.TouchRequest{
 			Key:     req.Key,
 			Exptime: req.Exptime,
-			Flags:   res.Flags,
-			Data:    res.Data,
 		}
 
-		metrics.IncCounter(MetricCmdGatSetL2)
-		err := l.l2.Set(setreq)
+		metrics.IncCounter(MetricCmdGatTouchL2)
+		err := l.l2.Touch(touchreq)
 
 		if err != nil {
-			// set error? Return it as our error. Yes, the GAT succeeded in L1
-			// but if L2 didn't get the set, then likely something is seriously
-			// wrong.
-			metrics.IncCounter(MetricCmdGatSetErrorsL2)
-			metrics.IncCounter(MetricCmdGatErrors)
+			if err == common.ErrKeyNotFound {
+				// this is a problem. L1 had the item but L2 doesn't. To avoid an
+				// inconsistent view, return the same ErrNotFound and fail the op.
+				metrics.IncCounter(MetricCmdGatTouchMissesL2)
+				metrics.IncCounter(MetricCmdGatMisses)
+			} else {
+				// If there's a true error, return it as our error. The GAT
+				// succeeded in L1 but if L2 didn't take, then likely something
+				// is seriously wrong.
+				metrics.IncCounter(MetricCmdGatTouchErrorsL2)
+				metrics.IncCounter(MetricCmdGatErrors)
+			}
 			return err
 		}
-		metrics.IncCounter(MetricCmdGatSetSuccessL2)
+		metrics.IncCounter(MetricCmdGatTouchHitsL2)
 
 		// overall operation succeeded
 		metrics.IncCounter(MetricCmdGatHits)
