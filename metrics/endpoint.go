@@ -125,7 +125,7 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	bhists := getAllBucketHistograms()
 	for name, bh := range bhists {
 		var bmax uint64 = math.MaxUint64 // 0xFFFF_FFFF_FFFF_FFFF
-		for i := 0; i < 64; i++ {
+		for i := 0; i < bhistlen; i++ {
 			fmt.Fprintf(w, "%sbhist_%s_bucket_%d %d\n", prefix, name, bmax, bh[i])
 			bmax >>= 1
 		}
