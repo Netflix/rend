@@ -15,6 +15,8 @@
 package orcas
 
 import (
+	"time"
+
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
@@ -36,7 +38,12 @@ func (l *L1OnlyOrca) Set(req common.SetRequest) error {
 	//log.Println("set", string(req.Key))
 
 	metrics.IncCounter(MetricCmdSetL1)
+	start := time.Now().UnixNano()
+
 	err := l.l1.Set(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistSetL1, uint64(dur))
 
 	if err == nil {
 		metrics.IncCounter(MetricCmdSetSuccessL1)
@@ -56,7 +63,12 @@ func (l *L1OnlyOrca) Add(req common.SetRequest) error {
 	//log.Println("add", string(req.Key))
 
 	metrics.IncCounter(MetricCmdAddL1)
+	start := time.Now().UnixNano()
+
 	err := l.l1.Add(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistAddL1, uint64(dur))
 
 	if err == nil {
 		metrics.IncCounter(MetricCmdAddStoredL1)
@@ -79,7 +91,12 @@ func (l *L1OnlyOrca) Replace(req common.SetRequest) error {
 	//log.Println("replace", string(req.Key))
 
 	metrics.IncCounter(MetricCmdReplaceL1)
+	start := time.Now().UnixNano()
+
 	err := l.l1.Replace(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistReplaceL1, uint64(dur))
 
 	if err == nil {
 		metrics.IncCounter(MetricCmdReplaceStoredL1)
@@ -102,7 +119,12 @@ func (l *L1OnlyOrca) Append(req common.SetRequest) error {
 	//log.Println("append", string(req.Key))
 
 	metrics.IncCounter(MetricCmdAppendL1)
+	start := time.Now().UnixNano()
+
 	err := l.l1.Append(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistAppendL1, uint64(dur))
 
 	if err == nil {
 		metrics.IncCounter(MetricCmdAppendStoredL1)
@@ -125,7 +147,12 @@ func (l *L1OnlyOrca) Prepend(req common.SetRequest) error {
 	//log.Println("prepend", string(req.Key))
 
 	metrics.IncCounter(MetricCmdPrependL1)
+	start := time.Now().UnixNano()
+
 	err := l.l1.Prepend(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistPrependL1, uint64(dur))
 
 	if err == nil {
 		metrics.IncCounter(MetricCmdPrependStoredL1)
@@ -148,7 +175,12 @@ func (l *L1OnlyOrca) Delete(req common.DeleteRequest) error {
 	//log.Println("delete", string(req.Key))
 
 	metrics.IncCounter(MetricCmdDeleteL1)
+	start := time.Now().UnixNano()
+
 	err := l.l1.Delete(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistDeleteL1, uint64(dur))
 
 	if err == nil {
 		metrics.IncCounter(MetricCmdDeleteHits)
@@ -171,7 +203,12 @@ func (l *L1OnlyOrca) Touch(req common.TouchRequest) error {
 	//log.Println("touch", string(req.Key))
 
 	metrics.IncCounter(MetricCmdTouchL1)
+	start := time.Now().UnixNano()
+
 	err := l.l1.Touch(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistTouchL1, uint64(dur))
 
 	if err == nil {
 		metrics.IncCounter(MetricCmdTouchHitsL1)
@@ -201,6 +238,8 @@ func (l *L1OnlyOrca) Get(req common.GetRequest) error {
 
 	metrics.IncCounter(MetricCmdGetL1)
 	metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
+	start := time.Now().UnixNano()
+
 	resChan, errChan := l.l1.Get(req)
 
 	var err error
@@ -241,6 +280,9 @@ func (l *L1OnlyOrca) Get(req common.GetRequest) error {
 		}
 	}
 
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistGetL1, uint64(dur))
+
 	if err == nil {
 		l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
 	}
@@ -262,6 +304,8 @@ func (l *L1OnlyOrca) GetE(req common.GetRequest) error {
 
 	metrics.IncCounter(MetricCmdGetEL1)
 	metrics.IncCounterBy(MetricCmdGetEKeysL1, uint64(len(req.Keys)))
+	start := time.Now().UnixNano()
+
 	resChan, errChan := l.l1.GetE(req)
 
 	var err error
@@ -302,6 +346,9 @@ func (l *L1OnlyOrca) GetE(req common.GetRequest) error {
 		}
 	}
 
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistGetEL1, uint64(dur))
+
 	if err == nil {
 		l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
 	}
@@ -313,7 +360,12 @@ func (l *L1OnlyOrca) Gat(req common.GATRequest) error {
 	//log.Println("gat", string(req.Key))
 
 	metrics.IncCounter(MetricCmdGatL1)
+	start := time.Now().UnixNano()
+
 	res, err := l.l1.GAT(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistGatL1, uint64(dur))
 
 	if err == nil {
 		if res.Miss {

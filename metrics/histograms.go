@@ -23,6 +23,7 @@ import (
 const (
 	maxNumHists = 1024
 	buflen      = 0x7FFF // max index, 32769 entries
+	bhistlen    = 65
 )
 
 var (
@@ -78,7 +79,7 @@ type bhist struct {
 func newBHist() *bhist {
 	return &bhist{
 		// Holds enough for the entire length of a uint64
-		buckets: make([]uint64, 64),
+		buckets: make([]uint64, 65),
 	}
 }
 
@@ -189,8 +190,8 @@ func getAllBucketHistograms() map[string][]uint64 {
 }
 
 func extractBHist(b *bhist) []uint64 {
-	ret := make([]uint64, 64)
-	for i := 0; i < 64; i++ {
+	ret := make([]uint64, bhistlen)
+	for i := 0; i < bhistlen; i++ {
 		ret[i] = atomic.LoadUint64(&b.buckets[i])
 	}
 	return ret

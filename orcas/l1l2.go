@@ -15,6 +15,9 @@
 package orcas
 
 import (
+	"log"
+	"time"
+
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
@@ -39,7 +42,12 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 
 	// Try L2 first
 	metrics.IncCounter(MetricCmdSetL2)
+	start := time.Now().UnixNano()
+
 	err := l.l2.Set(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistSetL2, uint64(dur))
 
 	// If we fail to set in L2, don't set in L1
 	if err != nil {
@@ -65,7 +73,14 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 	// connections to everyone will be severed (for this one client connection)
 	// and that the client will reconnect to try again.
 	metrics.IncCounter(MetricCmdSetL1)
-	if err := l.l1.Set(req); err != nil {
+	start = time.Now().UnixNano()
+
+	err = l.l1.Set(req)
+
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistSetL1, uint64(dur))
+
+	if err != nil {
 		metrics.IncCounter(MetricCmdSetErrorsL1)
 		metrics.IncCounter(MetricCmdSetErrors)
 		return err
@@ -82,7 +97,12 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 
 	// Add in L2 first, since it has the larger state
 	metrics.IncCounter(MetricCmdAddL2)
+	start := time.Now().UnixNano()
+
 	err := l.l2.Add(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistAddL2, uint64(dur))
 
 	if err != nil {
 		// A key already existing is not an error per se, it's a part of the
@@ -112,7 +132,12 @@ func (l *L1L2Orca) Add(req common.SetRequest) error {
 	// L1 between the two add operations, causing the L2 to be deleted and
 	// the L1 to have the data.
 	metrics.IncCounter(MetricCmdAddL1)
+	start = time.Now().UnixNano()
+
 	err = l.l1.Add(req)
+
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistAddL1, uint64(dur))
 
 	if err != nil {
 		// This is kind of a problem. What has happened here is that the L2
@@ -147,7 +172,12 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 
 	// Replace in L2 first, since it has the larger state
 	metrics.IncCounter(MetricCmdReplaceL2)
+	start := time.Now().UnixNano()
+
 	err := l.l2.Replace(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistReplaceL2, uint64(dur))
 
 	if err != nil {
 		// A key not existing is not an error per se, it's a part of the
@@ -185,7 +215,12 @@ func (l *L1L2Orca) Replace(req common.SetRequest) error {
 	// The other risk here is a concurrent replace for the same key, which will
 	// possibly interleave to produce inconsistency in L2 and L1.
 	metrics.IncCounter(MetricCmdReplaceL1)
+	start = time.Now().UnixNano()
+
 	err = l.l1.Replace(req)
+
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistReplaceL1, uint64(dur))
 
 	if err != nil {
 		// In this case, the replace worked fine, and we don't worry about it not
@@ -225,7 +260,12 @@ func (l *L1L2Orca) Append(req common.SetRequest) error {
 	// commonly happens.
 
 	metrics.IncCounter(MetricCmdAppendL2)
+	start := time.Now().UnixNano()
+
 	err := l.l2.Append(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistAppendL2, uint64(dur))
 
 	if err != nil {
 		// Appending in L2 did not succeed. Don't try in L1 since this means L2
@@ -246,7 +286,13 @@ func (l *L1L2Orca) Append(req common.SetRequest) error {
 	// there's an error, we need to fail because we're not in an unknown state
 	// where L1 possibly doesn't have the append when L2 does. We don't recover
 	// from this but instead fail the request and let the client retry.
+	metrics.IncCounter(MetricCmdAppendL1)
+	start = time.Now().UnixNano()
+
 	err = l.l1.Append(req)
+
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistAppendL1, uint64(dur))
 
 	if err != nil {
 		// Not stored in L1 is still fine. There's a possibility that a
@@ -273,7 +319,12 @@ func (l *L1L2Orca) Prepend(req common.SetRequest) error {
 	//log.Println("prepend", string(req.Key))
 
 	metrics.IncCounter(MetricCmdPrependL2)
+	start := time.Now().UnixNano()
+
 	err := l.l2.Prepend(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistPrependL2, uint64(dur))
 
 	if err != nil {
 		// Prepending in L2 did not succeed. Don't try in L1 since this means L2
@@ -294,7 +345,13 @@ func (l *L1L2Orca) Prepend(req common.SetRequest) error {
 	// there's an error, we need to fail because we're not in an unknown state
 	// where L1 possibly doesn't have the Prepend when L2 does. We don't recover
 	// from this but instead fail the request and let the client retry.
+	metrics.IncCounter(MetricCmdPrependL1)
+	start = time.Now().UnixNano()
+
 	err = l.l1.Prepend(req)
+
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistPrependL1, uint64(dur))
 
 	if err != nil {
 		// Not stored in L1 is still fine. There's a possibility that a
@@ -322,7 +379,12 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 
 	// Try L2 first
 	metrics.IncCounter(MetricCmdDeleteL2)
+	start := time.Now().UnixNano()
+
 	err := l.l2.Delete(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistDeleteL2, uint64(dur))
 
 	if err != nil {
 		// On a delete miss in L2 don't bother deleting in L1. There might be no
@@ -352,7 +414,14 @@ func (l *L1L2Orca) Delete(req common.DeleteRequest) error {
 	// L2, set in L1, then deleted in L2. By deleting from L2 first, if L1 goes
 	// missing then no other request can undo part of this request.
 	metrics.IncCounter(MetricCmdDeleteL1)
-	if err := l.l1.Delete(req); err != nil {
+	start = time.Now().UnixNano()
+
+	err = l.l1.Delete(req)
+
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistDeleteL1, uint64(dur))
+
+	if err != nil {
 		// Delete misses in L1 are fine. If we get here, that means the delete
 		// in L2 hit. This isn't a miss per se since the overall effect is a
 		// delete. Concurrent deletes might interleave to produce this, or the
@@ -379,7 +448,12 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 
 	// Try L2 first
 	metrics.IncCounter(MetricCmdTouchL2)
+	start := time.Now().UnixNano()
+
 	err := l.l2.Touch(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistTouchL2, uint64(dur))
 
 	if err != nil {
 		// On a touch miss in L2 don't bother touch in L1. The data should be
@@ -409,7 +483,14 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 	// another request, then L1 touched long. In this case the data in L1 would
 	// outlive L2. This situation is uncommon and is therefore discounted.
 	metrics.IncCounter(MetricCmdTouchL1)
-	if err := l.l1.Touch(req); err != nil {
+	start = time.Now().UnixNano()
+
+	err = l.l1.Touch(req)
+
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistTouchL1, uint64(dur))
+
+	if err != nil {
 		// Touch misses in L1 after a hit in L2 are nto a big deal. The
 		// touch operation here explicitly does *not* act as a pre-warm putting
 		// data into L1. A miss here after a hit is the same as a hit.
@@ -443,6 +524,8 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 
 	metrics.IncCounter(MetricCmdGetL1)
 	metrics.IncCounterBy(MetricCmdGetKeysL1, uint64(len(req.Keys)))
+	start := time.Now().UnixNano()
+
 	resChan, errChan := l.l1.Get(req)
 
 	var err error
@@ -489,6 +572,10 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 		}
 	}
 
+	// finish up metrics for overall L1 (batch) get operation
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistGetL1, uint64(dur))
+
 	// leave early on all hits
 	if len(l2keys) == 0 {
 		if err != nil {
@@ -508,7 +595,10 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 
 	metrics.IncCounter(MetricCmdGetEL2)
 	metrics.IncCounterBy(MetricCmdGetEKeysL2, uint64(len(l2keys)))
+	start = time.Now().UnixNano()
+
 	resChanE, errChan := l.l2.GetE(req)
+
 	for {
 		select {
 		case res, ok := <-resChanE:
@@ -523,7 +613,6 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 					metrics.IncCounter(MetricCmdGetEHitsL2)
 
 					//set in l1
-					metrics.IncCounter(MetricCmdGetSetL1)
 					setreq := common.SetRequest{
 						Key:     res.Key,
 						Flags:   res.Flags,
@@ -531,7 +620,15 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 						Data:    res.Data,
 					}
 
-					if err := l.l1.Set(setreq); err != nil {
+					metrics.IncCounter(MetricCmdGetSetL1)
+					start = time.Now().UnixNano()
+
+					err = l.l1.Set(setreq)
+
+					dur = time.Now().UnixNano() - start
+					metrics.ObserveHist(HistSetL1, uint64(dur))
+
+					if err != nil {
 						metrics.IncCounter(MetricCmdGetSetErrorsL1)
 						return err
 					}
@@ -569,6 +666,10 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 		}
 	}
 
+	// finish up metrics for overall L2 (batch) get operation
+	dur = time.Now().UnixNano() - start
+	metrics.ObserveHist(HistGetL2, uint64(dur))
+
 	if err == nil {
 		return l.res.GetEnd(req.NoopOpaque, req.NoopEnd)
 	}
@@ -578,15 +679,21 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 
 func (l *L1L2Orca) GetE(req common.GetRequest) error {
 	// The L1/L2 does not support getE, only L1Only does.
+	log.Println("[WARN] Use of GetE in L1L2 Batch orchestrator")
 	return common.ErrUnknownCmd
 }
 
 func (l *L1L2Orca) Gat(req common.GATRequest) error {
 	//log.Println("gat", string(req.Key))
 
-	// Try L1 first, since it'll be faster if it succeeds
+	// Try L1 first
 	metrics.IncCounter(MetricCmdGatL1)
+	start := time.Now().UnixNano()
+
 	res, err := l.l1.GAT(req)
+
+	dur := time.Now().UnixNano() - start
+	metrics.ObserveHist(HistGatL1, uint64(dur))
 
 	// Errors here are genrally fatal to the connection, as something has gone
 	// seriously wrong. Bail out early.
@@ -608,7 +715,12 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 		metrics.IncCounter(MetricCmdGatMissesL1)
 
 		metrics.IncCounter(MetricCmdGatL2)
+		start = time.Now().UnixNano()
+
 		res, err = l.l2.GAT(req)
+
+		dur = time.Now().UnixNano() - start
+		metrics.ObserveHist(HistGatL2, uint64(dur))
 
 		// fatal error
 		if err != nil {
@@ -644,7 +756,14 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 		}
 
 		metrics.IncCounter(MetricCmdGatAddL1)
-		if err := l.l1.Add(setreq); err != nil {
+		start = time.Now().UnixNano()
+
+		err = l.l1.Add(setreq)
+
+		dur := time.Now().UnixNano() - start
+		metrics.ObserveHist(HistAddL1, uint64(dur))
+
+		if err != nil {
 			// we were trampled in the middle of performing the GAT operation
 			// In this case, it's fine; no error for the overall op. We still
 			// want to track this with a metric, though, and return success.
@@ -699,7 +818,12 @@ func (l *L1L2Orca) Gat(req common.GATRequest) error {
 		}
 
 		metrics.IncCounter(MetricCmdGatTouchL2)
+		start = time.Now().UnixNano()
+
 		err := l.l2.Touch(touchreq)
+
+		dur := time.Now().UnixNano() - start
+		metrics.ObserveHist(HistTouchL2, uint64(dur))
 
 		if err != nil {
 			if err == common.ErrKeyNotFound {

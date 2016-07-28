@@ -212,4 +212,35 @@ var (
 
 	// Special metrics
 	MetricInconsistencyDetected = metrics.AddCounter("inconsistency_detected")
+
+	// Histograms for sub-operations
+	HistSetL1     = metrics.AddHistogram("set_l1", false)
+	HistSetL2     = metrics.AddHistogram("set_l2", false)
+	HistAddL1     = metrics.AddHistogram("add_l1", false)
+	HistAddL2     = metrics.AddHistogram("add_l2", false)
+	HistReplaceL1 = metrics.AddHistogram("replace_l1", false)
+	HistReplaceL2 = metrics.AddHistogram("replace_l2", false)
+	HistAppendL1  = metrics.AddHistogram("append_l1", false)
+	HistAppendL2  = metrics.AddHistogram("append_l2", false)
+	HistPrependL1 = metrics.AddHistogram("prepend_l1", false)
+	HistPrependL2 = metrics.AddHistogram("prepend_l2", false)
+	HistDeleteL1  = metrics.AddHistogram("delete_l1", false)
+	HistDeleteL2  = metrics.AddHistogram("delete_l2", false)
+	HistTouchL1   = metrics.AddHistogram("touch_l1", false)
+	HistTouchL2   = metrics.AddHistogram("touch_l2", false)
+
+	HistGetL1 = metrics.AddHistogram("get_l1", false) // not sampled until configurable
+	HistGetL2 = metrics.AddHistogram("get_l2", false) // not sampled until configurable
+	//HistGetSingleL1 = metrics.AddHistogram("get_single_l1", false) // not sampled until configurable
+	//HistGetSingleL2 = metrics.AddHistogram("get_single_l2", false) // not sampled until configurable
+
+	HistGetEL1 = metrics.AddHistogram("gete_l1", false) // not sampled until configurable
+	HistGetEL2 = metrics.AddHistogram("gete_l2", false) // not sampled until configurable
+	//HistGetESingleL1 = metrics.AddHistogram("gete_single_l1", false) // not sampled until configurable
+	//HistGetESingleL2 = metrics.AddHistogram("gete_single_l2", false) // not sampled until configurable
+
+	HistGatL1 = metrics.AddHistogram("gat_l1", false) // not sampled until configurable
+	HistGatL2 = metrics.AddHistogram("gat_l2", false) // not sampled until configurable
+	//HistGatSingleL1 = metrics.AddHistogram("gat_single_l1", false) // not sampled until configurable
+	//HistGatSingleL2 = metrics.AddHistogram("gat_single_l2", false) // not sampled until configurable
 )
