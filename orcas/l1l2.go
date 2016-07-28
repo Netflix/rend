@@ -622,7 +622,11 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 
 					metrics.IncCounter(MetricCmdGetSetL1)
 					start = time.Now().UnixNano()
+
 					err = l.l1.Set(setreq)
+
+					dur = time.Now().UnixNano() - start
+					metrics.ObserveHist(HistSetL1, uint64(dur))
 
 					if err != nil {
 						metrics.IncCounter(MetricCmdGetSetErrorsL1)
