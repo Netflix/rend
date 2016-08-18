@@ -16,7 +16,6 @@ package metrics
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"runtime"
 	"sort"
@@ -101,8 +100,15 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "%shist_%s_avg %f\n", prefix, name, avg)
 		}
 
-		pctls := hdatPercentiles(dat)
-		if len(pctls) == 0 {
+		pctls, ok := hdatPercentiles(dat)
+		// Assume if the max is 0 that there were no recorded observations
+		if !ok {
+			/*println(name)
+			println(dat.count)
+			println(dat.kept)
+			println(dat.min)
+			println(dat.max)
+			println(dat.total)*/
 			continue
 		}
 		for i := 0; i < 20; i++ {
@@ -116,18 +122,12 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	//////////////////////////
 	// Bucketized histograms
 	//////////////////////////
-	// Buckets are based on the number of leading zeros in the number
-	// so each is less than or equal to that number of ones. Therefore
-	// bucket 0 means the number was greater than 0x7FFF_FFFF_FFFF_FFFF
-	// and less than or equal to 0xFFFF_FFFF_FFFF_FFFF, which would be a huge
-	// duration but it's a good example. As well, bucket 63 only hold values
-	// 0x0 and 0x1. Bucket 62 hold 0x10 and 0x11. 61: 0x100, 0x101, 0x110, 0x111
+	// Buckets are based on the generated buckets from the Spectator library
+	// https://github.com/Netflix/spectator/blob/master/spectator-api/src/main/java/com/netflix/spectator/api/histogram/PercentileBuckets.java#L64
 	bhists := getAllBucketHistograms()
 	for name, bh := range bhists {
-		var bmax uint64 = math.MaxUint64 // 0xFFFF_FFFF_FFFF_FFFF
-		for i := 0; i < bhistlen; i++ {
-			fmt.Fprintf(w, "%sbhist_%s_bucket_%d %d\n", prefix, name, bmax, bh[i])
-			bmax >>= 1
+		for i := 0; i < numAtlasBuckets; i++ {
+			fmt.Fprintf(w, "%sbhist_%s_bucket_%d %d\n", prefix, name, bucketValues[i], bh[i])
 		}
 	}
 
@@ -174,20 +174,20 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 //  [19]: 95th
 //  [20]: 99th
 //  [21]: max (100th)
-func hdatPercentiles(dat *hdat) []uint64 {
+func hdatPercentiles(dat hdat) ([22]uint64, bool) {
 	buf := dat.buf
 	kept := dat.kept
 
+	var pctls [22]uint64
+
 	if kept == 0 {
-		return nil
+		return pctls, false
 	}
 	if kept < uint64(len(buf)) {
 		buf = buf[:kept]
 	}
 
 	sort.Sort(uint64slice(buf))
-
-	pctls := make([]uint64, 22)
 
 	// Take care of 0th and 100th specially
 	pctls[0] = dat.min
@@ -203,7 +203,7 @@ func hdatPercentiles(dat *hdat) []uint64 {
 	idx := len(buf) * 99 / 100
 	pctls[20] = buf[idx]
 
-	return pctls
+	return pctls, true
 }
 
 func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
