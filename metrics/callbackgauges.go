@@ -16,23 +16,32 @@ package metrics
 
 import "sync/atomic"
 
+// IntGaugeCallback defines a function that the metrics package can use to
+// retrieve an integer gauge value
 type IntGaugeCallback func() uint64
+
+// FloatGaugeCallback defines a function that the metrics package can use to
+// retrieve an floating point gauge value
 type FloatGaugeCallback func() float64
 
 const maxNumCallbacks = 10240
 
 var (
-	intcbnames     = make([]string, maxNumCallbacks)
-	floatcbnames   = make([]string, maxNumCallbacks)
-	intcallbacks   = make([]IntGaugeCallback, maxNumCallbacks)
-	floatcallbacks = make([]FloatGaugeCallback, maxNumCallbacks)
-	curIntCbID     = new(uint32)
+	curIntCbID   = new(uint32)
+	intcbnames   = make([]string, maxNumCallbacks)
+	intcallbacks = make([]IntGaugeCallback, maxNumCallbacks)
+	intcbtags    = make([]map[string]string, maxNumCallbacks)
+
 	curFloatCbID   = new(uint32)
+	floatcbnames   = make([]string, maxNumCallbacks)
+	floatcallbacks = make([]FloatGaugeCallback, maxNumCallbacks)
+	floatcbtags    = make([]map[string]string, maxNumCallbacks)
 )
 
-// Registers a gauge callback which will be called every time metrics are requested.
-// There is a maximum of 1024 callbacks, after which adding a new one will panic
-func RegisterIntGaugeCallback(name string, cb IntGaugeCallback) {
+// RegisterIntGaugeCallback registers a gauge callback which will be called every
+// time metrics are requested.
+// There is a maximum of 10240 int callbacks, after which adding a new one will panic.
+func RegisterIntGaugeCallback(name string, tags map[string]string, cb IntGaugeCallback) {
 	id := atomic.AddUint32(curIntCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
@@ -41,11 +50,15 @@ func RegisterIntGaugeCallback(name string, cb IntGaugeCallback) {
 
 	intcallbacks[id] = cb
 	intcbnames[id] = name
+
+	tags[tagMetricType] = metricTypeGauge
+	intcbtags[id] = tags
 }
 
-// Registers a gauge callback which will be called every time metrics are requested.
-// There is a maximum of 1024 callbacks, after which adding a new one will panic
-func RegisterFloatGaugeCallback(name string, cb FloatGaugeCallback) {
+// RegisterFloatGaugeCallback registers a gauge callback which will be called every
+// time metrics are requested.
+// There is a maximum of 10240 float callbacks, after which adding a new one will panic.
+func RegisterFloatGaugeCallback(name string, tags map[string]string, cb FloatGaugeCallback) {
 	id := atomic.AddUint32(curFloatCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
@@ -54,21 +67,32 @@ func RegisterFloatGaugeCallback(name string, cb FloatGaugeCallback) {
 
 	floatcallbacks[id] = cb
 	floatcbnames[id] = name
+
+	tags[tagMetricType] = metricTypeGauge
+	floatcbtags[id] = tags
 }
 
-func getAllCallbackGauges() (map[string]uint64, map[string]float64) {
-	retint := make(map[string]uint64)
+func getAllCallbackGauges() ([]intmetric, []floatmetric) {
 	numIDs := int(atomic.LoadUint32(curIntCbID))
+	retint := make([]intmetric, numIDs)
 
 	for i := 0; i < numIDs; i++ {
-		retint[intcbnames[i]] = intcallbacks[i]()
+		retint[i] = intmetric{
+			name: intcbnames[i],
+			val:  intcallbacks[i](),
+			tags: intcbtags[i],
+		}
 	}
 
-	retfloat := make(map[string]float64)
 	numIDs = int(atomic.LoadUint32(curFloatCbID))
+	retfloat := make([]floatmetric, numIDs)
 
 	for i := 0; i < numIDs; i++ {
-		retfloat[floatcbnames[i]] = floatcallbacks[i]()
+		retfloat[i] = floatmetric{
+			name: floatcbnames[i],
+			val:  floatcallbacks[i](),
+			tags: floatcbtags[i],
+		}
 	}
 
 	return retint, retfloat

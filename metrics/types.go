@@ -15,9 +15,15 @@
 package metrics
 
 const (
-	tagType     = "type"
-	typeCounter = "counter"
-	typeGauge   = "gauge"
+	tagMetricType = "type"
+
+	metricTypeCounter = "counter"
+	metricTypeGauge   = "gauge"
+
+	tagDataType = "dataType"
+
+	dataTypeUint64  = "uint64"
+	dataTypeFloat64 = "float64"
 )
 
 type intmetric struct {

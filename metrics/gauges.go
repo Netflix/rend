@@ -50,7 +50,7 @@ func AddIntGauge(name string, tags map[string]string) uint32 {
 
 	intgnames[id] = name
 
-	tags[tagType] = typeGauge
+	tags[tagMetricType] = metricTypeGauge
 	intgtags[id] = tags
 
 	return id
@@ -68,7 +68,7 @@ func AddFloatGauge(name string, tags map[string]string) uint32 {
 
 	floatgnames[id] = name
 
-	tags[tagType] = typeGauge
+	tags[tagMetricType] = metricTypeGauge
 	floatgtags[id] = tags
 
 	return id
@@ -108,7 +108,6 @@ func getAllGauges() ([]intmetric, []floatmetric) {
 		// into a float64 here. This is a literal reinterpretation of the same
 		// exact bits.
 		intval := atomic.LoadUint64(&floatgauges[i])
-		floatval := math.Float64frombits(intval)
 
 		retfloat[i] = floatmetric{
 			name: floatgnames[i],

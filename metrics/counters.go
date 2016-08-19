@@ -25,8 +25,19 @@ var (
 	curCounterID = new(uint32)
 )
 
-// Registers a counter and returns an ID that can be used to access it
-// There is a maximum of 1024 metrics, after which adding a new one will panic
+// AddCounter registers a counter and returns an ID that can be used to increment it.
+// There is a maximum of 1024 metrics, after which adding a new one will panic.
+//
+// It is recommended to have AddCounter calls as var declarations in any package that
+// uses it. E.g.:
+//
+//   var (
+//       MetricFoo = AddCounter("foo", map[string]string{"tag1": "value"})
+//   )
+//
+// Then in code:
+//
+//   metrics.IncCounter(MetricFoo)
 func AddCounter(name string, tags map[string]string) uint32 {
 	id := atomic.AddUint32(curCounterID, 1) - 1
 
@@ -36,16 +47,21 @@ func AddCounter(name string, tags map[string]string) uint32 {
 
 	cnames[id] = name
 
-	tags[tagType] = typeCounter
+	tags[tagMetricType] = metricTypeCounter
+	tags[tagDataType] = dataTypeUint64
 	ctags[id] = tags
 
 	return id
 }
 
+// IncCounter increases the specified counter by 1. Only values returned by AddCounter
+// can be used. Arbitrary values may panic or have undefined behavior.
 func IncCounter(id uint32) {
 	atomic.AddUint64(&counters[id], 1)
 }
 
+// IncCounterBy increments the specified counter by the given amount. This is for situations
+// where the count is not a one by one thing, like counting bytes in and out of a system.
 func IncCounterBy(id uint32, amount uint64) {
 	atomic.AddUint64(&counters[id], amount)
 }
