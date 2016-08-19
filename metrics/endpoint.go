@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"runtime"
 	"sort"
+	"sync"
 )
 
 var prefix = ""
@@ -27,13 +28,21 @@ func SetPrefix(p string) {
 	prefix = p
 }
 
-var memstats = new(runtime.MemStats)
+var (
+	memstats        = new(runtime.MemStats)
+	metricsReadLock = new(sync.Mutex)
+)
 
 func init() {
 	http.Handle("/metrics", http.HandlerFunc(printMetrics))
 }
 
 func printMetrics(w http.ResponseWriter, r *http.Request) {
+	// prevent concurrent access to metrics. This is an assumption helpd by much of
+	// the code that retrieves the metrics for printing.
+	metricsReadLock.Lock()
+	defer metricsReadLock.Unlock()
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
 	//////////////////////////
