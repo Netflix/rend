@@ -105,9 +105,10 @@ func init() {
 // As well, pulling and resetting the histogram does not require a malloc in the
 // path of pulling the data, and the large circular buffers can be reused.
 type hist struct {
-	lock sync.RWMutex
-	prim hdat
-	sec  hdat
+	lock *sync.RWMutex
+	dat  hdat
+	// backup buffer, switched with the main one on metrics poll
+	bakbuf []uint64
 }
 type hdat struct {
 	count uint64
@@ -120,24 +121,37 @@ type hdat struct {
 
 func newHist() hist {
 	return hist{
-		// read: primary and secondary data structures
-		prim: newHdat(),
-		sec:  newHdat(),
+		lock: &sync.RWMutex{},
+		dat: hdat{
+			buf: make([]uint64, buflen+1),
+			min: math.MaxUint64,
+		},
+		bakbuf: make([]uint64, buflen+1),
 	}
-}
-func newHdat() hdat {
-	ret := hdat{
-		buf: make([]uint64, buflen+1),
-	}
-	atomic.StoreUint64(&ret.min, math.MaxUint64)
-	return ret
 }
 
 type bhist struct {
 	buckets [numAtlasBuckets]uint64
 }
 
-func AddHistogram(name string, sampled bool) uint32 {
+// AddHistogram creates a new histogram structure to record observations. The handle
+// returned is used to record observations.
+// There is a maximum of 1024 histograms, after which adding a new one will panic.
+//
+// It is recommended to initialize all histograms in a package level var block:
+//
+//   var (
+//       // Create unsampled histogram "foo"
+//       HistFoo = metrics.AddHistogram("foo", false, map[string]string{"tag1": "value"})
+//   )
+//
+// Then make observations later:
+//
+//   start := time.Now().UnixNano()
+//   someOperation()
+//   end := time.Now().UnixNano() - start
+//   metrics.ObserveHist(HistFoo, uint64(end))
+func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
 	idx := atomic.AddUint32(curHistID, 1) - 1
 
 	if idx >= maxNumHists {
@@ -152,6 +166,9 @@ func AddHistogram(name string, sampled bool) uint32 {
 	return idx
 }
 
+// ObserveHist adds an observation to the given histogram. The id parameter is a handle
+// returned by the AddHistogram method. Using numbers not returned by AddHistogram is
+// undefined behavior and may cause a panic.
 func ObserveHist(id uint32, value uint64) {
 	h := &hists[id]
 
@@ -162,18 +179,18 @@ func ObserveHist(id uint32, value uint64) {
 	h.lock.RLock()
 
 	// Keep a running total for average
-	atomic.AddUint64(&h.prim.total, value)
+	atomic.AddUint64(&h.dat.total, value)
 
 	// Set max and min (if needed) in an atomic fashion
 	for {
-		max := atomic.LoadUint64(&h.prim.max)
-		if value < max || atomic.CompareAndSwapUint64(&h.prim.max, max, value) {
+		max := atomic.LoadUint64(&h.dat.max)
+		if value < max || atomic.CompareAndSwapUint64(&h.dat.max, max, value) {
 			break
 		}
 	}
 	for {
-		min := atomic.LoadUint64(&h.prim.min)
-		if value > min || atomic.CompareAndSwapUint64(&h.prim.min, min, value) {
+		min := atomic.LoadUint64(&h.dat.min)
+		if value > min || atomic.CompareAndSwapUint64(&h.dat.min, min, value) {
 			break
 		}
 	}
@@ -183,7 +200,7 @@ func ObserveHist(id uint32, value uint64) {
 	atomic.AddUint64(&bhists[id].buckets[bucket], 1)
 
 	// Count and possibly return for sampling
-	c := atomic.AddUint64(&h.prim.count, 1)
+	c := atomic.AddUint64(&h.dat.count, 1)
 	if hsampled[id] {
 		// Sample, keep every 4th observation
 		if (c & 0x3) > 0 {
@@ -193,10 +210,10 @@ func ObserveHist(id uint32, value uint64) {
 	}
 
 	// Get the current index as the count % buflen
-	idx := atomic.AddUint64(&h.prim.kept, 1) & buflen
+	idx := atomic.AddUint64(&h.dat.kept, 1) & buflen
 
 	// Add observation
-	h.prim.buf[idx] = value
+	h.dat.buf[idx] = value
 
 	// No longer "reading"
 	h.lock.RUnlock()
@@ -241,18 +258,23 @@ func getAllHistograms() map[string]hdat {
 func extractAndReset(h *hist) hdat {
 	h.lock.Lock()
 
-	// flip and reset the count
-	h.prim, h.sec = h.sec, h.prim
+	// move primary to the side for reporting, keeping a hold of the buffer.
+	// Primary gets reset but keeps the old buffer to avoid reallocating in the
+	// critical section while observation recording is blocked.
+	ret := h.dat
 
-	atomic.StoreUint64(&h.prim.count, 0)
-	atomic.StoreUint64(&h.prim.kept, 0)
-	atomic.StoreUint64(&h.prim.total, 0)
-	atomic.StoreUint64(&h.prim.max, 0)
-	atomic.StoreUint64(&h.prim.min, math.MaxUint64)
+	// new hdat with old buf
+	h.dat = hdat{
+		buf: h.bakbuf,
+		min: math.MaxUint64,
+	}
+
+	// keep a hold of the buf
+	h.bakbuf = ret.buf
 
 	h.lock.Unlock()
 
-	return h.sec
+	return ret
 }
 
 func getAllBucketHistograms() map[string][numAtlasBuckets]uint64 {

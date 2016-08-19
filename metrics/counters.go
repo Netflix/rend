@@ -32,7 +32,7 @@ var (
 // uses it. E.g.:
 //
 //   var (
-//       MetricFoo = AddCounter("foo", map[string]string{"tag1": "value"})
+//       MetricFoo = metrics.AddCounter("foo", map[string]string{"tag1": "value"})
 //   )
 //
 // Then in code:
