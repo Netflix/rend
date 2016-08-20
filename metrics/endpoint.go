@@ -171,50 +171,6 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Percentiles go by 5% percentile steps from min to max. We report all of them even though it's
-// likely only min, 25th, 50th, 75th, 95th, 99th, and max will be used. It's assumed the metric
-// poller that is consuming this output will choose to only report to the metrics system what it
-// considers useful information.
-//
-// Slice layout:
-//  [0]: min (0th)
-//  [1]: 5th
-//  [n]: 5n
-//  [19]: 95th
-//  [20]: 99th
-//  [21]: max (100th)
-func hdatPercentiles(dat hdat) ([22]uint64, bool) {
-	buf := dat.buf
-	kept := dat.kept
-
-	var pctls [22]uint64
-
-	if kept == 0 {
-		return pctls, false
-	}
-	if kept < uint64(len(buf)) {
-		buf = buf[:kept]
-	}
-
-	sort.Sort(uint64slice(buf))
-
-	// Take care of 0th and 100th specially
-	pctls[0] = dat.min
-	pctls[21] = dat.max
-
-	// 5th - 95th
-	for i := 1; i < 20; i++ {
-		idx := len(buf) * i / 20
-		pctls[i] = buf[idx]
-	}
-
-	// Add 99th
-	idx := len(buf) * 99 / 100
-	pctls[20] = buf[idx]
-
-	return pctls, true
-}
-
 func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
 	if ngc < uint32(len(pauses)) {
 		pauses = pauses[:ngc]

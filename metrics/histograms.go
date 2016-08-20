@@ -15,27 +15,25 @@
 package metrics
 
 import (
+	"fmt"
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 )
 
 const (
-	maxNumHists     = 1024
-	buflen          = 0x7FFF // max index, 32769 entries
-	numAtlasBuckets = 276
+	maxNumHists            = 1024
+	buflen                 = 0x7FFF // max index, 32769 entries
+	numAtlasBuckets        = 276
+	numIntMetricsPerHist   = 25
+	numFloatMetricsPerHist = 1
 )
 
 var (
-	hnames    = make([]string, maxNumHists)
-	hsampled  = make([]bool, maxNumHists)
-	hists     = make([]hist, maxNumHists)
-	bhists    = make([]bhist, maxNumHists)
-	curHistID = new(uint32)
+	powerOf4Index = [...]int{0, 3, 14, 23, 32, 41, 50, 59, 68, 77, 86, 95, 104, 113, 122, 131, 140, 149, 158, 167, 176, 185, 194, 203, 212, 221, 230, 239, 248, 257, 266, 275}
 
-	powerOf4Index = []int{0, 3, 14, 23, 32, 41, 50, 59, 68, 77, 86, 95, 104, 113, 122, 131, 140, 149, 158, 167, 176, 185, 194, 203, 212, 221, 230, 239, 248, 257, 266, 275}
-
-	bucketValues = []int64{
+	bucketValues = [...]int64{
 		1, 2, 3, 4, 5,
 		6, 7, 8, 9, 10,
 		11, 12, 13, 14, 16,
@@ -93,10 +91,17 @@ var (
 		2690150177415976276, 3074457345618258601, 3458764513820540926, 3843071682022823251, 4227378850225105576,
 		9223372036854775807,
 	}
+
+	curHistID          = new(uint32)
+	hists              = make([]hist, maxNumHists)
+	bhists             = make([]bhist, maxNumHists)
+	hNames             = make([]string, maxNumHists)
+	hSampled           = make([]bool, maxNumHists)
+	hIntTagsExpanded   = make([]map[string]string, maxNumHists*numIntMetricsPerHist)
+	hFloatTagsExpanded = make([]map[string]string, maxNumHists*numFloatMetricsPerHist)
 )
 
 func init() {
-	// start at "-1" so the first ID is 0
 	atomic.StoreUint32(curHistID, 0)
 }
 
@@ -134,6 +139,14 @@ type bhist struct {
 	buckets [numAtlasBuckets]uint64
 }
 
+func copyTags(orig map[string]string) map[string]string {
+	ret := make(map[string]string)
+	for k, v := range orig {
+		ret[k] = v
+	}
+	return ret
+}
+
 // AddHistogram creates a new histogram structure to record observations. The handle
 // returned is used to record observations.
 // There is a maximum of 1024 histograms, after which adding a new one will panic.
@@ -158,10 +171,57 @@ func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
 		panic("Too many histograms")
 	}
 
-	hnames[idx] = name
-	hsampled[idx] = sampled
 	hists[idx] = newHist()
 	bhists[idx] = bhist{}
+	hSampled[idx] = sampled
+
+	// There's only ony main metric name per histogram, the rest is tagging
+	hNames[idx] = "hist_" + name
+
+	// This next section precalculates all of the tag sets for all of the metrics for
+	// this histogram.
+
+	// guarantee we don't mess with the passed in tags
+	tags = copyTags(tags)
+
+	// For now the only float metric for each histogram is the average
+	t := copyTags(tags)
+	t[tagDataType] = dataTypeFloat64
+	t[tagMetricType] = metricTypeGauge
+	t[tagMetric] = "average"
+	hFloatTagsExpanded[idx] = t
+
+	// these same tags can be used for all of the int tags
+	tags[tagDataType] = dataTypeUint64
+	tags[tagMetricType] = metricTypeCounter
+
+	// The first 21 int metrics in each histogram are the percentiles from 0 to 100 by 5
+	for i := uint32(0); i < 21; i++ {
+		t = copyTags(tags)
+		t[tagMetric] = fmt.Sprintf("percentile%d", i*5)
+
+		j := (idx * numIntMetricsPerHist) + i
+		hIntTagsExpanded[j] = t
+	}
+
+	// Now add the 99th and 99.9th percentiles for 22 and 23
+	t = copyTags(tags)
+	t[tagMetric] = "percentile99"
+	hIntTagsExpanded[(idx*numIntMetricsPerHist)+21] = t
+
+	t = copyTags(tags)
+	// a bit brittle. If metricPercentile changes, this should change too
+	t[tagMetric] = "percentile99.9"
+	hIntTagsExpanded[(idx*numIntMetricsPerHist)+22] = t
+
+	// Now for the count and kept
+	t = copyTags(tags)
+	t[tagMetric] = "count"
+	hIntTagsExpanded[(idx*numIntMetricsPerHist)+23] = t
+
+	t = copyTags(tags)
+	t[tagMetric] = "kept"
+	hIntTagsExpanded[(idx*numIntMetricsPerHist)+24] = t
 
 	return idx
 }
@@ -201,7 +261,7 @@ func ObserveHist(id uint32, value uint64) {
 
 	// Count and possibly return for sampling
 	c := atomic.AddUint64(&h.dat.count, 1)
-	if hsampled[id] {
+	if hSampled[id] {
 		// Sample, keep every 4th observation
 		if (c & 0x3) > 0 {
 			h.lock.RUnlock()
@@ -243,19 +303,46 @@ func getBucket(n uint64) uint64 {
 	return uint64(pos + 1)
 }
 
-func getAllHistograms() map[string]hdat {
+func getAllHistograms() ([]intmetric, []floatmetric) {
+	// gather all the counters from all the histograms (percentiles, kept, count)
+	//   into the intmetrics
+	// gather all the averages into floatmetrics
+
 	n := int(atomic.LoadUint32(curHistID))
 
-	ret := make(map[string]hdat)
+	// 23 percentile metrics + kept and count per histogram
+	intret := make([]intmetric, n*numIntMetricsPerHist)
+	// 1 float metric per histogram, the average
+	floatret := make([]floatmetric, n)
 
 	for i := 0; i < n; i++ {
-		ret[hnames[i]] = extractAndReset(&hists[i])
+		name := hNames[i]
+		dat := extractHist(&hists[i])
+
+		avg := float64(dat.total) / float64(dat.count)
+		floatret[i] = floatmetric{
+			name: name,
+			val:  avg,
+			tags: hFloatTagsExpanded[i],
+		}
+
+		// The percentiles returned from hdatPercentiles and the tags set up
+		// in the AddHistogram function should all match
+		pctls := hdatPercentiles(dat)
+		for j := 0; j < 25; j++ {
+			idx := i*numIntMetricsPerHist + j
+			intret[idx] = intmetric{
+				name: name,
+				val:  pctls[j],
+				tags: hIntTagsExpanded[idx],
+			}
+		}
 	}
 
-	return ret
+	return intret, floatret
 }
 
-func extractAndReset(h *hist) hdat {
+func extractHist(h *hist) hdat {
 	h.lock.Lock()
 
 	// move primary to the side for reporting, keeping a hold of the buffer.
@@ -283,7 +370,7 @@ func getAllBucketHistograms() map[string][numAtlasBuckets]uint64 {
 	ret := make(map[string][numAtlasBuckets]uint64)
 
 	for i := 0; i < n; i++ {
-		ret[hnames[i]] = extractBHist(bhists[i])
+		ret[hNames[i]] = extractBHist(bhists[i])
 	}
 
 	return ret
@@ -295,4 +382,52 @@ func extractBHist(b bhist) [numAtlasBuckets]uint64 {
 		ret[i] = atomic.LoadUint64(&b.buckets[i])
 	}
 	return ret
+}
+
+// Percentiles go by 5% percentile steps from min to max. We report all of them even though it's
+// likely only min, 25th, 50th, 75th, 95th, 99th, and max will be used. It's assumed the metric
+// poller that is consuming this output will choose to only report to the metrics system what it
+// considers useful information.
+//
+// Slice layout:
+//  [0]: min (0th)
+//  [1]: 5th
+//  [n]: 5n
+//  [19]: 95th
+//  [20]: max (100th)
+//  [21]: 99th
+//  [22]: 99.9th
+func hdatPercentiles(dat hdat) [23]uint64 {
+	buf := dat.buf
+	kept := dat.kept
+
+	var pctls [23]uint64
+
+	if kept == 0 {
+		return pctls
+	}
+	if kept < uint64(len(buf)) {
+		buf = buf[:kept]
+	}
+
+	sort.Sort(uint64slice(buf))
+
+	// Take care of 0th and 100th specially
+	pctls[0] = dat.min
+	pctls[20] = dat.max
+
+	// 5th - 95th
+	for i := 1; i < 20; i++ {
+		idx := len(buf) * i / 20
+		pctls[i] = buf[idx]
+	}
+
+	// Add 99th
+	idx := len(buf) * 99 / 100
+	pctls[21] = buf[idx]
+
+	idx = int(math.Floor(float64(len(buf)) * 99.9 / 100.0))
+	pctls[22] = buf[idx]
+
+	return pctls
 }
