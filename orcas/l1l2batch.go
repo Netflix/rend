@@ -58,7 +58,6 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdSetSuccessL2)
 
 	// Replace the entry in L1.
-	req.Quiet = false
 	metrics.IncCounter(MetricCmdSetReplaceL1)
 	start = time.Now().UnixNano()
 
@@ -117,7 +116,6 @@ func (l *L1L2BatchOrca) Add(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdAddStoredL2)
 
 	// Replace the entry in L1.
-	req.Quiet = false
 	metrics.IncCounter(MetricCmdAddReplaceL1)
 	start = time.Now().UnixNano()
 
@@ -176,7 +174,6 @@ func (l *L1L2BatchOrca) Replace(req common.SetRequest) error {
 	metrics.IncCounter(MetricCmdReplaceStoredL2)
 
 	// Replace the entry in L1.
-	req.Quiet = false
 	metrics.IncCounter(MetricCmdReplaceReplaceL1)
 	start = time.Now().UnixNano()
 
