@@ -25,7 +25,7 @@ const (
 	dataTypeUint64  = "uint64"
 	dataTypeFloat64 = "float64"
 
-	tagMetric = "metric"
+	tagStatistic = "statistic"
 )
 
 type intmetric struct {

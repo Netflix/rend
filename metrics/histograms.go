@@ -188,7 +188,7 @@ func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
 	t := copyTags(tags)
 	t[tagDataType] = dataTypeFloat64
 	t[tagMetricType] = metricTypeGauge
-	t[tagMetric] = "average"
+	t[tagStatistic] = "average"
 	hFloatTagsExpanded[idx] = t
 
 	// these same tags can be used for all of the int tags
@@ -198,7 +198,7 @@ func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
 	// The first 21 int metrics in each histogram are the percentiles from 0 to 100 by 5
 	for i := uint32(0); i < 21; i++ {
 		t = copyTags(tags)
-		t[tagMetric] = fmt.Sprintf("percentile%d", i*5)
+		t[tagStatistic] = fmt.Sprintf("percentile%d", i*5)
 
 		j := (idx * numIntMetricsPerHist) + i
 		hIntTagsExpanded[j] = t
@@ -206,21 +206,21 @@ func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
 
 	// Now add the 99th and 99.9th percentiles for 22 and 23
 	t = copyTags(tags)
-	t[tagMetric] = "percentile99"
+	t[tagStatistic] = "percentile99"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+21] = t
 
 	t = copyTags(tags)
 	// a bit brittle. If metricPercentile changes, this should change too
-	t[tagMetric] = "percentile99.9"
+	t[tagStatistic] = "percentile99.9"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+22] = t
 
 	// Now for the count and kept
 	t = copyTags(tags)
-	t[tagMetric] = "count"
+	t[tagStatistic] = "count"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+23] = t
 
 	t = copyTags(tags)
-	t[tagMetric] = "kept"
+	t[tagStatistic] = "kept"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+24] = t
 
 	return idx

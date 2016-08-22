@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"runtime"
 	"sort"
@@ -31,10 +32,46 @@ func SetPrefix(p string) {
 var (
 	memstats        = new(runtime.MemStats)
 	metricsReadLock = new(sync.Mutex)
+
+	tagsIntCounter = map[string]string{
+		tagMetricType: metricTypeCounter,
+		tagDataType:   dataTypeUint64,
+	}
+	tagsIntGauge = map[string]string{
+		tagMetricType: metricTypeGauge,
+		tagDataType:   dataTypeUint64,
+	}
+	tagsFloatGauge = map[string]string{
+		tagMetricType: metricTypeGauge,
+		tagDataType:   dataTypeUint64,
+	}
+
+	percentileTags [22]map[string]string
+	allocTags      []map[string]string
 )
 
 func init() {
 	http.Handle("/metrics", http.HandlerFunc(printMetrics))
+
+	// pre-calculate tags for percentile metrics
+	for i := 0; i < 21; i++ {
+		t := copyTags(tagsFloatGauge)
+		t[tagStatistic] = fmt.Sprintf("percentile%d", i*5)
+		percentileTags[i] = t
+	}
+
+	t := copyTags(tagsFloatGauge)
+	t[tagStatistic] = "percentile99"
+	percentileTags[21] = t
+
+	// pre-calculate tags for memory allocation statistics
+	ms := new(runtime.MemStats)
+	runtime.ReadMemStats(ms)
+	for _, s := range ms.BySize {
+		t := copyTags(tagsIntCounter)
+		t[tagStatistic] = fmt.Sprintf("size_%d", s.Size)
+		allocTags = append(allocTags, t)
+	}
 }
 
 func printMetrics(w http.ResponseWriter, r *http.Request) {
@@ -49,128 +86,146 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	// Runtime memory stats
 	//////////////////////////
 	runtime.ReadMemStats(memstats)
+
+	var im []intmetric
+	var fm []floatmetric
+
 	// General statistics.
-	fmt.Fprintf(w, "%smem_alloc %d\n", prefix, memstats.Alloc)            // bytes allocated and not yet freed
-	fmt.Fprintf(w, "%smem_alloc_total %d\n", prefix, memstats.TotalAlloc) // bytes allocated (even if freed)
-	fmt.Fprintf(w, "%smem_sys %d\n", prefix, memstats.Sys)                // bytes obtained from system (sum of XxxSys below)
-	fmt.Fprintf(w, "%smem_ptr_lookups %d\n", prefix, memstats.Lookups)    // number of pointer lookups
-	fmt.Fprintf(w, "%smem_mallocs %d\n", prefix, memstats.Mallocs)        // number of mallocs
-	fmt.Fprintf(w, "%smem_frees %d\n", prefix, memstats.Frees)            // number of frees
+	im = append(im, intmetric{"mem_alloc", memstats.Alloc, tagsIntGauge})            // bytes allocated and not yet freed
+	im = append(im, intmetric{"mem_alloc_total", memstats.TotalAlloc, tagsIntGauge}) // bytes allocated (even if freed)
+	im = append(im, intmetric{"mem_sys", memstats.Sys, tagsIntGauge})                // bytes obtained from system (sum of XxxSys below)
+	im = append(im, intmetric{"mem_ptr_lookups", memstats.Lookups, tagsIntCounter})  // number of pointer lookups
+	im = append(im, intmetric{"mem_mallocs", memstats.Mallocs, tagsIntCounter})      // number of mallocs
+	im = append(im, intmetric{"mem_frees", memstats.Frees, tagsIntCounter})          // number of frees
 
 	// Main allocation heap statistics.
-	fmt.Fprintf(w, "%smem_heap_alloc %d\n", prefix, memstats.HeapAlloc)       // bytes allocated and not yet freed (same as Alloc above)
-	fmt.Fprintf(w, "%smem_heap_sys %d\n", prefix, memstats.HeapSys)           // bytes obtained from system
-	fmt.Fprintf(w, "%smem_heap_idle %d\n", prefix, memstats.HeapIdle)         // bytes in idle spans
-	fmt.Fprintf(w, "%smem_heap_in_use %d\n", prefix, memstats.HeapInuse)      // bytes in non-idle span
-	fmt.Fprintf(w, "%smem_heap_released %d\n", prefix, memstats.HeapReleased) // bytes released to the OS
-	fmt.Fprintf(w, "%smem_heap_objects %d\n", prefix, memstats.HeapObjects)   // total number of allocated objects
+	im = append(im, intmetric{"mem_heap_alloc", memstats.HeapAlloc, tagsIntGauge})       // bytes allocated and not yet freed (same as Alloc above)
+	im = append(im, intmetric{"mem_heap_sys", memstats.HeapSys, tagsIntGauge})           // bytes obtained from system
+	im = append(im, intmetric{"mem_heap_idle", memstats.HeapIdle, tagsIntGauge})         // bytes in idle spans
+	im = append(im, intmetric{"mem_heap_in_use", memstats.HeapInuse, tagsIntGauge})      // bytes in non-idle span
+	im = append(im, intmetric{"mem_heap_released", memstats.HeapReleased, tagsIntGauge}) // bytes released to the OS
+	im = append(im, intmetric{"mem_heap_objects", memstats.HeapObjects, tagsIntGauge})   // total number of allocated objects
 
-	fmt.Fprintf(w, "%smem_stack_in_use %d\n", prefix, memstats.StackInuse) // bytes used by stack allocator
-	fmt.Fprintf(w, "%smem_stack_sys %d\n", prefix, memstats.StackSys)
-	fmt.Fprintf(w, "%smem_mspan_in_use %d\n", prefix, memstats.MSpanInuse) // mspan structures
-	fmt.Fprintf(w, "%smem_mspan_sys %d\n", prefix, memstats.MSpanSys)
-	fmt.Fprintf(w, "%smem_mcache_in_use %d\n", prefix, memstats.MCacheInuse) // mcache structures
-	fmt.Fprintf(w, "%smem_mcache_sys %d\n", prefix, memstats.MCacheSys)
-	fmt.Fprintf(w, "%smem_buck_hash_sys %d\n", prefix, memstats.BuckHashSys) // profiling bucket hash table
-	fmt.Fprintf(w, "%smem_gc_sys %d\n", prefix, memstats.GCSys)              // GC metadata
-	fmt.Fprintf(w, "%smem_other_sys %d\n", prefix, memstats.OtherSys)        // other system allocations
+	// Secondary detailed heap stats
+	im = append(im, intmetric{"mem_stack_in_use", memstats.StackInuse, tagsIntGauge}) // bytes used by stack allocator
+	im = append(im, intmetric{"mem_stack_sys", memstats.StackSys, tagsIntGauge})
+	im = append(im, intmetric{"mem_mspan_in_use", memstats.MSpanInuse, tagsIntGauge}) // mspan structures
+	im = append(im, intmetric{"mem_mspan_sys", memstats.MSpanSys, tagsIntGauge})
+	im = append(im, intmetric{"mem_mcache_in_use", memstats.MCacheInuse, tagsIntGauge}) // mcache structures
+	im = append(im, intmetric{"mem_mcache_sys", memstats.MCacheSys, tagsIntGauge})
+	im = append(im, intmetric{"mem_buck_hash_sys", memstats.BuckHashSys, tagsIntGauge}) // profiling bucket hash table
+	im = append(im, intmetric{"mem_gc_sys", memstats.GCSys, tagsIntGauge})              // GC metadata
+	im = append(im, intmetric{"mem_other_sys", memstats.OtherSys, tagsIntGauge})        // other system allocations
 
-	fmt.Fprintf(w, "%sgc_next_gc_heap_alloc %d\n", prefix, memstats.NextGC) // next collection will happen when HeapAlloc ≥ this amount
-	fmt.Fprintf(w, "%sgc_last_gc_time %d\n", prefix, memstats.LastGC)       // end time of last collection (nanoseconds since 1970)
-	fmt.Fprintf(w, "%sgc_pause_total %d\n", prefix, memstats.PauseTotalNs)
-	fmt.Fprintf(w, "%sgc_num_gc %d\n", prefix, memstats.NumGC)
-	fmt.Fprintf(w, "%sgc_gc_cpu_frac %f\n", prefix, memstats.GCCPUFraction)
+	im = append(im, intmetric{"gc_next_gc_heap_alloc", memstats.NextGC, tagsIntGauge}) // next collection will happen when HeapAlloc ≥ this amount
+	im = append(im, intmetric{"gc_last_gc_time", memstats.LastGC, tagsIntGauge})       // end time of last collection (nanoseconds since 1970)
+	im = append(im, intmetric{"gc_pause_total", memstats.PauseTotalNs, tagsIntCounter})
+	im = append(im, intmetric{"gc_num_gc", uint64(memstats.NumGC), tagsIntCounter})
+
+	fm = append(fm, floatmetric{"gc_gc_cpu_frac", memstats.GCCPUFraction, tagsFloatGauge})
 
 	// circular buffer of recent GC pause durations, most recent at [(NumGC+255)%256]
 	pctls := pausePercentiles(memstats.PauseNs[:], memstats.NumGC)
-	for i := 0; i < 20; i++ {
-		p := pctls[i]
-		fmt.Fprintf(w, "%sgc_pause_pctl_%d %d\n", prefix, i*5, p)
+	for i := 0; i < 22; i++ {
+		// pre-calculated tags match the 0:5:100,99 pattern that pausePercentiles produces.
+		im = append(im, intmetric{"gc_pause", pctls[i], percentileTags[i]})
 	}
-	fmt.Fprintf(w, "%sgc_pause_pctl_%d %d\n", prefix, 99, pctls[20])
-	fmt.Fprintf(w, "%sgc_pause_pctl_%d %d\n", prefix, 100, pctls[21])
 
 	// Per-size allocation statistics.
-	for _, b := range memstats.BySize {
-		fmt.Fprintf(w, "%salloc_size_%d_mallocs %d\n", prefix, b.Size, b.Mallocs)
-		fmt.Fprintf(w, "%salloc_size_%d_frees %d\n", prefix, b.Size, b.Frees)
+	for i, b := range memstats.BySize {
+		im = append(im, intmetric{"alloc_mallocs", b.Mallocs, allocTags[i]})
+		im = append(im, intmetric{"alloc_frees", b.Frees, allocTags[i]})
 	}
 
 	//////////////////////////
 	// Histograms
 	//////////////////////////
-	hists := getAllHistograms()
-	for name, dat := range hists {
-		fmt.Fprintf(w, "%shist_%s_count %d\n", prefix, name, dat.count)
-		fmt.Fprintf(w, "%shist_%s_kept %d\n", prefix, name, dat.kept)
-
-		if dat.total > 0 && dat.count > 0 {
-			avg := float64(dat.total) / float64(dat.count)
-			fmt.Fprintf(w, "%shist_%s_avg %f\n", prefix, name, avg)
-		}
-
-		pctls, ok := hdatPercentiles(dat)
-		// Assume if the max is 0 that there were no recorded observations
-		if !ok {
-			/*println(name)
-			println(dat.count)
-			println(dat.kept)
-			println(dat.min)
-			println(dat.max)
-			println(dat.total)*/
-			continue
-		}
-		for i := 0; i < 20; i++ {
-			p := pctls[i]
-			fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, i*5, p)
-		}
-		fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, 99, pctls[20])
-		fmt.Fprintf(w, "%shist_%s_pctl_%d %d\n", prefix, name, 100, pctls[21])
-	}
+	inth, floath := getAllHistograms()
+	im = append(im, inth...)
+	fm = append(fm, floath...)
 
 	//////////////////////////
 	// Bucketized histograms
 	//////////////////////////
 	// Buckets are based on the generated buckets from the Spectator library
 	// https://github.com/Netflix/spectator/blob/master/spectator-api/src/main/java/com/netflix/spectator/api/histogram/PercentileBuckets.java#L64
-	bhists := getAllBucketHistograms()
+	/*bhists := getAllBucketHistograms()
 	for name, bh := range bhists {
 		for i := 0; i < numAtlasBuckets; i++ {
 			fmt.Fprintf(w, "%sbhist_%s_bucket_%d %d\n", prefix, name, bucketValues[i], bh[i])
 		}
-	}
+	}*/
 
 	//////////////////////////
 	// Counters
 	//////////////////////////
-	ctrs := getAllCounters()
-	for name, val := range ctrs {
-		fmt.Fprintf(w, "%s%s %d\n", prefix, name, val)
-	}
+	im = append(im, getAllCounters()...)
 
 	//////////////////////////
 	// Gauges
 	//////////////////////////
 	intg, floatg := getAllGauges()
-	for name, val := range intg {
-		fmt.Fprintf(w, "%s%s %d\n", prefix, name, val)
-	}
-	for name, val := range floatg {
-		fmt.Fprintf(w, "%s%s %f\n", prefix, name, val)
-	}
+	im = append(im, intg...)
+	fm = append(fm, floatg...)
 
 	//////////////////////////
 	// Gauge Callbacks
 	//////////////////////////
 	intg, floatg = getAllCallbackGauges()
-	for name, val := range intg {
-		fmt.Fprintf(w, "%s%s %d\n", prefix, name, val)
+	im = append(im, intg...)
+	fm = append(fm, floatg...)
+
+	printIntMetrics(w, im)
+	printFloatMetrics(w, fm)
+}
+
+func makeTags(typ, dataType, statistic string) map[string]string {
+	ret := map[string]string{
+		tagMetricType: typ,
+		tagDataType:   dataType,
 	}
-	for name, val := range floatg {
-		fmt.Fprintf(w, "%s%s %f\n", prefix, name, val)
+
+	if statistic != "" {
+		ret[tagStatistic] = statistic
+	}
+
+	return ret
+}
+
+func printTags(tags map[string]string) string {
+	var size int
+
+	for k, v := range tags {
+		size += len(k) + len(v) + 2
+	}
+
+	ret := make([]byte, size)
+
+	for k, v := range tags {
+		ret = append(ret, byte('|'))
+		ret = append(ret, k...)
+		ret = append(ret, byte('*'))
+		ret = append(ret, v...)
+	}
+
+	return string(ret)
+}
+
+func printIntMetrics(w io.Writer, metrics []intmetric) {
+	for _, m := range metrics {
+		fmt.Fprintf(w, "%s%s%s %d\n", prefix, m.name, printTags(m.tags), m.val)
 	}
 }
 
+func printFloatMetrics(w io.Writer, metrics []floatmetric) {
+	for _, m := range metrics {
+		fmt.Fprintf(w, "%s%s%s %f\n", prefix, m.name, printTags(m.tags), m.val)
+	}
+}
+
+// the first 21 positions are the percentiles by 5's from 0 to 100
+// the 22nd position is the bonus 99th percentile
+// this makes looping over the values easier
 func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
 	if ngc < uint32(len(pauses)) {
 		pauses = pauses[:ngc]
@@ -182,7 +237,7 @@ func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
 
 	// Take care of 0th and 100th specially
 	pctls[0] = pauses[0]
-	pctls[21] = pauses[len(pauses)-1]
+	pctls[20] = pauses[len(pauses)-1]
 
 	// 5th - 95th
 	for i := 1; i < 20; i++ {
@@ -192,7 +247,7 @@ func pausePercentiles(pauses []uint64, ngc uint32) []uint64 {
 
 	// Add 99th
 	idx := len(pauses) * 99 / 100
-	pctls[20] = pauses[idx]
+	pctls[21] = pauses[idx]
 
 	return pctls
 }
