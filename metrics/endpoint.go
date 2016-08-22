@@ -147,14 +147,7 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	//////////////////////////
 	// Bucketized histograms
 	//////////////////////////
-	// Buckets are based on the generated buckets from the Spectator library
-	// https://github.com/Netflix/spectator/blob/master/spectator-api/src/main/java/com/netflix/spectator/api/histogram/PercentileBuckets.java#L64
-	/*bhists := getAllBucketHistograms()
-	for name, bh := range bhists {
-		for i := 0; i < numAtlasBuckets; i++ {
-			fmt.Fprintf(w, "%sbhist_%s_bucket_%d %d\n", prefix, name, bucketValues[i], bh[i])
-		}
-	}*/
+	im = append(im, getAllBucketHistograms()...)
 
 	//////////////////////////
 	// Counters

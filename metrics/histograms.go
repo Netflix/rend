@@ -28,9 +28,14 @@ const (
 	numAtlasBuckets        = 276
 	numIntMetricsPerHist   = 25
 	numFloatMetricsPerHist = 1
+
+	tagBucketHistogramPercentile = "percentile"
+	bucketHistogramPercentileFmt = "T%04X"
 )
 
 var (
+	// Buckets and powerOf4Index are based on the generated data from the Spectator library
+	// https://github.com/Netflix/spectator/blob/master/spectator-api/src/main/java/com/netflix/spectator/api/histogram/PercentileBuckets.java#L64
 	powerOf4Index = [...]int{0, 3, 14, 23, 32, 41, 50, 59, 68, 77, 86, 95, 104, 113, 122, 131, 140, 149, 158, 167, 176, 185, 194, 203, 212, 221, 230, 239, 248, 257, 266, 275}
 
 	bucketValues = [...]int64{
@@ -99,10 +104,25 @@ var (
 	hSampled           = make([]bool, maxNumHists)
 	hIntTagsExpanded   = make([]map[string]string, maxNumHists*numIntMetricsPerHist)
 	hFloatTagsExpanded = make([]map[string]string, maxNumHists*numFloatMetricsPerHist)
+
+	bhTags []map[string]string
 )
 
 func init() {
 	atomic.StoreUint32(curHistID, 0)
+
+	bucketTags := map[string]string{
+		tagMetricType: metricTypeCounter,
+		tagDataType:   dataTypeUint64,
+	}
+
+	bhTags = make([]map[string]string, numAtlasBuckets)
+
+	for i := range bhTags {
+		t := copyTags(bucketTags)
+		t[tagBucketHistogramPercentile] = fmt.Sprintf(bucketHistogramPercentileFmt, i)
+		bhTags[i] = t
+	}
 }
 
 // The hist struct holds a primary and secondary data structure so the reader of
@@ -364,13 +384,17 @@ func extractHist(h *hist) hdat {
 	return ret
 }
 
-func getAllBucketHistograms() map[string][numAtlasBuckets]uint64 {
+func getAllBucketHistograms() []intmetric {
 	n := int(atomic.LoadUint32(curHistID))
 
-	ret := make(map[string][numAtlasBuckets]uint64)
+	var ret = make([]intmetric, 0, n*numAtlasBuckets)
 
+	// For each histogram, loop over all of the values and add them as separate intmetric
+	// values to the return value
 	for i := 0; i < n; i++ {
-		ret[hNames[i]] = extractBHist(bhists[i])
+		for j, val := range extractBHist(bhists[i]) {
+			ret = append(ret, intmetric{hNames[i], val, bhTags[j]})
+		}
 	}
 
 	return ret
