@@ -15,29 +15,29 @@
 package metrics
 
 const (
-	tagMetricType = "type"
+	TagMetricType = "type"
 
-	metricTypeCounter = "counter"
-	metricTypeGauge   = "gauge"
+	MetricTypeCounter = "counter"
+	MetricTypeGauge   = "gauge"
 
-	tagDataType = "dataType"
+	TagDataType = "dataType"
 
-	dataTypeUint64  = "uint64"
-	dataTypeFloat64 = "float64"
+	DataTypeUint64  = "uint64"
+	DataTypeFloat64 = "float64"
 
-	tagStatistic = "statistic"
+	TagStatistic = "statistic"
 )
 
-type intmetric struct {
-	name string
-	val  uint64
-	tgs  Tags
+type IntMetric struct {
+	Name string
+	Val  uint64
+	Tgs  Tags
 }
 
-type floatmetric struct {
-	name string
-	val  float64
-	tgs  Tags
+type FloatMetric struct {
+	Name string
+	Val  float64
+	Tgs  Tags
 }
 
 type Tags map[string]string

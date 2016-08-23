@@ -52,7 +52,7 @@ func RegisterIntGaugeCallback(name string, tgs Tags, cb IntGaugeCallback) {
 	intcbnames[id] = name
 
 	tgs = copyTags(tgs)
-	tgs[tagMetricType] = metricTypeGauge
+	tgs[TagMetricType] = MetricTypeGauge
 	intcbtags[id] = tgs
 }
 
@@ -70,30 +70,30 @@ func RegisterFloatGaugeCallback(name string, tgs Tags, cb FloatGaugeCallback) {
 	floatcbnames[id] = name
 
 	tgs = copyTags(tgs)
-	tgs[tagMetricType] = metricTypeGauge
+	tgs[TagMetricType] = MetricTypeGauge
 	floatcbtags[id] = tgs
 }
 
-func getAllCallbackGauges() ([]intmetric, []floatmetric) {
+func getAllCallbackGauges() ([]IntMetric, []FloatMetric) {
 	numIDs := int(atomic.LoadUint32(curIntCbID))
-	retint := make([]intmetric, numIDs)
+	retint := make([]IntMetric, numIDs)
 
 	for i := 0; i < numIDs; i++ {
-		retint[i] = intmetric{
-			name: intcbnames[i],
-			val:  intcallbacks[i](),
-			tgs:  intcbtags[i],
+		retint[i] = IntMetric{
+			Name: intcbnames[i],
+			Val:  intcallbacks[i](),
+			Tgs:  intcbtags[i],
 		}
 	}
 
 	numIDs = int(atomic.LoadUint32(curFloatCbID))
-	retfloat := make([]floatmetric, numIDs)
+	retfloat := make([]FloatMetric, numIDs)
 
 	for i := 0; i < numIDs; i++ {
-		retfloat[i] = floatmetric{
-			name: floatcbnames[i],
-			val:  floatcallbacks[i](),
-			tgs:  floatcbtags[i],
+		retfloat[i] = FloatMetric{
+			Name: floatcbnames[i],
+			Val:  floatcallbacks[i](),
+			Tgs:  floatcbtags[i],
 		}
 	}
 

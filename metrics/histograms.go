@@ -113,8 +113,8 @@ func init() {
 	atomic.StoreUint32(curHistID, 0)
 
 	bucketTags := Tags{
-		tagMetricType: metricTypeCounter,
-		tagDataType:   dataTypeUint64,
+		TagMetricType: MetricTypeCounter,
+		TagDataType:   DataTypeUint64,
 	}
 
 	bhTags = make([]Tags, numAtlasBuckets)
@@ -208,19 +208,19 @@ func AddHistogram(name string, sampled bool, tgs Tags) uint32 {
 
 	// For now the only float metric for each histogram is the average
 	t := copyTags(tgs)
-	t[tagDataType] = dataTypeFloat64
-	t[tagMetricType] = metricTypeGauge
-	t[tagStatistic] = "average"
+	t[TagDataType] = DataTypeFloat64
+	t[TagMetricType] = MetricTypeGauge
+	t[TagStatistic] = "average"
 	hFloatTagsExpanded[idx] = t
 
 	// these same tags can be used for all of the int tags
-	tgs[tagDataType] = dataTypeUint64
-	tgs[tagMetricType] = metricTypeCounter
+	tgs[TagDataType] = DataTypeUint64
+	tgs[TagMetricType] = MetricTypeCounter
 
 	// The first 21 int metrics in each histogram are the percentiles from 0 to 100 by 5
 	for i := uint32(0); i < 21; i++ {
 		t = copyTags(tgs)
-		t[tagStatistic] = fmt.Sprintf("percentile%d", i*5)
+		t[TagStatistic] = fmt.Sprintf("percentile%d", i*5)
 
 		j := (idx * numIntMetricsPerHist) + i
 		hIntTagsExpanded[j] = t
@@ -228,21 +228,21 @@ func AddHistogram(name string, sampled bool, tgs Tags) uint32 {
 
 	// Now add the 99th and 99.9th percentiles for 22 and 23
 	t = copyTags(tgs)
-	t[tagStatistic] = "percentile99"
+	t[TagStatistic] = "percentile99"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+21] = t
 
 	t = copyTags(tgs)
 	// a bit brittle. If metricPercentile changes, this should change too
-	t[tagStatistic] = "percentile99.9"
+	t[TagStatistic] = "percentile99.9"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+22] = t
 
 	// Now for the count and kept
 	t = copyTags(tgs)
-	t[tagStatistic] = "count"
+	t[TagStatistic] = "count"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+23] = t
 
 	t = copyTags(tgs)
-	t[tagStatistic] = "kept"
+	t[TagStatistic] = "kept"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+24] = t
 
 	return idx
@@ -325,7 +325,7 @@ func getBucket(n uint64) uint64 {
 	return uint64(pos + 1)
 }
 
-func getAllHistograms() ([]intmetric, []floatmetric) {
+func getAllHistograms() ([]IntMetric, []FloatMetric) {
 	// gather all the counters from all the histograms (percentiles, kept, count)
 	//   into the intmetrics
 	// gather all the averages into floatmetrics
@@ -333,9 +333,9 @@ func getAllHistograms() ([]intmetric, []floatmetric) {
 	n := int(atomic.LoadUint32(curHistID))
 
 	// 23 percentile metrics + kept and count per histogram
-	intret := make([]intmetric, 0, n*numIntMetricsPerHist)
+	intret := make([]IntMetric, 0, n*numIntMetricsPerHist)
 	// 1 float metric per histogram, the average
-	floatret := make([]floatmetric, 0, n)
+	floatret := make([]FloatMetric, 0, n)
 
 	for i := 0; i < n; i++ {
 		name := hNames[i]
@@ -348,19 +348,19 @@ func getAllHistograms() ([]intmetric, []floatmetric) {
 		// there shouldn't be any other metrics for this hist.
 		if dat.count == 0 {
 			idx := i*numIntMetricsPerHist + 23
-			intret = append(intret, intmetric{
-				name: name,
-				val:  dat.count,
-				tgs:  hIntTagsExpanded[idx],
+			intret = append(intret, IntMetric{
+				Name: name,
+				Val:  dat.count,
+				Tgs:  hIntTagsExpanded[idx],
 			})
 			continue
 		}
 
 		avg := float64(dat.total) / float64(dat.count)
-		floatret = append(floatret, floatmetric{
-			name: name,
-			val:  avg,
-			tgs:  hFloatTagsExpanded[i],
+		floatret = append(floatret, FloatMetric{
+			Name: name,
+			Val:  avg,
+			Tgs:  hFloatTagsExpanded[i],
 		})
 
 		// The percentiles returned from hdatPercentiles and the tags set up
@@ -368,26 +368,26 @@ func getAllHistograms() ([]intmetric, []floatmetric) {
 		pctls := hdatPercentiles(dat)
 		for j := 0; j < 23; j++ {
 			idx := i*numIntMetricsPerHist + j
-			intret = append(intret, intmetric{
-				name: name,
-				val:  pctls[j],
-				tgs:  hIntTagsExpanded[idx],
+			intret = append(intret, IntMetric{
+				Name: name,
+				Val:  pctls[j],
+				Tgs:  hIntTagsExpanded[idx],
 			})
 		}
 
 		// now for count and kept
 		idx := i*numIntMetricsPerHist + 23
-		intret = append(intret, intmetric{
-			name: name,
-			val:  dat.count,
-			tgs:  hIntTagsExpanded[idx],
+		intret = append(intret, IntMetric{
+			Name: name,
+			Val:  dat.count,
+			Tgs:  hIntTagsExpanded[idx],
 		})
 
 		idx++
-		intret = append(intret, intmetric{
-			name: name,
-			val:  dat.kept,
-			tgs:  hIntTagsExpanded[idx],
+		intret = append(intret, IntMetric{
+			Name: name,
+			Val:  dat.kept,
+			Tgs:  hIntTagsExpanded[idx],
 		})
 	}
 
@@ -416,16 +416,16 @@ func extractHist(h *hist) hdat {
 	return ret
 }
 
-func getAllBucketHistograms() []intmetric {
+func getAllBucketHistograms() []IntMetric {
 	n := int(atomic.LoadUint32(curHistID))
 
-	var ret = make([]intmetric, 0, n*numAtlasBuckets)
+	var ret = make([]IntMetric, 0, n*numAtlasBuckets)
 
 	// For each histogram, loop over all of the values and add them as separate intmetric
 	// values to the return value
 	for i := 0; i < n; i++ {
 		for j, val := range extractBHist(bhists[i]) {
-			ret = append(ret, intmetric{bhNames[i], val, bhTags[j]})
+			ret = append(ret, IntMetric{bhNames[i], val, bhTags[j]})
 		}
 	}
 

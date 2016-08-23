@@ -51,7 +51,7 @@ func AddIntGauge(name string, tgs Tags) uint32 {
 	intgnames[id] = name
 
 	tgs = copyTags(tgs)
-	tgs[tagMetricType] = metricTypeGauge
+	tgs[TagMetricType] = MetricTypeGauge
 	intgtags[id] = tgs
 
 	return id
@@ -70,7 +70,7 @@ func AddFloatGauge(name string, tgs Tags) uint32 {
 	floatgnames[id] = name
 
 	tgs = copyTags(tgs)
-	tgs[tagMetricType] = metricTypeGauge
+	tgs[TagMetricType] = MetricTypeGauge
 	floatgtags[id] = tgs
 
 	return id
@@ -90,20 +90,20 @@ func SetFloatGauge(id uint32, value float64) {
 	atomic.StoreUint64(&floatgauges[id], v2)
 }
 
-func getAllGauges() ([]intmetric, []floatmetric) {
+func getAllGauges() ([]IntMetric, []FloatMetric) {
 	numIDs := int(atomic.LoadUint32(curIntGaugeID))
-	retint := make([]intmetric, numIDs)
+	retint := make([]IntMetric, numIDs)
 
 	for i := 0; i < numIDs; i++ {
-		retint[i] = intmetric{
-			name: intgnames[i],
-			val:  atomic.LoadUint64(&intgauges[i]),
-			tgs:  intgtags[i],
+		retint[i] = IntMetric{
+			Name: intgnames[i],
+			Val:  atomic.LoadUint64(&intgauges[i]),
+			Tgs:  intgtags[i],
 		}
 	}
 
 	numIDs = int(atomic.LoadUint32(curFloatGaugeID))
-	retfloat := make([]floatmetric, numIDs)
+	retfloat := make([]FloatMetric, numIDs)
 
 	for i := 0; i < numIDs; i++ {
 		// The int64 bit pattern of the float value needs to be converted back
@@ -111,10 +111,10 @@ func getAllGauges() ([]intmetric, []floatmetric) {
 		// exact bits.
 		intval := atomic.LoadUint64(&floatgauges[i])
 
-		retfloat[i] = floatmetric{
-			name: floatgnames[i],
-			val:  math.Float64frombits(intval),
-			tgs:  floatgtags[i],
+		retfloat[i] = FloatMetric{
+			Name: floatgnames[i],
+			Val:  math.Float64frombits(intval),
+			Tgs:  floatgtags[i],
 		}
 	}
 

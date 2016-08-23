@@ -48,8 +48,8 @@ func AddCounter(name string, tgs Tags) uint32 {
 	cnames[id] = name
 
 	tgs = copyTags(tgs)
-	tgs[tagMetricType] = metricTypeCounter
-	tgs[tagDataType] = dataTypeUint64
+	tgs[TagMetricType] = MetricTypeCounter
+	tgs[TagDataType] = DataTypeUint64
 	ctags[id] = tgs
 
 	return id
@@ -67,15 +67,15 @@ func IncCounterBy(id uint32, amount uint64) {
 	atomic.AddUint64(&counters[id], amount)
 }
 
-func getAllCounters() []intmetric {
+func getAllCounters() []IntMetric {
 	numIDs := int(atomic.LoadUint32(curCounterID))
-	ret := make([]intmetric, numIDs)
+	ret := make([]IntMetric, numIDs)
 
 	for i := 0; i < numIDs; i++ {
-		ret[i] = intmetric{
-			name: cnames[i],
-			val:  atomic.LoadUint64(&counters[i]),
-			tgs:  ctags[i],
+		ret[i] = IntMetric{
+			Name: cnames[i],
+			Val:  atomic.LoadUint64(&counters[i]),
+			Tgs:  ctags[i],
 		}
 	}
 

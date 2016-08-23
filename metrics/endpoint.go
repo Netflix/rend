@@ -34,16 +34,16 @@ var (
 	metricsReadLock = new(sync.Mutex)
 
 	tagsIntCounter = Tags{
-		tagMetricType: metricTypeCounter,
-		tagDataType:   dataTypeUint64,
+		TagMetricType: MetricTypeCounter,
+		TagDataType:   DataTypeUint64,
 	}
 	tagsIntGauge = Tags{
-		tagMetricType: metricTypeGauge,
-		tagDataType:   dataTypeUint64,
+		TagMetricType: MetricTypeGauge,
+		TagDataType:   DataTypeUint64,
 	}
 	tagsFloatGauge = Tags{
-		tagMetricType: metricTypeGauge,
-		tagDataType:   dataTypeUint64,
+		TagMetricType: MetricTypeGauge,
+		TagDataType:   DataTypeUint64,
 	}
 
 	percentileTags [22]Tags
@@ -56,12 +56,12 @@ func init() {
 	// pre-calculate tags for percentile metrics
 	for i := 0; i < 21; i++ {
 		t := copyTags(tagsFloatGauge)
-		t[tagStatistic] = fmt.Sprintf("percentile%d", i*5)
+		t[TagStatistic] = fmt.Sprintf("percentile%d", i*5)
 		percentileTags[i] = t
 	}
 
 	t := copyTags(tagsFloatGauge)
-	t[tagStatistic] = "percentile99"
+	t[TagStatistic] = "percentile99"
 	percentileTags[21] = t
 
 	// pre-calculate tags for memory allocation statistics
@@ -87,54 +87,54 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	//////////////////////////
 	runtime.ReadMemStats(memstats)
 
-	var im []intmetric
-	var fm []floatmetric
+	var im []IntMetric
+	var fm []FloatMetric
 
 	// General statistics.
-	im = append(im, intmetric{"mem_alloc", memstats.Alloc, tagsIntGauge})            // bytes allocated and not yet freed
-	im = append(im, intmetric{"mem_alloc_total", memstats.TotalAlloc, tagsIntGauge}) // bytes allocated (even if freed)
-	im = append(im, intmetric{"mem_sys", memstats.Sys, tagsIntGauge})                // bytes obtained from system (sum of XxxSys below)
-	im = append(im, intmetric{"mem_ptr_lookups", memstats.Lookups, tagsIntCounter})  // number of pointer lookups
-	im = append(im, intmetric{"mem_mallocs", memstats.Mallocs, tagsIntCounter})      // number of mallocs
-	im = append(im, intmetric{"mem_frees", memstats.Frees, tagsIntCounter})          // number of frees
+	im = append(im, IntMetric{"mem_alloc", memstats.Alloc, tagsIntGauge})            // bytes allocated and not yet freed
+	im = append(im, IntMetric{"mem_alloc_total", memstats.TotalAlloc, tagsIntGauge}) // bytes allocated (even if freed)
+	im = append(im, IntMetric{"mem_sys", memstats.Sys, tagsIntGauge})                // bytes obtained from system (sum of XxxSys below)
+	im = append(im, IntMetric{"mem_ptr_lookups", memstats.Lookups, tagsIntCounter})  // number of pointer lookups
+	im = append(im, IntMetric{"mem_mallocs", memstats.Mallocs, tagsIntCounter})      // number of mallocs
+	im = append(im, IntMetric{"mem_frees", memstats.Frees, tagsIntCounter})          // number of frees
 
 	// Main allocation heap statistics.
-	im = append(im, intmetric{"mem_heap_alloc", memstats.HeapAlloc, tagsIntGauge})       // bytes allocated and not yet freed (same as Alloc above)
-	im = append(im, intmetric{"mem_heap_sys", memstats.HeapSys, tagsIntGauge})           // bytes obtained from system
-	im = append(im, intmetric{"mem_heap_idle", memstats.HeapIdle, tagsIntGauge})         // bytes in idle spans
-	im = append(im, intmetric{"mem_heap_in_use", memstats.HeapInuse, tagsIntGauge})      // bytes in non-idle span
-	im = append(im, intmetric{"mem_heap_released", memstats.HeapReleased, tagsIntGauge}) // bytes released to the OS
-	im = append(im, intmetric{"mem_heap_objects", memstats.HeapObjects, tagsIntGauge})   // total number of allocated objects
+	im = append(im, IntMetric{"mem_heap_alloc", memstats.HeapAlloc, tagsIntGauge})       // bytes allocated and not yet freed (same as Alloc above)
+	im = append(im, IntMetric{"mem_heap_sys", memstats.HeapSys, tagsIntGauge})           // bytes obtained from system
+	im = append(im, IntMetric{"mem_heap_idle", memstats.HeapIdle, tagsIntGauge})         // bytes in idle spans
+	im = append(im, IntMetric{"mem_heap_in_use", memstats.HeapInuse, tagsIntGauge})      // bytes in non-idle span
+	im = append(im, IntMetric{"mem_heap_released", memstats.HeapReleased, tagsIntGauge}) // bytes released to the OS
+	im = append(im, IntMetric{"mem_heap_objects", memstats.HeapObjects, tagsIntGauge})   // total number of allocated objects
 
 	// Secondary detailed heap stats
-	im = append(im, intmetric{"mem_stack_in_use", memstats.StackInuse, tagsIntGauge}) // bytes used by stack allocator
-	im = append(im, intmetric{"mem_stack_sys", memstats.StackSys, tagsIntGauge})
-	im = append(im, intmetric{"mem_mspan_in_use", memstats.MSpanInuse, tagsIntGauge}) // mspan structures
-	im = append(im, intmetric{"mem_mspan_sys", memstats.MSpanSys, tagsIntGauge})
-	im = append(im, intmetric{"mem_mcache_in_use", memstats.MCacheInuse, tagsIntGauge}) // mcache structures
-	im = append(im, intmetric{"mem_mcache_sys", memstats.MCacheSys, tagsIntGauge})
-	im = append(im, intmetric{"mem_buck_hash_sys", memstats.BuckHashSys, tagsIntGauge}) // profiling bucket hash table
-	im = append(im, intmetric{"mem_gc_sys", memstats.GCSys, tagsIntGauge})              // GC metadata
-	im = append(im, intmetric{"mem_other_sys", memstats.OtherSys, tagsIntGauge})        // other system allocations
+	im = append(im, IntMetric{"mem_stack_in_use", memstats.StackInuse, tagsIntGauge}) // bytes used by stack allocator
+	im = append(im, IntMetric{"mem_stack_sys", memstats.StackSys, tagsIntGauge})
+	im = append(im, IntMetric{"mem_mspan_in_use", memstats.MSpanInuse, tagsIntGauge}) // mspan structures
+	im = append(im, IntMetric{"mem_mspan_sys", memstats.MSpanSys, tagsIntGauge})
+	im = append(im, IntMetric{"mem_mcache_in_use", memstats.MCacheInuse, tagsIntGauge}) // mcache structures
+	im = append(im, IntMetric{"mem_mcache_sys", memstats.MCacheSys, tagsIntGauge})
+	im = append(im, IntMetric{"mem_buck_hash_sys", memstats.BuckHashSys, tagsIntGauge}) // profiling bucket hash table
+	im = append(im, IntMetric{"mem_gc_sys", memstats.GCSys, tagsIntGauge})              // GC metadata
+	im = append(im, IntMetric{"mem_other_sys", memstats.OtherSys, tagsIntGauge})        // other system allocations
 
-	im = append(im, intmetric{"gc_next_gc_heap_alloc", memstats.NextGC, tagsIntGauge}) // next collection will happen when HeapAlloc ≥ this amount
-	im = append(im, intmetric{"gc_last_gc_time", memstats.LastGC, tagsIntGauge})       // end time of last collection (nanoseconds since 1970)
-	im = append(im, intmetric{"gc_pause_total", memstats.PauseTotalNs, tagsIntCounter})
-	im = append(im, intmetric{"gc_num_gc", uint64(memstats.NumGC), tagsIntCounter})
+	im = append(im, IntMetric{"gc_next_gc_heap_alloc", memstats.NextGC, tagsIntGauge}) // next collection will happen when HeapAlloc ≥ this amount
+	im = append(im, IntMetric{"gc_last_gc_time", memstats.LastGC, tagsIntGauge})       // end time of last collection (nanoseconds since 1970)
+	im = append(im, IntMetric{"gc_pause_total", memstats.PauseTotalNs, tagsIntCounter})
+	im = append(im, IntMetric{"gc_num_gc", uint64(memstats.NumGC), tagsIntCounter})
 
-	fm = append(fm, floatmetric{"gc_gc_cpu_frac", memstats.GCCPUFraction, tagsFloatGauge})
+	fm = append(fm, FloatMetric{"gc_gc_cpu_frac", memstats.GCCPUFraction, tagsFloatGauge})
 
 	// circular buffer of recent GC pause durations, most recent at [(NumGC+255)%256]
 	pctls := pausePercentiles(memstats.PauseNs[:], memstats.NumGC)
 	for i := 0; i < 22; i++ {
 		// pre-calculated tags match the 0:5:100,99 pattern that pausePercentiles produces.
-		im = append(im, intmetric{"gc_pause", pctls[i], percentileTags[i]})
+		im = append(im, IntMetric{"gc_pause", pctls[i], percentileTags[i]})
 	}
 
 	// Per-size allocation statistics.
 	for i, b := range memstats.BySize {
-		im = append(im, intmetric{"alloc_mallocs", b.Mallocs, allocTags[i]})
-		im = append(im, intmetric{"alloc_frees", b.Frees, allocTags[i]})
+		im = append(im, IntMetric{"alloc_mallocs", b.Mallocs, allocTags[i]})
+		im = append(im, IntMetric{"alloc_frees", b.Frees, allocTags[i]})
 	}
 
 	//////////////////////////
@@ -174,12 +174,12 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 
 func makeTags(typ, dataType, statistic string) Tags {
 	ret := Tags{
-		tagMetricType: typ,
-		tagDataType:   dataType,
+		TagMetricType: typ,
+		TagDataType:   dataType,
 	}
 
 	if statistic != "" {
-		ret[tagStatistic] = statistic
+		ret[TagStatistic] = statistic
 	}
 
 	return ret
@@ -198,15 +198,15 @@ func printTags(tags Tags) string {
 	return string(ret)
 }
 
-func printIntMetrics(w io.Writer, metrics []intmetric) {
+func printIntMetrics(w io.Writer, metrics []IntMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%s%s%s %d\n", prefix, m.name, printTags(m.tgs), m.val)
+		fmt.Fprintf(w, "%s%s%s %d\n", prefix, m.Name, printTags(m.Tgs), m.Val)
 	}
 }
 
-func printFloatMetrics(w io.Writer, metrics []floatmetric) {
+func printFloatMetrics(w io.Writer, metrics []FloatMetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%s%s%s %f\n", prefix, m.name, printTags(m.tgs), m.val)
+		fmt.Fprintf(w, "%s%s%s %f\n", prefix, m.Name, printTags(m.Tgs), m.Val)
 	}
 }
 
