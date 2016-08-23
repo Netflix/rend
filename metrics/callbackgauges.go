@@ -30,18 +30,18 @@ var (
 	curIntCbID   = new(uint32)
 	intcbnames   = make([]string, maxNumCallbacks)
 	intcallbacks = make([]IntGaugeCallback, maxNumCallbacks)
-	intcbtags    = make([]tags, maxNumCallbacks)
+	intcbtags    = make([]Tags, maxNumCallbacks)
 
 	curFloatCbID   = new(uint32)
 	floatcbnames   = make([]string, maxNumCallbacks)
 	floatcallbacks = make([]FloatGaugeCallback, maxNumCallbacks)
-	floatcbtags    = make([]tags, maxNumCallbacks)
+	floatcbtags    = make([]Tags, maxNumCallbacks)
 )
 
 // RegisterIntGaugeCallback registers a gauge callback which will be called every
 // time metrics are requested.
 // There is a maximum of 10240 int callbacks, after which adding a new one will panic.
-func RegisterIntGaugeCallback(name string, tgs tags, cb IntGaugeCallback) {
+func RegisterIntGaugeCallback(name string, tgs Tags, cb IntGaugeCallback) {
 	id := atomic.AddUint32(curIntCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
@@ -59,7 +59,7 @@ func RegisterIntGaugeCallback(name string, tgs tags, cb IntGaugeCallback) {
 // RegisterFloatGaugeCallback registers a gauge callback which will be called every
 // time metrics are requested.
 // There is a maximum of 10240 float callbacks, after which adding a new one will panic.
-func RegisterFloatGaugeCallback(name string, tgs tags, cb FloatGaugeCallback) {
+func RegisterFloatGaugeCallback(name string, tgs Tags, cb FloatGaugeCallback) {
 	id := atomic.AddUint32(curFloatCbID, 1) - 1
 
 	if id >= maxNumCallbacks {

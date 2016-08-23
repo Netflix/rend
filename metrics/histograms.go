@@ -102,21 +102,21 @@ var (
 	bhists             = make([]bhist, maxNumHists)
 	hNames             = make([]string, maxNumHists)
 	hSampled           = make([]bool, maxNumHists)
-	hIntTagsExpanded   = make([]tags, maxNumHists*numIntMetricsPerHist)
-	hFloatTagsExpanded = make([]tags, maxNumHists*numFloatMetricsPerHist)
+	hIntTagsExpanded   = make([]Tags, maxNumHists*numIntMetricsPerHist)
+	hFloatTagsExpanded = make([]Tags, maxNumHists*numFloatMetricsPerHist)
 
-	bhTags []tags
+	bhTags []Tags
 )
 
 func init() {
 	atomic.StoreUint32(curHistID, 0)
 
-	bucketTags := tags{
+	bucketTags := Tags{
 		tagMetricType: metricTypeCounter,
 		tagDataType:   dataTypeUint64,
 	}
 
-	bhTags = make([]tags, numAtlasBuckets)
+	bhTags = make([]Tags, numAtlasBuckets)
 
 	for i := range bhTags {
 		t := copyTags(bucketTags)
@@ -159,8 +159,8 @@ type bhist struct {
 	buckets [numAtlasBuckets]uint64
 }
 
-func copyTags(orig tags) tags {
-	ret := make(tags)
+func copyTags(orig Tags) Tags {
+	ret := make(Tags)
 	for k, v := range orig {
 		ret[k] = v
 	}
@@ -184,7 +184,7 @@ func copyTags(orig tags) tags {
 //   someOperation()
 //   end := time.Now().UnixNano() - start
 //   metrics.ObserveHist(HistFoo, uint64(end))
-func AddHistogram(name string, sampled bool, tgs tags) uint32 {
+func AddHistogram(name string, sampled bool, tgs Tags) uint32 {
 	idx := atomic.AddUint32(curHistID, 1) - 1
 
 	if idx >= maxNumHists {

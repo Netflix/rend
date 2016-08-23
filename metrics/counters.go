@@ -21,7 +21,7 @@ const maxNumCounters = 1024
 var (
 	cnames       = make([]string, maxNumCounters)
 	counters     = make([]uint64, maxNumCounters)
-	ctags        = make([]tags, maxNumCounters)
+	ctags        = make([]Tags, maxNumCounters)
 	curCounterID = new(uint32)
 )
 
@@ -38,7 +38,7 @@ var (
 // Then in code:
 //
 //   metrics.IncCounter(MetricFoo)
-func AddCounter(name string, tgs tags) uint32 {
+func AddCounter(name string, tgs Tags) uint32 {
 	id := atomic.AddUint32(curCounterID, 1) - 1
 
 	if id >= maxNumCounters {

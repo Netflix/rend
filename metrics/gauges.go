@@ -25,12 +25,12 @@ var (
 	curIntGaugeID = new(uint32)
 	intgnames     = make([]string, maxNumGauges)
 	intgauges     = make([]uint64, maxNumGauges)
-	intgtags      = make([]tags, maxNumGauges)
+	intgtags      = make([]Tags, maxNumGauges)
 
 	curFloatGaugeID = new(uint32)
 	floatgnames     = make([]string, maxNumGauges)
 	floatgauges     = make([]uint64, maxNumGauges)
-	floatgtags      = make([]tags, maxNumGauges)
+	floatgtags      = make([]Tags, maxNumGauges)
 )
 
 func init() {
@@ -41,7 +41,7 @@ func init() {
 // AddIntGauge registers an integer-based gauge and returns an ID that can be
 // used to update it.
 // There is a maximum of 1024 gauges, after which adding a new one will panic
-func AddIntGauge(name string, tgs tags) uint32 {
+func AddIntGauge(name string, tgs Tags) uint32 {
 	id := atomic.AddUint32(curIntGaugeID, 1) - 1
 
 	if id >= maxNumGauges {
@@ -60,7 +60,7 @@ func AddIntGauge(name string, tgs tags) uint32 {
 // AddFloatGauge registers a float-based gauge and returns an ID that can be
 // used to access it.
 // There is a maximum of 1024 gauges, after which adding a new one will panic
-func AddFloatGauge(name string, tgs tags) uint32 {
+func AddFloatGauge(name string, tgs Tags) uint32 {
 	id := atomic.AddUint32(curFloatGaugeID, 1) - 1
 
 	if id >= maxNumGauges {

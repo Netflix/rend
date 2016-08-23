@@ -33,21 +33,21 @@ var (
 	memstats        = new(runtime.MemStats)
 	metricsReadLock = new(sync.Mutex)
 
-	tagsIntCounter = tags{
+	tagsIntCounter = Tags{
 		tagMetricType: metricTypeCounter,
 		tagDataType:   dataTypeUint64,
 	}
-	tagsIntGauge = tags{
+	tagsIntGauge = Tags{
 		tagMetricType: metricTypeGauge,
 		tagDataType:   dataTypeUint64,
 	}
-	tagsFloatGauge = tags{
+	tagsFloatGauge = Tags{
 		tagMetricType: metricTypeGauge,
 		tagDataType:   dataTypeUint64,
 	}
 
-	percentileTags [22]tags
-	allocTags      []tags
+	percentileTags [22]Tags
+	allocTags      []Tags
 )
 
 func init() {
@@ -172,8 +172,8 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	printFloatMetrics(w, fm)
 }
 
-func makeTags(typ, dataType, statistic string) tags {
-	ret := tags{
+func makeTags(typ, dataType, statistic string) Tags {
+	ret := Tags{
 		tagMetricType: typ,
 		tagDataType:   dataType,
 	}
@@ -185,7 +185,7 @@ func makeTags(typ, dataType, statistic string) tags {
 	return ret
 }
 
-func printTags(tags tags) string {
+func printTags(tags Tags) string {
 	var ret []byte
 
 	for k, v := range tags {
