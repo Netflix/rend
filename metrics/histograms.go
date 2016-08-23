@@ -101,6 +101,7 @@ var (
 	hists              = make([]hist, maxNumHists)
 	bhists             = make([]bhist, maxNumHists)
 	hNames             = make([]string, maxNumHists)
+	bhNames            = make([]string, maxNumHists)
 	hSampled           = make([]bool, maxNumHists)
 	hIntTagsExpanded   = make([]Tags, maxNumHists*numIntMetricsPerHist)
 	hFloatTagsExpanded = make([]Tags, maxNumHists*numFloatMetricsPerHist)
@@ -197,6 +198,7 @@ func AddHistogram(name string, sampled bool, tgs Tags) uint32 {
 
 	// There's only ony main metric name per histogram, the rest is tagging
 	hNames[idx] = "hist_" + name
+	bhNames[idx] = "bhist_" + name
 
 	// This next section precalculates all of the tag sets for all of the metrics for
 	// this histogram.
@@ -331,32 +333,62 @@ func getAllHistograms() ([]intmetric, []floatmetric) {
 	n := int(atomic.LoadUint32(curHistID))
 
 	// 23 percentile metrics + kept and count per histogram
-	intret := make([]intmetric, n*numIntMetricsPerHist)
+	intret := make([]intmetric, 0, n*numIntMetricsPerHist)
 	// 1 float metric per histogram, the average
-	floatret := make([]floatmetric, n)
+	floatret := make([]floatmetric, 0, n)
 
 	for i := 0; i < n; i++ {
 		name := hNames[i]
 		dat := extractHist(&hists[i])
 
+		// If there's no observations, skip printing this histogram.
+		// Printing out 0 will give bad data on graphs. We're better having no
+		// data than a zero.
+		// We do always want the count at least, so there is a metric showing that
+		// there shouldn't be any other metrics for this hist.
+		if dat.count == 0 {
+			idx := i*numIntMetricsPerHist + 23
+			intret = append(intret, intmetric{
+				name: name,
+				val:  dat.count,
+				tgs:  hIntTagsExpanded[idx],
+			})
+			continue
+		}
+
 		avg := float64(dat.total) / float64(dat.count)
-		floatret[i] = floatmetric{
+		floatret = append(floatret, floatmetric{
 			name: name,
 			val:  avg,
 			tgs:  hFloatTagsExpanded[i],
-		}
+		})
 
 		// The percentiles returned from hdatPercentiles and the tags set up
 		// in the AddHistogram function should all match
 		pctls := hdatPercentiles(dat)
-		for j := 0; j < 25; j++ {
+		for j := 0; j < 23; j++ {
 			idx := i*numIntMetricsPerHist + j
-			intret[idx] = intmetric{
+			intret = append(intret, intmetric{
 				name: name,
 				val:  pctls[j],
 				tgs:  hIntTagsExpanded[idx],
-			}
+			})
 		}
+
+		// now for count and kept
+		idx := i*numIntMetricsPerHist + 23
+		intret = append(intret, intmetric{
+			name: name,
+			val:  dat.count,
+			tgs:  hIntTagsExpanded[idx],
+		})
+
+		idx++
+		intret = append(intret, intmetric{
+			name: name,
+			val:  dat.kept,
+			tgs:  hIntTagsExpanded[idx],
+		})
 	}
 
 	return intret, floatret
@@ -393,7 +425,7 @@ func getAllBucketHistograms() []intmetric {
 	// values to the return value
 	for i := 0; i < n; i++ {
 		for j, val := range extractBHist(bhists[i]) {
-			ret = append(ret, intmetric{hNames[i], val, bhTags[j]})
+			ret = append(ret, intmetric{bhNames[i], val, bhTags[j]})
 		}
 	}
 
@@ -446,7 +478,7 @@ func hdatPercentiles(dat hdat) [23]uint64 {
 		pctls[i] = buf[idx]
 	}
 
-	// Add 99th
+	// Add 99th and 99.9th
 	idx := len(buf) * 99 / 100
 	pctls[21] = buf[idx]
 

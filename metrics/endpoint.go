@@ -69,7 +69,7 @@ func init() {
 	runtime.ReadMemStats(ms)
 	for _, s := range ms.BySize {
 		t := copyTags(tagsIntCounter)
-		t[tagStatistic] = fmt.Sprintf("size_%d", s.Size)
+		t["size"] = fmt.Sprintf("%d", s.Size)
 		allocTags = append(allocTags, t)
 	}
 }
