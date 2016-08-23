@@ -47,6 +47,7 @@ func AddCounter(name string, tgs tags) uint32 {
 
 	cnames[id] = name
 
+	tgs = copyTags(tgs)
 	tgs[tagMetricType] = metricTypeCounter
 	tgs[tagDataType] = dataTypeUint64
 	ctags[id] = tgs

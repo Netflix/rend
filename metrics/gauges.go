@@ -50,6 +50,7 @@ func AddIntGauge(name string, tgs tags) uint32 {
 
 	intgnames[id] = name
 
+	tgs = copyTags(tgs)
 	tgs[tagMetricType] = metricTypeGauge
 	intgtags[id] = tgs
 
@@ -68,6 +69,7 @@ func AddFloatGauge(name string, tgs tags) uint32 {
 
 	floatgnames[id] = name
 
+	tgs = copyTags(tgs)
 	tgs[tagMetricType] = metricTypeGauge
 	floatgtags[id] = tgs
 

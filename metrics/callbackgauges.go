@@ -51,6 +51,7 @@ func RegisterIntGaugeCallback(name string, tgs tags, cb IntGaugeCallback) {
 	intcallbacks[id] = cb
 	intcbnames[id] = name
 
+	tgs = copyTags(tgs)
 	tgs[tagMetricType] = metricTypeGauge
 	intcbtags[id] = tgs
 }
@@ -68,6 +69,7 @@ func RegisterFloatGaugeCallback(name string, tgs tags, cb FloatGaugeCallback) {
 	floatcallbacks[id] = cb
 	floatcbnames[id] = name
 
+	tgs = copyTags(tgs)
 	tgs[tagMetricType] = metricTypeGauge
 	floatcbtags[id] = tgs
 }
