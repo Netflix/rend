@@ -31,11 +31,13 @@ const (
 type intmetric struct {
 	name string
 	val  uint64
-	tags map[string]string
+	tgs  tags
 }
 
 type floatmetric struct {
 	name string
 	val  float64
-	tags map[string]string
+	tgs  tags
 }
+
+type tags map[string]string

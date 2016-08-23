@@ -25,12 +25,12 @@ var (
 	curIntGaugeID = new(uint32)
 	intgnames     = make([]string, maxNumGauges)
 	intgauges     = make([]uint64, maxNumGauges)
-	intgtags      = make([]map[string]string, maxNumGauges)
+	intgtags      = make([]tags, maxNumGauges)
 
 	curFloatGaugeID = new(uint32)
 	floatgnames     = make([]string, maxNumGauges)
 	floatgauges     = make([]uint64, maxNumGauges)
-	floatgtags      = make([]map[string]string, maxNumGauges)
+	floatgtags      = make([]tags, maxNumGauges)
 )
 
 func init() {
@@ -41,7 +41,7 @@ func init() {
 // AddIntGauge registers an integer-based gauge and returns an ID that can be
 // used to update it.
 // There is a maximum of 1024 gauges, after which adding a new one will panic
-func AddIntGauge(name string, tags map[string]string) uint32 {
+func AddIntGauge(name string, tgs tags) uint32 {
 	id := atomic.AddUint32(curIntGaugeID, 1) - 1
 
 	if id >= maxNumGauges {
@@ -50,8 +50,8 @@ func AddIntGauge(name string, tags map[string]string) uint32 {
 
 	intgnames[id] = name
 
-	tags[tagMetricType] = metricTypeGauge
-	intgtags[id] = tags
+	tgs[tagMetricType] = metricTypeGauge
+	intgtags[id] = tgs
 
 	return id
 }
@@ -59,7 +59,7 @@ func AddIntGauge(name string, tags map[string]string) uint32 {
 // AddFloatGauge registers a float-based gauge and returns an ID that can be
 // used to access it.
 // There is a maximum of 1024 gauges, after which adding a new one will panic
-func AddFloatGauge(name string, tags map[string]string) uint32 {
+func AddFloatGauge(name string, tgs tags) uint32 {
 	id := atomic.AddUint32(curFloatGaugeID, 1) - 1
 
 	if id >= maxNumGauges {
@@ -68,8 +68,8 @@ func AddFloatGauge(name string, tags map[string]string) uint32 {
 
 	floatgnames[id] = name
 
-	tags[tagMetricType] = metricTypeGauge
-	floatgtags[id] = tags
+	tgs[tagMetricType] = metricTypeGauge
+	floatgtags[id] = tgs
 
 	return id
 }
@@ -96,7 +96,7 @@ func getAllGauges() ([]intmetric, []floatmetric) {
 		retint[i] = intmetric{
 			name: intgnames[i],
 			val:  atomic.LoadUint64(&intgauges[i]),
-			tags: intgtags[i],
+			tgs:  intgtags[i],
 		}
 	}
 
@@ -112,7 +112,7 @@ func getAllGauges() ([]intmetric, []floatmetric) {
 		retfloat[i] = floatmetric{
 			name: floatgnames[i],
 			val:  math.Float64frombits(intval),
-			tags: floatgtags[i],
+			tgs:  floatgtags[i],
 		}
 	}
 

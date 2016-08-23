@@ -21,7 +21,7 @@ const maxNumCounters = 1024
 var (
 	cnames       = make([]string, maxNumCounters)
 	counters     = make([]uint64, maxNumCounters)
-	ctags        = make([]map[string]string, maxNumCounters)
+	ctags        = make([]tags, maxNumCounters)
 	curCounterID = new(uint32)
 )
 
@@ -32,13 +32,13 @@ var (
 // uses it. E.g.:
 //
 //   var (
-//       MetricFoo = metrics.AddCounter("foo", map[string]string{"tag1": "value"})
+//       MetricFoo = metrics.AddCounter("foo", tags{"tag1": "value"})
 //   )
 //
 // Then in code:
 //
 //   metrics.IncCounter(MetricFoo)
-func AddCounter(name string, tags map[string]string) uint32 {
+func AddCounter(name string, tgs tags) uint32 {
 	id := atomic.AddUint32(curCounterID, 1) - 1
 
 	if id >= maxNumCounters {
@@ -47,9 +47,9 @@ func AddCounter(name string, tags map[string]string) uint32 {
 
 	cnames[id] = name
 
-	tags[tagMetricType] = metricTypeCounter
-	tags[tagDataType] = dataTypeUint64
-	ctags[id] = tags
+	tgs[tagMetricType] = metricTypeCounter
+	tgs[tagDataType] = dataTypeUint64
+	ctags[id] = tgs
 
 	return id
 }
@@ -74,7 +74,7 @@ func getAllCounters() []intmetric {
 		ret[i] = intmetric{
 			name: cnames[i],
 			val:  atomic.LoadUint64(&counters[i]),
-			tags: ctags[i],
+			tgs:  ctags[i],
 		}
 	}
 

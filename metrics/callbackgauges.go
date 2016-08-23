@@ -30,18 +30,18 @@ var (
 	curIntCbID   = new(uint32)
 	intcbnames   = make([]string, maxNumCallbacks)
 	intcallbacks = make([]IntGaugeCallback, maxNumCallbacks)
-	intcbtags    = make([]map[string]string, maxNumCallbacks)
+	intcbtags    = make([]tags, maxNumCallbacks)
 
 	curFloatCbID   = new(uint32)
 	floatcbnames   = make([]string, maxNumCallbacks)
 	floatcallbacks = make([]FloatGaugeCallback, maxNumCallbacks)
-	floatcbtags    = make([]map[string]string, maxNumCallbacks)
+	floatcbtags    = make([]tags, maxNumCallbacks)
 )
 
 // RegisterIntGaugeCallback registers a gauge callback which will be called every
 // time metrics are requested.
 // There is a maximum of 10240 int callbacks, after which adding a new one will panic.
-func RegisterIntGaugeCallback(name string, tags map[string]string, cb IntGaugeCallback) {
+func RegisterIntGaugeCallback(name string, tgs tags, cb IntGaugeCallback) {
 	id := atomic.AddUint32(curIntCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
@@ -51,14 +51,14 @@ func RegisterIntGaugeCallback(name string, tags map[string]string, cb IntGaugeCa
 	intcallbacks[id] = cb
 	intcbnames[id] = name
 
-	tags[tagMetricType] = metricTypeGauge
-	intcbtags[id] = tags
+	tgs[tagMetricType] = metricTypeGauge
+	intcbtags[id] = tgs
 }
 
 // RegisterFloatGaugeCallback registers a gauge callback which will be called every
 // time metrics are requested.
 // There is a maximum of 10240 float callbacks, after which adding a new one will panic.
-func RegisterFloatGaugeCallback(name string, tags map[string]string, cb FloatGaugeCallback) {
+func RegisterFloatGaugeCallback(name string, tgs tags, cb FloatGaugeCallback) {
 	id := atomic.AddUint32(curFloatCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
@@ -68,8 +68,8 @@ func RegisterFloatGaugeCallback(name string, tags map[string]string, cb FloatGau
 	floatcallbacks[id] = cb
 	floatcbnames[id] = name
 
-	tags[tagMetricType] = metricTypeGauge
-	floatcbtags[id] = tags
+	tgs[tagMetricType] = metricTypeGauge
+	floatcbtags[id] = tgs
 }
 
 func getAllCallbackGauges() ([]intmetric, []floatmetric) {
@@ -80,7 +80,7 @@ func getAllCallbackGauges() ([]intmetric, []floatmetric) {
 		retint[i] = intmetric{
 			name: intcbnames[i],
 			val:  intcallbacks[i](),
-			tags: intcbtags[i],
+			tgs:  intcbtags[i],
 		}
 	}
 
@@ -91,7 +91,7 @@ func getAllCallbackGauges() ([]intmetric, []floatmetric) {
 		retfloat[i] = floatmetric{
 			name: floatcbnames[i],
 			val:  floatcallbacks[i](),
-			tags: floatcbtags[i],
+			tgs:  floatcbtags[i],
 		}
 	}
 

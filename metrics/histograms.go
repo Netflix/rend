@@ -102,21 +102,21 @@ var (
 	bhists             = make([]bhist, maxNumHists)
 	hNames             = make([]string, maxNumHists)
 	hSampled           = make([]bool, maxNumHists)
-	hIntTagsExpanded   = make([]map[string]string, maxNumHists*numIntMetricsPerHist)
-	hFloatTagsExpanded = make([]map[string]string, maxNumHists*numFloatMetricsPerHist)
+	hIntTagsExpanded   = make([]tags, maxNumHists*numIntMetricsPerHist)
+	hFloatTagsExpanded = make([]tags, maxNumHists*numFloatMetricsPerHist)
 
-	bhTags []map[string]string
+	bhTags []tags
 )
 
 func init() {
 	atomic.StoreUint32(curHistID, 0)
 
-	bucketTags := map[string]string{
+	bucketTags := tags{
 		tagMetricType: metricTypeCounter,
 		tagDataType:   dataTypeUint64,
 	}
 
-	bhTags = make([]map[string]string, numAtlasBuckets)
+	bhTags = make([]tags, numAtlasBuckets)
 
 	for i := range bhTags {
 		t := copyTags(bucketTags)
@@ -159,8 +159,8 @@ type bhist struct {
 	buckets [numAtlasBuckets]uint64
 }
 
-func copyTags(orig map[string]string) map[string]string {
-	ret := make(map[string]string)
+func copyTags(orig tags) tags {
+	ret := make(tags)
 	for k, v := range orig {
 		ret[k] = v
 	}
@@ -175,7 +175,7 @@ func copyTags(orig map[string]string) map[string]string {
 //
 //   var (
 //       // Create unsampled histogram "foo"
-//       HistFoo = metrics.AddHistogram("foo", false, map[string]string{"tag1": "value"})
+//       HistFoo = metrics.AddHistogram("foo", false, tags{"tag1": "value"})
 //   )
 //
 // Then make observations later:
@@ -184,7 +184,7 @@ func copyTags(orig map[string]string) map[string]string {
 //   someOperation()
 //   end := time.Now().UnixNano() - start
 //   metrics.ObserveHist(HistFoo, uint64(end))
-func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
+func AddHistogram(name string, sampled bool, tgs tags) uint32 {
 	idx := atomic.AddUint32(curHistID, 1) - 1
 
 	if idx >= maxNumHists {
@@ -202,22 +202,22 @@ func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
 	// this histogram.
 
 	// guarantee we don't mess with the passed in tags
-	tags = copyTags(tags)
+	tgs = copyTags(tgs)
 
 	// For now the only float metric for each histogram is the average
-	t := copyTags(tags)
+	t := copyTags(tgs)
 	t[tagDataType] = dataTypeFloat64
 	t[tagMetricType] = metricTypeGauge
 	t[tagStatistic] = "average"
 	hFloatTagsExpanded[idx] = t
 
 	// these same tags can be used for all of the int tags
-	tags[tagDataType] = dataTypeUint64
-	tags[tagMetricType] = metricTypeCounter
+	tgs[tagDataType] = dataTypeUint64
+	tgs[tagMetricType] = metricTypeCounter
 
 	// The first 21 int metrics in each histogram are the percentiles from 0 to 100 by 5
 	for i := uint32(0); i < 21; i++ {
-		t = copyTags(tags)
+		t = copyTags(tgs)
 		t[tagStatistic] = fmt.Sprintf("percentile%d", i*5)
 
 		j := (idx * numIntMetricsPerHist) + i
@@ -225,21 +225,21 @@ func AddHistogram(name string, sampled bool, tags map[string]string) uint32 {
 	}
 
 	// Now add the 99th and 99.9th percentiles for 22 and 23
-	t = copyTags(tags)
+	t = copyTags(tgs)
 	t[tagStatistic] = "percentile99"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+21] = t
 
-	t = copyTags(tags)
+	t = copyTags(tgs)
 	// a bit brittle. If metricPercentile changes, this should change too
 	t[tagStatistic] = "percentile99.9"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+22] = t
 
 	// Now for the count and kept
-	t = copyTags(tags)
+	t = copyTags(tgs)
 	t[tagStatistic] = "count"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+23] = t
 
-	t = copyTags(tags)
+	t = copyTags(tgs)
 	t[tagStatistic] = "kept"
 	hIntTagsExpanded[(idx*numIntMetricsPerHist)+24] = t
 
@@ -343,7 +343,7 @@ func getAllHistograms() ([]intmetric, []floatmetric) {
 		floatret[i] = floatmetric{
 			name: name,
 			val:  avg,
-			tags: hFloatTagsExpanded[i],
+			tgs:  hFloatTagsExpanded[i],
 		}
 
 		// The percentiles returned from hdatPercentiles and the tags set up
@@ -354,7 +354,7 @@ func getAllHistograms() ([]intmetric, []floatmetric) {
 			intret[idx] = intmetric{
 				name: name,
 				val:  pctls[j],
-				tags: hIntTagsExpanded[idx],
+				tgs:  hIntTagsExpanded[idx],
 			}
 		}
 	}

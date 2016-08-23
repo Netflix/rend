@@ -33,21 +33,21 @@ var (
 	memstats        = new(runtime.MemStats)
 	metricsReadLock = new(sync.Mutex)
 
-	tagsIntCounter = map[string]string{
+	tagsIntCounter = tags{
 		tagMetricType: metricTypeCounter,
 		tagDataType:   dataTypeUint64,
 	}
-	tagsIntGauge = map[string]string{
+	tagsIntGauge = tags{
 		tagMetricType: metricTypeGauge,
 		tagDataType:   dataTypeUint64,
 	}
-	tagsFloatGauge = map[string]string{
+	tagsFloatGauge = tags{
 		tagMetricType: metricTypeGauge,
 		tagDataType:   dataTypeUint64,
 	}
 
-	percentileTags [22]map[string]string
-	allocTags      []map[string]string
+	percentileTags [22]tags
+	allocTags      []tags
 )
 
 func init() {
@@ -172,8 +172,8 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	printFloatMetrics(w, fm)
 }
 
-func makeTags(typ, dataType, statistic string) map[string]string {
-	ret := map[string]string{
+func makeTags(typ, dataType, statistic string) tags {
+	ret := tags{
 		tagMetricType: typ,
 		tagDataType:   dataType,
 	}
@@ -185,7 +185,7 @@ func makeTags(typ, dataType, statistic string) map[string]string {
 	return ret
 }
 
-func printTags(tags map[string]string) string {
+func printTags(tags tags) string {
 	var ret []byte
 
 	for k, v := range tags {
@@ -200,13 +200,13 @@ func printTags(tags map[string]string) string {
 
 func printIntMetrics(w io.Writer, metrics []intmetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%s%s%s %d\n", prefix, m.name, printTags(m.tags), m.val)
+		fmt.Fprintf(w, "%s%s%s %d\n", prefix, m.name, printTags(m.tgs), m.val)
 	}
 }
 
 func printFloatMetrics(w io.Writer, metrics []floatmetric) {
 	for _, m := range metrics {
-		fmt.Fprintf(w, "%s%s%s %f\n", prefix, m.name, printTags(m.tags), m.val)
+		fmt.Fprintf(w, "%s%s%s %f\n", prefix, m.name, printTags(m.tgs), m.val)
 	}
 }
 
