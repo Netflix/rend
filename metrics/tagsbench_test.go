@@ -15,21 +15,39 @@
 package metrics_test
 
 import "testing"
+import crand "crypto/rand"
 
-var tags = map[string]string{
-	"foo1": "bar1",
-	"foo2": "bar2",
-	"foo3": "bar3",
-	"foo4": "bar4",
-	"foo5": "bar5",
-	"foo6": "bar6",
-	"foo7": "bar7",
-	"foo8": "bar8",
+type tags map[string]string
+
+var (
+	tgs = tags{
+		"fooo1": "baar1",
+		"fooo2": "baar2",
+		"fooo3": "baar3",
+		"fooo4": "baar4",
+		"fooo5": "baar5",
+		"fooo6": "baar6",
+		"fooo7": "baar7",
+		"fooo8": "baar8",
+	}
+
+	dyntags tags
+)
+
+func init() {
+	dyntags = make(tags)
+
+	dat := make([]byte, 10)
+
+	for i := 0; i < 8; i++ {
+		crand.Read(dat)
+		dyntags[string(dat[:5])] = string(dat[5:])
+	}
 }
 
-func TagsBuildStringAppend(tags map[string]string) string {
+func TagsBuildStringAppend(tgs tags) string {
 	var ret string
-	for k, v := range tags {
+	for k, v := range tgs {
 		ret += "|"
 		ret += k
 		ret += "*"
@@ -40,20 +58,39 @@ func TagsBuildStringAppend(tags map[string]string) string {
 
 func BenchmarkTagsBuildStringAppend(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = TagsBuildStringAppend(tags)
+		_ = TagsBuildStringAppend(tgs)
 	}
 }
 
-func TagsBuildStringByteSlice(tags map[string]string) string {
+func TagsBuildStringByteSlicePrealloc(tgs tags) string {
 	var size int
 
-	for k, v := range tags {
+	for k, v := range tgs {
 		size += len(k) + len(v) + 2
 	}
 
-	ret := make([]byte, size)
+	ret := make([]byte, 0, size)
 
-	for k, v := range tags {
+	for k, v := range tgs {
+		ret = append(ret, byte('|'))
+		ret = append(ret, k...)
+		ret = append(ret, byte('*'))
+		ret = append(ret, v...)
+	}
+
+	return string(ret)
+}
+
+func BenchmarkTagsBuildStringByteSlicePrealloc(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = TagsBuildStringByteSlice(tgs)
+	}
+}
+
+func TagsBuildStringByteSlice(tgs tags) string {
+	var ret []byte
+
+	for k, v := range tgs {
 		ret = append(ret, byte('|'))
 		ret = append(ret, k...)
 		ret = append(ret, byte('*'))
@@ -65,6 +102,25 @@ func TagsBuildStringByteSlice(tags map[string]string) string {
 
 func BenchmarkTagsBuildStringByteSlice(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = TagsBuildStringByteSlice(tags)
+		_ = TagsBuildStringByteSlice(tgs)
+	}
+}
+
+func TagsBuildStringByteSliceDynamicData(tgs tags) string {
+	var ret []byte
+
+	for k, v := range tgs {
+		ret = append(ret, byte('|'))
+		ret = append(ret, k...)
+		ret = append(ret, byte('*'))
+		ret = append(ret, v...)
+	}
+
+	return string(ret)
+}
+
+func BenchmarkTagsBuildStringByteSliceDynamicData(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = TagsBuildStringByteSlice(dyntags)
 	}
 }

@@ -186,13 +186,7 @@ func makeTags(typ, dataType, statistic string) map[string]string {
 }
 
 func printTags(tags map[string]string) string {
-	var size int
-
-	for k, v := range tags {
-		size += len(k) + len(v) + 2
-	}
-
-	ret := make([]byte, size)
+	var ret []byte
 
 	for k, v := range tags {
 		ret = append(ret, byte('|'))
