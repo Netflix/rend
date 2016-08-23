@@ -110,8 +110,6 @@ var (
 )
 
 func init() {
-	atomic.StoreUint32(curHistID, 0)
-
 	bucketTags := Tags{
 		TagMetricType: MetricTypeCounter,
 		TagDataType:   DataTypeUint64,

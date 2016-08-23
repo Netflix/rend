@@ -33,11 +33,6 @@ var (
 	floatgtags      = make([]Tags, maxNumGauges)
 )
 
-func init() {
-	atomic.StoreUint32(curIntGaugeID, 0)
-	atomic.StoreUint32(curFloatGaugeID, 0)
-}
-
 // AddIntGauge registers an integer-based gauge and returns an ID that can be
 // used to update it.
 // There is a maximum of 1024 gauges, after which adding a new one will panic
