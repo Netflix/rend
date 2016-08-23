@@ -168,6 +168,13 @@ func printMetrics(w http.ResponseWriter, r *http.Request) {
 	im = append(im, intg...)
 	fm = append(fm, floatg...)
 
+	//////////////////////////
+	// Bulk Callbacks
+	//////////////////////////
+	intcb, floatcb := getAllBulkCallbackGauges()
+	im = append(im, intcb...)
+	fm = append(fm, floatcb...)
+
 	printIntMetrics(w, im)
 	printFloatMetrics(w, fm)
 }
