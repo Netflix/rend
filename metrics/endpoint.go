@@ -43,7 +43,7 @@ var (
 	}
 	tagsFloatGauge = Tags{
 		TagMetricType: MetricTypeGauge,
-		TagDataType:   DataTypeUint64,
+		TagDataType:   DataTypeFloat64,
 	}
 
 	percentileTags [22]Tags
