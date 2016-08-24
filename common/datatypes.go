@@ -30,14 +30,14 @@ const VersionString = "Rend 0.1"
 
 // Common metrics used across packages
 var (
-	MetricBytesReadRemote     = metrics.AddCounter("bytes_read_remote")
-	MetricBytesReadLocal      = metrics.AddCounter("bytes_read_local")
-	MetricBytesReadLocalL1    = metrics.AddCounter("bytes_read_local_l1")
-	MetricBytesReadLocalL2    = metrics.AddCounter("bytes_read_local_l2")
-	MetricBytesWrittenRemote  = metrics.AddCounter("bytes_written_remote")
-	MetricBytesWrittenLocal   = metrics.AddCounter("bytes_written_local")
-	MetricBytesWrittenLocalL1 = metrics.AddCounter("bytes_written_local_l1")
-	MetricBytesWrittenLocalL2 = metrics.AddCounter("bytes_written_local_l2")
+	MetricBytesReadRemote     = metrics.AddCounter("bytes_read_remote", nil)
+	MetricBytesReadLocal      = metrics.AddCounter("bytes_read_local", nil)
+	MetricBytesReadLocalL1    = metrics.AddCounter("bytes_read_local_l1", nil)
+	MetricBytesReadLocalL2    = metrics.AddCounter("bytes_read_local_l2", nil)
+	MetricBytesWrittenRemote  = metrics.AddCounter("bytes_written_remote", nil)
+	MetricBytesWrittenLocal   = metrics.AddCounter("bytes_written_local", nil)
+	MetricBytesWrittenLocalL1 = metrics.AddCounter("bytes_written_local_l1", nil)
+	MetricBytesWrittenLocalL2 = metrics.AddCounter("bytes_written_local_l2", nil)
 
 	// Errors used across the application
 	ErrBadRequest = errors.New("CLIENT_ERROR bad request")

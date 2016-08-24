@@ -45,38 +45,38 @@ type ListenArgs struct {
 }
 
 var (
-	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext")
-	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1")
-	MetricConnectionsEstablishedL2  = metrics.AddCounter("conn_established_l2")
-	MetricCmdTotal                  = metrics.AddCounter("cmd_total")
-	MetricErrAppError               = metrics.AddCounter("err_app_err")
-	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable")
+	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext", nil)
+	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1", nil)
+	MetricConnectionsEstablishedL2  = metrics.AddCounter("conn_established_l2", nil)
+	MetricCmdTotal                  = metrics.AddCounter("cmd_total", nil)
+	MetricErrAppError               = metrics.AddCounter("err_app_err", nil)
+	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable", nil)
 
-	MetricCmdGet     = metrics.AddCounter("cmd_get")
-	MetricCmdGetE    = metrics.AddCounter("cmd_gete")
-	MetricCmdSet     = metrics.AddCounter("cmd_set")
-	MetricCmdAdd     = metrics.AddCounter("cmd_add")
-	MetricCmdReplace = metrics.AddCounter("cmd_replace")
-	MetricCmdAppend  = metrics.AddCounter("cmd_append")
-	MetricCmdPrepend = metrics.AddCounter("cmd_prepend")
-	MetricCmdDelete  = metrics.AddCounter("cmd_delete")
-	MetricCmdTouch   = metrics.AddCounter("cmd_touch")
-	MetricCmdGat     = metrics.AddCounter("cmd_gat")
-	MetricCmdUnknown = metrics.AddCounter("cmd_unknown")
-	MetricCmdNoop    = metrics.AddCounter("cmd_noop")
-	MetricCmdQuit    = metrics.AddCounter("cmd_quit")
-	MetricCmdVersion = metrics.AddCounter("cmd_version")
+	MetricCmdGet     = metrics.AddCounter("cmd_get", nil)
+	MetricCmdGetE    = metrics.AddCounter("cmd_gete", nil)
+	MetricCmdSet     = metrics.AddCounter("cmd_set", nil)
+	MetricCmdAdd     = metrics.AddCounter("cmd_add", nil)
+	MetricCmdReplace = metrics.AddCounter("cmd_replace", nil)
+	MetricCmdAppend  = metrics.AddCounter("cmd_append", nil)
+	MetricCmdPrepend = metrics.AddCounter("cmd_prepend", nil)
+	MetricCmdDelete  = metrics.AddCounter("cmd_delete", nil)
+	MetricCmdTouch   = metrics.AddCounter("cmd_touch", nil)
+	MetricCmdGat     = metrics.AddCounter("cmd_gat", nil)
+	MetricCmdUnknown = metrics.AddCounter("cmd_unknown", nil)
+	MetricCmdNoop    = metrics.AddCounter("cmd_noop", nil)
+	MetricCmdQuit    = metrics.AddCounter("cmd_quit", nil)
+	MetricCmdVersion = metrics.AddCounter("cmd_version", nil)
 
-	HistSet     = metrics.AddHistogram("set", false)
-	HistAdd     = metrics.AddHistogram("add", false)
-	HistReplace = metrics.AddHistogram("replace", false)
-	HistAppend  = metrics.AddHistogram("append", false)
-	HistPrepend = metrics.AddHistogram("prepend", false)
-	HistDelete  = metrics.AddHistogram("delete", false)
-	HistTouch   = metrics.AddHistogram("touch", false)
-	HistGet     = metrics.AddHistogram("get", false)  // not sampled until configurable
-	HistGetE    = metrics.AddHistogram("gete", false) // not sampled until configurable
-	HistGat     = metrics.AddHistogram("gat", false)  // not sampled until configurable
+	HistSet     = metrics.AddHistogram("set", false, nil)
+	HistAdd     = metrics.AddHistogram("add", false, nil)
+	HistReplace = metrics.AddHistogram("replace", false, nil)
+	HistAppend  = metrics.AddHistogram("append", false, nil)
+	HistPrepend = metrics.AddHistogram("prepend", false, nil)
+	HistDelete  = metrics.AddHistogram("delete", false, nil)
+	HistTouch   = metrics.AddHistogram("touch", false, nil)
+	HistGet     = metrics.AddHistogram("get", false, nil)  // not sampled until configurable
+	HistGetE    = metrics.AddHistogram("gete", false, nil) // not sampled until configurable
+	HistGat     = metrics.AddHistogram("gat", false, nil)  // not sampled until configurable
 
 	// TODO: inconsistency metrics for when L1 is not a subset of L2
 )

@@ -26,10 +26,10 @@ import (
 const ReqHeaderLen = 24
 
 var (
-	MetricBinaryRequestHeadersParsed    = metrics.AddCounter("binary_request_headers_parsed")
-	MetricBinaryRequestHeadersBadMagic  = metrics.AddCounter("binary_request_headers_bad_magic")
-	MetricBinaryResponseHeadersParsed   = metrics.AddCounter("binary_response_headers_parsed")
-	MetricBinaryResponseHeadersBadMagic = metrics.AddCounter("binary_response_headers_bad_magic")
+	MetricBinaryRequestHeadersParsed    = metrics.AddCounter("binary_request_headers_parsed", nil)
+	MetricBinaryRequestHeadersBadMagic  = metrics.AddCounter("binary_request_headers_bad_magic", nil)
+	MetricBinaryResponseHeadersParsed   = metrics.AddCounter("binary_response_headers_parsed", nil)
+	MetricBinaryResponseHeadersBadMagic = metrics.AddCounter("binary_response_headers_bad_magic", nil)
 )
 
 type RequestHeader struct {
