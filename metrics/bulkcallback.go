@@ -36,7 +36,7 @@ var (
 // metrics are requested.
 // There is a maximum of 1024 bulk callbacks, after which adding a new one will panic.
 func RegisterBulkCallback(bcb BulkCallback) {
-	id := atomic.AddUint32(curIntCbID, 1) - 1
+	id := atomic.AddUint32(curBulkCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
 		panic("Too many callbacks")
@@ -46,7 +46,7 @@ func RegisterBulkCallback(bcb BulkCallback) {
 }
 
 func getAllBulkCallbackGauges() ([]IntMetric, []FloatMetric) {
-	numIDs := int(atomic.LoadUint32(curIntCbID))
+	numIDs := int(atomic.LoadUint32(curBulkCbID))
 	var intret []IntMetric
 	var floatret []FloatMetric
 
