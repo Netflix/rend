@@ -35,19 +35,14 @@ var (
 // RegisterBulkCallback registers a bulk callback which will be called every time
 // metrics are requested.
 // There is a maximum of 1024 bulk callbacks, after which adding a new one will panic.
-func RegisterBulkCallback(name string, tgs Tags, cb IntGaugeCallback) {
+func RegisterBulkCallback(bcb BulkCallback) {
 	id := atomic.AddUint32(curIntCbID, 1) - 1
 
 	if id >= maxNumCallbacks {
 		panic("Too many callbacks")
 	}
 
-	intcallbacks[id] = cb
-	intcbnames[id] = name
-
-	tgs = copyTags(tgs)
-	tgs[TagMetricType] = MetricTypeGauge
-	intcbtags[id] = tgs
+	bulkCBs[id] = bcb
 }
 
 func getAllBulkCallbackGauges() ([]IntMetric, []FloatMetric) {
