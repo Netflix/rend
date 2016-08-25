@@ -39,19 +39,17 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handl
 	case ListenTCP:
 		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", l.Port))
 		if err != nil {
-			log.Printf("Error binding to port %d\n", l.Port)
-			return
+			log.Panicf("Error binding to port %d: %v\n", l.Port, err.Error())
 		}
 
 	case ListenUnix:
 		err = os.Remove(l.Path)
 		if err != nil && !os.IsNotExist(err) {
-			log.Printf("Error removing previous unix socket file at %s\n", l.Path)
+			log.Panicf("Error removing previous unix socket file at %s\n", l.Path)
 		}
 		listener, err = net.Listen("unix", l.Path)
 		if err != nil {
-			log.Printf("Error binding to unix socket at %s\n", l.Path)
-			return
+			log.Panicf("Error binding to unix socket at %s: %v\n", l.Path, err.Error())
 		}
 
 	default:
