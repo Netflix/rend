@@ -26,7 +26,6 @@ import (
 	"runtime/pprof"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/netflix/rend/client/binprot"
 	"github.com/netflix/rend/client/common"
@@ -34,10 +33,11 @@ import (
 	_ "github.com/netflix/rend/client/sigs"
 	"github.com/netflix/rend/client/stats"
 	"github.com/netflix/rend/client/textprot"
+	"github.com/netflix/rend/timer"
 )
 
 type metric struct {
-	d    time.Duration
+	d    uint64
 	op   common.Op
 	miss bool
 }
@@ -155,15 +155,15 @@ func main() {
 		for m := range metrics {
 			if m.miss {
 				if _, ok := misses[m.op]; ok {
-					misses[m.op] = append(misses[m.op], int(m.d.Nanoseconds()))
+					misses[m.op] = append(misses[m.op], int(m.d))
 				} else {
-					misses[m.op] = []int{int(m.d.Nanoseconds())}
+					misses[m.op] = []int{int(m.d)}
 				}
 			} else {
 				if _, ok := hits[m.op]; ok {
-					hits[m.op] = append(hits[m.op], int(m.d.Nanoseconds()))
+					hits[m.op] = append(hits[m.op], int(m.d))
 				} else {
-					hits[m.op] = []int{int(m.d.Nanoseconds())}
+					hits[m.op] = []int{int(m.d)}
 				}
 			}
 
@@ -267,7 +267,7 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 
 	for item := range tasks {
 		var err error
-		start := time.Now()
+		start := timer.Now()
 
 		switch item.Cmd {
 		case common.Set:
@@ -306,7 +306,7 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		}
 
 		m := metricPool.Get().(metric)
-		m.d = time.Since(start)
+		m.d = timer.Since(start)
 		m.op = item.Cmd
 		m.miss = isMiss(err)
 		metrics <- m

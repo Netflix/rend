@@ -179,9 +179,9 @@ func copyTags(orig Tags) Tags {
 //
 // Then make observations later:
 //
-//   start := time.Now().UnixNano()
+//   start := timer.Now()
 //   someOperation()
-//   end := time.Now().UnixNano() - start
+//   end := timer.Since(start)
 //   metrics.ObserveHist(HistFoo, uint64(end))
 func AddHistogram(name string, sampled bool, tgs Tags) uint32 {
 	idx := atomic.AddUint32(curHistID, 1) - 1

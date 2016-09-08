@@ -14,7 +14,7 @@
 
 // +build !linux !amd64
 
-package monotime
+package timer
 
 import (
 	"time"
