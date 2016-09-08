@@ -32,7 +32,7 @@ vdso_is_sad:
 // This function is derived from the Go standard library under BSD license,
 // Copyright The Go Authors. See NOTICE file for more details
 
-TEXT ·nanotime(SB), 4, $16
+TEXT ·Now(SB), 4, $16
 	MOVQ runtime·__vdso_clock_gettime_sym(SB), AX
 	MOVL $4, DI                                   // CLOCK_MONOTONIC_RAW
 	LEAQ 0(SP), SI

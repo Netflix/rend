@@ -20,4 +20,8 @@ func monotime() (sec int64, nsec int32)
 
 // this bit is under the standard Netflix license
 
-func nanotime() uint64
+//func nanotime() uint64
+
+// Now returns the current monotonic time, with an arbitrary starting time.
+// It is not useful for telling the current wall clock time
+func Now() uint64

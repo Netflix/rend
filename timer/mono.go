@@ -14,12 +14,6 @@
 
 package timer
 
-// Now returns the current monotonic time, with an arbitrary starting time.
-// It is not useful for telling the current wall clock time
-func Now() uint64 {
-	return nanotime()
-}
-
 // Since returns the duration in nanoseconds since the given starting time.
 func Since(start uint64) uint64 {
 	return Now() - start
