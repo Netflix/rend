@@ -33,8 +33,6 @@ vdso_is_sad:
 
 TEXT ·nanotime(SB),4,$16
 	MOVQ	runtime·__vdso_clock_gettime_sym(SB), AX
-	CMPQ	AX, $0
-	JEQ	    vdso_is_sad
 	MOVL	$4, DI // CLOCK_MONOTONIC_RAW
 	LEAQ	0(SP), SI
 	CALL	AX
@@ -42,10 +40,7 @@ TEXT ·nanotime(SB),4,$16
 	MOVQ	8(SP), DX	// nsec
 	// sec is in AX, nsec in DX
 	// return nsec in AX
-	IMULQ	$1000000000, AX
+	MULQ	$1000000000, AX
 	ADDQ	DX, AX
 	MOVQ	AX, ret+0(FP)
-	RET
-vdso_is_sad:
-	MOVQ	$0, sec+0(FP)
 	RET
