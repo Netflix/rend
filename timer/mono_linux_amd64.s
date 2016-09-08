@@ -40,7 +40,7 @@ TEXT ·nanotime(SB),4,$16
 	MOVQ	8(SP), CX	// nsec
 	// sec is in AX, nsec in DX
 	// return nsec in AX
-	MULQ	$1000000000
+	IMULQ	$1000000000, AX
 	ADDQ	CX, AX
 	MOVQ	AX, ret+0(FP)
 	RET
