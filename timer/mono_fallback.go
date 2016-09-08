@@ -24,3 +24,7 @@ func monotime() (sec int64, nsec int32) {
 	now := time.Now()
 	return now.Unix(), int32(now.Nanosecond())
 }
+
+func nanotime() int64 {
+	return time.Now().UnixNano()
+}

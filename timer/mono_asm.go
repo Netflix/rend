@@ -17,3 +17,7 @@
 package timer
 
 func monotime() (sec int64, nsec int32)
+
+// this bit is under the standard Netflix license
+
+func nanotime() int64

@@ -83,3 +83,29 @@ func TestRegularIntervalsWallTime(t *testing.T) {
 		t.Logf("10 ms sleep took %d nanoseconds with wall-time", dur)
 	}
 }
+
+func BenchmarkTimerNow(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = timer.Now()
+	}
+}
+
+func BenchmarkTimerSince(b *testing.B) {
+	start := timer.Now()
+	for i := 0; i < b.N; i++ {
+		_ = timer.Since(start)
+	}
+}
+
+func BenchmarkWallTimeNow(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = time.Now()
+	}
+}
+
+func BenchmarkWallTimeSince(b *testing.B) {
+	start := time.Now().UnixNano()
+	for i := 0; i < b.N; i++ {
+		_ = time.Now().UnixNano() - start
+	}
+}
