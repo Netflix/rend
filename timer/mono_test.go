@@ -38,24 +38,32 @@ func TestMonotonicAndWallTimerDifference(t *testing.T) {
 
 func TestMonoTimeIsNeverTheSame(t *testing.T) {
 	prev := timer.Now()
+	same := 0
 
 	for i := 0; i < 100000000; i++ {
 		now := timer.Now()
 		if now == prev {
-			t.Fatal("Times were the same")
+			same++
 		}
+		prev = now
 	}
+
+	t.Logf("Times were the same %d times", same)
 }
 
 func TestWallTimeCouldBeTheSame(t *testing.T) {
 	prev := time.Now()
+	same := 0
 
 	for i := 0; i < 100000000; i++ {
 		now := time.Now()
 		if now.Equal(prev) {
-			t.Logf("Times were the same")
+			same++
 		}
+		prev = now
 	}
+
+	t.Logf("Times were the same %d times", same)
 }
 
 func TestRegularIntervalsTimer(t *testing.T) {
