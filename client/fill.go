@@ -29,6 +29,7 @@ import (
 	"github.com/netflix/rend/client/f"
 	_ "github.com/netflix/rend/client/sigs"
 	"github.com/netflix/rend/client/textprot"
+	"github.com/netflix/rend/timer"
 )
 
 func init() {
@@ -49,7 +50,7 @@ func main() {
 	extraOps := f.NumOps % f.NumWorkers
 	opsPerWorker := f.NumOps / f.NumWorkers
 
-	start := time.Now()
+	start := timer.Now()
 
 	// spawn worker goroutines
 	for i := 0; i < f.NumWorkers; i++ {
@@ -63,7 +64,7 @@ func main() {
 
 	wg.Wait()
 
-	log.Println("Total comm time:", time.Since(start))
+	log.Println("Total comm time:", timer.Since(start))
 }
 
 var opCount = new(uint64)

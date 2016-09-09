@@ -17,11 +17,11 @@ package server
 import (
 	"io"
 	"log"
-	"time"
 
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/timer"
 )
 
 type DefaultServer struct {
@@ -49,7 +49,7 @@ func (s *DefaultServer) Loop() {
 	}()
 
 	for {
-		start := time.Now()
+		start := timer.Now()
 
 		request, reqType, err := s.rp.Parse()
 		if err != nil {
@@ -129,7 +129,7 @@ func (s *DefaultServer) Loop() {
 			}
 		}
 
-		dur := uint64(time.Since(start))
+		dur := timer.Since(start)
 		switch reqType {
 		case common.RequestSet:
 			metrics.ObserveHist(HistSet, dur)

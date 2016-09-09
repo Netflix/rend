@@ -32,6 +32,7 @@ import (
 	"github.com/netflix/rend/client/f"
 	_ "github.com/netflix/rend/client/sigs"
 	"github.com/netflix/rend/client/textprot"
+	"github.com/netflix/rend/timer"
 )
 
 func init() {
@@ -59,7 +60,7 @@ func main() {
 
 	log.Println("Done generating keys")
 
-	start := time.Now()
+	start := timer.Now()
 	// spawn worker goroutines
 	for i := 0; i < f.NumWorkers; i++ {
 		conn, err := common.Connect(f.Host, f.Port)
@@ -72,7 +73,7 @@ func main() {
 
 	wg.Wait()
 
-	log.Println("Total comm time:", time.Since(start))
+	log.Println("Total comm time:", timer.Since(start))
 }
 
 // fills a bunch of channels round robin with keys

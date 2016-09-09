@@ -94,8 +94,6 @@ var (
 	MetricCmdPrependMissesToken   = metrics.AddCounter("cmd_prepend_misses_token", nil)
 	MetricCmdPrependMissesTokenL1 = metrics.AddCounter("cmd_prepend_misses_token_l1", nil)
 	MetricCmdPrependMissesTokenL2 = metrics.AddCounter("cmd_prepend_misses_token_l2", nil)
-
-	progStart = time.Now().Unix()
 )
 
 func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
