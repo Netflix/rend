@@ -23,6 +23,7 @@ import (
 
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/timer"
 )
 
 type TextParser struct {
@@ -35,8 +36,9 @@ func NewTextParser(reader *bufio.Reader) TextParser {
 	}
 }
 
-func (t TextParser) Parse() (common.Request, common.RequestType, error) {
+func (t TextParser) Parse() (common.Request, common.RequestType, uint64, error) {
 	data, err := t.reader.ReadString('\n')
+	start := timer.Now()
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(len(data)))
 
 	if err != nil {
@@ -45,30 +47,30 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 		} else {
 			log.Printf("Error while reading text command line: %s\n", err.Error())
 		}
-		return nil, common.RequestUnknown, err
+		return nil, common.RequestUnknown, start, err
 	}
 
 	clParts := strings.Split(strings.TrimSpace(data), " ")
 
 	switch clParts[0] {
 	case "set":
-		return setRequest(t.reader, clParts, common.RequestSet)
+		return setRequest(t.reader, clParts, common.RequestSet, start)
 
 	case "add":
-		return setRequest(t.reader, clParts, common.RequestAdd)
+		return setRequest(t.reader, clParts, common.RequestAdd, start)
 
 	case "replace":
-		return setRequest(t.reader, clParts, common.RequestReplace)
+		return setRequest(t.reader, clParts, common.RequestReplace, start)
 
 	case "append":
-		return setRequest(t.reader, clParts, common.RequestAppend)
+		return setRequest(t.reader, clParts, common.RequestAppend, start)
 
 	case "prepend":
-		return setRequest(t.reader, clParts, common.RequestPrepend)
+		return setRequest(t.reader, clParts, common.RequestPrepend, start)
 
 	case "get":
 		if len(clParts) < 2 {
-			return nil, common.RequestGet, common.ErrBadRequest
+			return nil, common.RequestGet, start, common.ErrBadRequest
 		}
 
 		var keys [][]byte
@@ -84,22 +86,22 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 			Opaques: opaques,
 			Quiet:   quiet,
 			NoopEnd: false,
-		}, common.RequestGet, nil
+		}, common.RequestGet, start, nil
 
 	case "delete":
 		if len(clParts) != 2 {
-			return nil, common.RequestDelete, common.ErrBadRequest
+			return nil, common.RequestDelete, start, common.ErrBadRequest
 		}
 
 		return common.DeleteRequest{
 			Key:    []byte(clParts[1]),
 			Opaque: uint32(0),
-		}, common.RequestDelete, nil
+		}, common.RequestDelete, start, nil
 
 	// TODO: Error handling for invalid cmd line
 	case "touch":
 		if len(clParts) != 3 {
-			return nil, common.RequestTouch, common.ErrBadRequest
+			return nil, common.RequestTouch, start, common.ErrBadRequest
 		}
 
 		key := []byte(clParts[1])
@@ -107,49 +109,48 @@ func (t TextParser) Parse() (common.Request, common.RequestType, error) {
 		exptime, err := strconv.ParseUint(strings.TrimSpace(clParts[2]), 10, 32)
 		if err != nil {
 			log.Printf("Error parsing ttl for touch command: %s\n", err.Error())
-			return nil, common.RequestSet, common.ErrBadRequest
+			return nil, common.RequestSet, start, common.ErrBadRequest
 		}
 
 		return common.TouchRequest{
 			Key:     key,
 			Exptime: uint32(exptime),
 			Opaque:  uint32(0),
-		}, common.RequestTouch, nil
-
+		}, common.RequestTouch, start, nil
 	case "noop":
 		if len(clParts) != 1 {
-			return nil, common.RequestNoop, common.ErrBadRequest
+			return nil, common.RequestNoop, start, common.ErrBadRequest
 		}
 		return common.NoopRequest{
 			Opaque: 0,
-		}, common.RequestNoop, nil
+		}, common.RequestNoop, start, nil
 
 	case "quit":
 		if len(clParts) != 1 {
-			return nil, common.RequestQuit, common.ErrBadRequest
+			return nil, common.RequestQuit, start, common.ErrBadRequest
 		}
 		return common.QuitRequest{
 			Opaque: 0,
 			Quiet:  false,
-		}, common.RequestQuit, nil
+		}, common.RequestQuit, start, nil
 
 	case "version":
 		if len(clParts) != 1 {
-			return nil, common.RequestQuit, common.ErrBadRequest
+			return nil, common.RequestQuit, start, common.ErrBadRequest
 		}
 		return common.VersionRequest{
 			Opaque: 0,
-		}, common.RequestVersion, nil
+		}, common.RequestVersion, start, nil
 
 	default:
-		return nil, common.RequestUnknown, nil
+		return nil, common.RequestUnknown, start, nil
 	}
 }
 
-func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (common.SetRequest, common.RequestType, error) {
+func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType, start uint64) (common.SetRequest, common.RequestType, uint64, error) {
 	// sanity check
 	if len(clParts) != 5 {
-		return common.SetRequest{}, reqType, common.ErrBadRequest
+		return common.SetRequest{}, reqType, start, common.ErrBadRequest
 	}
 
 	key := []byte(clParts[1])
@@ -157,19 +158,19 @@ func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (
 	flags, err := strconv.ParseUint(strings.TrimSpace(clParts[2]), 10, 32)
 	if err != nil {
 		log.Printf("Error parsing flags for set/add/replace command: %s\n", err.Error())
-		return common.SetRequest{}, reqType, common.ErrBadFlags
+		return common.SetRequest{}, reqType, start, common.ErrBadFlags
 	}
 
 	exptime, err := strconv.ParseUint(strings.TrimSpace(clParts[3]), 10, 32)
 	if err != nil {
 		log.Printf("Error parsing ttl for set/add/replace command: %s\n", err.Error())
-		return common.SetRequest{}, reqType, common.ErrBadExptime
+		return common.SetRequest{}, reqType, start, common.ErrBadExptime
 	}
 
 	length, err := strconv.ParseUint(strings.TrimSpace(clParts[4]), 10, 32)
 	if err != nil {
 		log.Printf("Error parsing length for set/add/replace command: %s\n", err.Error())
-		return common.SetRequest{}, reqType, common.ErrBadLength
+		return common.SetRequest{}, reqType, start, common.ErrBadLength
 	}
 
 	// Read in data
@@ -177,7 +178,7 @@ func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (
 	n, err := io.ReadAtLeast(r, dataBuf, int(length))
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
-		return common.SetRequest{}, reqType, common.ErrInternal
+		return common.SetRequest{}, reqType, start, common.ErrInternal
 	}
 
 	// Consume the last two bytes "\r\n"
@@ -190,5 +191,5 @@ func setRequest(r *bufio.Reader, clParts []string, reqType common.RequestType) (
 		Exptime: uint32(exptime),
 		Opaque:  uint32(0),
 		Data:    dataBuf,
-	}, reqType, nil
+	}, reqType, start, nil
 }

@@ -22,6 +22,7 @@ import (
 
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/timer"
 )
 
 // Example Set Request
@@ -124,56 +125,57 @@ func NewBinaryParser(reader *bufio.Reader) BinaryParser {
 // https://github.com/couchbase/spymemcached/blob/master/src/main/java/net/spy/memcached/protocol/binary/MultiGetOperationImpl.java#L88
 // spymemcached's implementation ^^^
 
-func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
+func (b BinaryParser) Parse() (common.Request, common.RequestType, uint64, error) {
 	// read in the full header before any variable length fields
 	reqHeader, err := readRequestHeader(b.reader)
+	start := timer.Now()
 	defer reqHeadPool.Put(reqHeader)
 
 	if err != nil {
-		return nil, common.RequestUnknown, err
+		return nil, common.RequestUnknown, start, err
 	}
 
 	switch reqHeader.Opcode {
 	case OpcodeSet:
-		return setRequest(b.reader, reqHeader, common.RequestSet, false)
+		return setRequest(b.reader, reqHeader, common.RequestSet, false, start)
 	case OpcodeSetQ:
-		return setRequest(b.reader, reqHeader, common.RequestSet, true)
+		return setRequest(b.reader, reqHeader, common.RequestSet, true, start)
 
 	case OpcodeAdd:
-		return setRequest(b.reader, reqHeader, common.RequestAdd, false)
+		return setRequest(b.reader, reqHeader, common.RequestAdd, false, start)
 	case OpcodeAddQ:
-		return setRequest(b.reader, reqHeader, common.RequestAdd, true)
+		return setRequest(b.reader, reqHeader, common.RequestAdd, true, start)
 
 	case OpcodeReplace:
-		return setRequest(b.reader, reqHeader, common.RequestReplace, false)
+		return setRequest(b.reader, reqHeader, common.RequestReplace, false, start)
 	case OpcodeReplaceQ:
-		return setRequest(b.reader, reqHeader, common.RequestReplace, true)
+		return setRequest(b.reader, reqHeader, common.RequestReplace, true, start)
 
 	case OpcodeAppend:
-		return appendPrependRequest(b.reader, reqHeader, common.RequestAppend, false)
+		return appendPrependRequest(b.reader, reqHeader, common.RequestAppend, false, start)
 	case OpcodeAppendQ:
-		return appendPrependRequest(b.reader, reqHeader, common.RequestAppend, true)
+		return appendPrependRequest(b.reader, reqHeader, common.RequestAppend, true, start)
 
 	case OpcodePrepend:
-		return appendPrependRequest(b.reader, reqHeader, common.RequestPrepend, false)
+		return appendPrependRequest(b.reader, reqHeader, common.RequestPrepend, false, start)
 	case OpcodePrependQ:
-		return appendPrependRequest(b.reader, reqHeader, common.RequestPrepend, true)
+		return appendPrependRequest(b.reader, reqHeader, common.RequestPrepend, true, start)
 
 	case OpcodeGetQ:
 		req, err := readBatchGet(b.reader, reqHeader)
 		if err != nil {
 			log.Println("Error reading batch get")
-			return nil, common.RequestGet, err
+			return nil, common.RequestGet, start, err
 		}
 
-		return req, common.RequestGet, nil
+		return req, common.RequestGet, start, nil
 
 	case OpcodeGet:
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
 			log.Println("Error reading key")
-			return nil, common.RequestGet, err
+			return nil, common.RequestGet, start, err
 		}
 
 		return common.GetRequest{
@@ -181,17 +183,17 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 			Opaques: []uint32{reqHeader.OpaqueToken},
 			Quiet:   []bool{false},
 			NoopEnd: false,
-		}, common.RequestGet, nil
+		}, common.RequestGet, start, nil
 
 	// Expected only in applications behind Rend that reuse this parsing code
 	case OpcodeGetEQ:
 		req, err := readBatchGetE(b.reader, reqHeader)
 		if err != nil {
 			log.Println("Error reading batch get")
-			return nil, common.RequestGetE, err
+			return nil, common.RequestGetE, start, err
 		}
 
-		return req, common.RequestGetE, nil
+		return req, common.RequestGetE, start, nil
 
 	// Expected only in applications behind Rend that reuse this parsing code
 	case OpcodeGetE:
@@ -199,7 +201,7 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
 			log.Println("Error reading key")
-			return nil, common.RequestGetE, err
+			return nil, common.RequestGetE, start, err
 		}
 
 		return common.GetRequest{
@@ -207,86 +209,86 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, error) {
 			Opaques: []uint32{reqHeader.OpaqueToken},
 			Quiet:   []bool{false},
 			NoopEnd: false,
-		}, common.RequestGetE, nil
+		}, common.RequestGetE, start, nil
 
 	case OpcodeGat:
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
 		if err != nil {
 			log.Println("Error reading exptime")
-			return nil, common.RequestGat, err
+			return nil, common.RequestGat, start, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
 			log.Println("Error reading key")
-			return nil, common.RequestGat, err
+			return nil, common.RequestGat, start, err
 		}
 
 		return common.GATRequest{
 			Key:     key,
 			Exptime: exptime,
 			Opaque:  reqHeader.OpaqueToken,
-		}, common.RequestGat, nil
+		}, common.RequestGat, start, nil
 
 	case OpcodeDelete:
 		// key
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
 			log.Println("Error reading key")
-			return nil, common.RequestDelete, err
+			return nil, common.RequestDelete, start, err
 		}
 
 		return common.DeleteRequest{
 			Key:    key,
 			Opaque: reqHeader.OpaqueToken,
-		}, common.RequestDelete, nil
+		}, common.RequestDelete, start, nil
 
 	case OpcodeTouch:
 		// exptime, key
 		exptime, err := readUInt32(b.reader)
 		if err != nil {
 			log.Println("Error reading exptime")
-			return nil, common.RequestTouch, err
+			return nil, common.RequestTouch, start, err
 		}
 
 		key, err := readString(b.reader, reqHeader.KeyLength)
 		if err != nil {
 			log.Println("Error reading key")
-			return nil, common.RequestTouch, err
+			return nil, common.RequestTouch, start, err
 		}
 
 		return common.TouchRequest{
 			Key:     key,
 			Exptime: exptime,
 			Opaque:  reqHeader.OpaqueToken,
-		}, common.RequestTouch, nil
+		}, common.RequestTouch, start, nil
 
 	case OpcodeNoop:
 		return common.NoopRequest{
 			Opaque: reqHeader.OpaqueToken,
-		}, common.RequestNoop, nil
+		}, common.RequestNoop, start, nil
 
 	case OpcodeQuit:
 		return common.QuitRequest{
 			Opaque: reqHeader.OpaqueToken,
 			Quiet:  false,
-		}, common.RequestQuit, nil
+		}, common.RequestQuit, start, nil
 	case OpcodeQuitQ:
 		return common.QuitRequest{
 			Opaque: reqHeader.OpaqueToken,
 			Quiet:  true,
-		}, common.RequestQuit, nil
+		}, common.RequestQuit, start, nil
 
 	case OpcodeVersion:
 		return common.VersionRequest{
 			Opaque: reqHeader.OpaqueToken,
-		}, common.RequestVersion, nil
+		}, common.RequestVersion, start, nil
 	}
 
 	log.Printf("Error processing request: unknown command. Command: %X\nWhole request:%#v", reqHeader.Opcode, reqHeader)
 
-	return nil, common.RequestUnknown, common.ErrUnknownCmd
+	return nil, common.RequestUnknown, start, common.ErrUnknownCmd
 }
 
 func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {
@@ -415,24 +417,24 @@ func readBatchGetE(r io.Reader, header RequestHeader) (common.GetRequest, error)
 	}, nil
 }
 
-func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool) (common.SetRequest, common.RequestType, error) {
+func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool, start uint64) (common.SetRequest, common.RequestType, uint64, error) {
 	// flags, exptime, key, value
 	flags, err := readUInt32(r)
 	if err != nil {
 		log.Println("Error reading flags")
-		return common.SetRequest{}, reqType, err
+		return common.SetRequest{}, reqType, start, err
 	}
 
 	exptime, err := readUInt32(r)
 	if err != nil {
 		log.Println("Error reading exptime")
-		return common.SetRequest{}, reqType, err
+		return common.SetRequest{}, reqType, start, err
 	}
 
 	key, err := readString(r, reqHeader.KeyLength)
 	if err != nil {
 		log.Println("Error reading key")
-		return common.SetRequest{}, reqType, err
+		return common.SetRequest{}, reqType, start, err
 	}
 
 	realLength := reqHeader.TotalBodyLength -
@@ -444,7 +446,7 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 	n, err := io.ReadAtLeast(r, dataBuf, int(realLength))
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
-		return common.SetRequest{}, reqType, err
+		return common.SetRequest{}, reqType, start, err
 	}
 
 	return common.SetRequest{
@@ -454,15 +456,15 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 		Exptime: exptime,
 		Opaque:  reqHeader.OpaqueToken,
 		Data:    dataBuf,
-	}, reqType, nil
+	}, reqType, start, nil
 }
 
-func appendPrependRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool) (common.SetRequest, common.RequestType, error) {
+func appendPrependRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool, start uint64) (common.SetRequest, common.RequestType, uint64, error) {
 	// key, value
 	key, err := readString(r, reqHeader.KeyLength)
 	if err != nil {
 		log.Println("Error reading key")
-		return common.SetRequest{}, reqType, err
+		return common.SetRequest{}, reqType, start, err
 	}
 
 	realLength := reqHeader.TotalBodyLength - uint32(reqHeader.KeyLength)
@@ -472,7 +474,7 @@ func appendPrependRequest(r io.Reader, reqHeader RequestHeader, reqType common.R
 	n, err := io.ReadAtLeast(r, dataBuf, int(realLength))
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(n))
 	if err != nil {
-		return common.SetRequest{}, reqType, err
+		return common.SetRequest{}, reqType, start, err
 	}
 
 	return common.SetRequest{
@@ -482,7 +484,7 @@ func appendPrependRequest(r io.Reader, reqHeader RequestHeader, reqType common.R
 		Exptime: 0,
 		Opaque:  reqHeader.OpaqueToken,
 		Data:    dataBuf,
-	}, reqType, nil
+	}, reqType, start, nil
 }
 
 func readString(r io.Reader, l uint16) ([]byte, error) {

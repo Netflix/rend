@@ -137,7 +137,7 @@ const (
 // implementation. The return value is an interface{}, but not all hope is lost. The return result
 // is guaranteed by implementations to be castable to the type that matches the RequestType returned.
 type RequestParser interface {
-	Parse() (Request, RequestType, error)
+	Parse() (Request, RequestType, uint64, error)
 }
 
 // Responder is the interface for a protocol to respond to different commands. It responds in

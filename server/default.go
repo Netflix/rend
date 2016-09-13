@@ -49,9 +49,7 @@ func (s *DefaultServer) Loop() {
 	}()
 
 	for {
-		start := timer.Now()
-
-		request, reqType, err := s.rp.Parse()
+		request, reqType, start, err := s.rp.Parse()
 		if err != nil {
 			if err == common.ErrBadRequest ||
 				err == common.ErrBadLength ||
