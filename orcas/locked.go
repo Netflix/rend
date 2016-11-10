@@ -149,56 +149,56 @@ func (l *LockedOrca) getlock(key []byte, read bool) sync.Locker {
 func (l *LockedOrca) Set(req common.SetRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Set(req)
-	lock.Unlock()
 	return ret
 }
 
 func (l *LockedOrca) Add(req common.SetRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Add(req)
-	lock.Unlock()
 	return ret
 }
 
 func (l *LockedOrca) Replace(req common.SetRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Replace(req)
-	lock.Unlock()
 	return ret
 }
 
 func (l *LockedOrca) Append(req common.SetRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Append(req)
-	lock.Unlock()
 	return ret
 }
 
 func (l *LockedOrca) Prepend(req common.SetRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Prepend(req)
-	lock.Unlock()
 	return ret
 }
 
 func (l *LockedOrca) Delete(req common.DeleteRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Delete(req)
-	lock.Unlock()
 	return ret
 }
 
 func (l *LockedOrca) Touch(req common.TouchRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Touch(req)
-	lock.Unlock()
 	return ret
 }
 
@@ -207,9 +207,21 @@ func (l *LockedOrca) Get(req common.GetRequest) error {
 	// The last key sent through should have a noop at the end to complete the
 	// whole interaction between the client and this server.
 	var ret error
+	var lock sync.Locker
+
+	// guarantee that an operation that failed with a panic will unlock its lock
+	defer func() {
+		if r := recover(); r != nil {
+			if lock != nil {
+				lock.Unlock()
+			}
+		}
+	}()
+
 	for idx, key := range req.Keys {
 		// Acquire read lock (true == read)
-		l.getlock(key, true).Lock()
+		lock = l.getlock(key, true)
+		lock.Lock()
 
 		// The last request will have these set to complete the interaction
 		noopOpaque := uint32(0)
@@ -231,7 +243,7 @@ func (l *LockedOrca) Get(req common.GetRequest) error {
 		ret = l.wrapped.Get(subreq)
 
 		// release read lock
-		l.getlock(key, true).Unlock()
+		lock.Unlock()
 
 		// Bail out early if there was an error (misses are not errors in this sense)
 		// This will probably end up breaking the connection anyway, so no worries
@@ -249,9 +261,23 @@ func (l *LockedOrca) GetE(req common.GetRequest) error {
 	// The last key sent through should have a noop at the end to complete the
 	// whole interaction between the client and this server.
 	var ret error
+	var lock sync.Locker
+
+	// guarantee that an operation that failed with a panic will unlock its lock
+	defer func() {
+		if r := recover(); r != nil {
+			if lock != nil {
+				lock.Unlock()
+			}
+
+			panic(r)
+		}
+	}()
+
 	for idx, key := range req.Keys {
 		// Acquire read lock (true == read)
-		l.getlock(key, true).Lock()
+		lock = l.getlock(key, true)
+		lock.Lock()
 
 		// The last request will have these set to complete the interaction
 		noopOpaque := uint32(0)
@@ -273,7 +299,7 @@ func (l *LockedOrca) GetE(req common.GetRequest) error {
 		ret = l.wrapped.GetE(subreq)
 
 		// release read lock
-		l.getlock(key, true).Unlock()
+		lock.Unlock()
 
 		// Bail out early if there was an error (misses are not errors in this sense)
 		// This will probably end up breaking the connection anyway, so no worries
@@ -289,8 +315,8 @@ func (l *LockedOrca) GetE(req common.GetRequest) error {
 func (l *LockedOrca) Gat(req common.GATRequest) error {
 	lock := l.getlock(req.Key, false)
 	lock.Lock()
+	defer lock.Unlock()
 	ret := l.wrapped.Gat(req)
-	lock.Unlock()
 	return ret
 }
 
