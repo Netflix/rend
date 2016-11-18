@@ -25,11 +25,6 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
-type conn struct {
-	rand rand.Rand
-	reqchan chan request
-}
-
 func randSeed() int64 {
 	b := make([]byte, 8)
 	if _, err := crand.Read(b); err != nil {
@@ -38,19 +33,16 @@ func randSeed() int64 {
 	return int64(binary.LittleEndian.Uint64(b))
 }
 
+type conn struct {
+	rand rand.Rand
+	reqchan chan request
+}
+
 func newConn() conn {
 	return conn{
 		rand: rand.New(rand.NewSource(randSeed())),
 		reqchan: new(chan request),
 	}
-}
-
-var (
-	c = newConn() 
-)
-
-func submit(r request) {
-	c.reqchan <- r
 }
 
 func (c conn) loop() {
