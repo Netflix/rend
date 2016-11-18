@@ -134,8 +134,10 @@ const (
 )
 
 // RequestParser represents an interface to parse incoming requests. Each protocol provides its own
-// implementation. The return value is an interface{}, but not all hope is lost. The return result
+// implementation. The return value is a generic Request, but not all hope is lost. The return result
 // is guaranteed by implementations to be castable to the type that matches the RequestType returned.
+// The return values are the Request value, the type of that value, the uint64 timestamp at which a
+// request arrived (for latency timing) and any error that may have occurred.
 type RequestParser interface {
 	Parse() (Request, RequestType, uint64, error)
 }

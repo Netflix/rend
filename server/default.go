@@ -15,6 +15,7 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"log"
 
@@ -24,12 +25,16 @@ import (
 	"github.com/netflix/rend/timer"
 )
 
+// DefaultServer is the default server implementation that implements a server
+// REPL for a single external connection.
 type DefaultServer struct {
 	rp    common.RequestParser
 	orca  orcas.Orca
 	conns []io.Closer
 }
 
+// Default creates a new *DefaultServer instance with the given connections,
+// request parser, and request orchestrator.
 func Default(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server {
 	return &DefaultServer{
 		rp:    rp,
@@ -38,6 +43,9 @@ func Default(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server {
 	}
 }
 
+// Loop acts as a master loop for the connection that it is given. Requests are
+// read using the given common.RequestParser and performed by the given orcas.Orca.
+// The connections will all be closed upon an unrecoverable error.
 func (s *DefaultServer) Loop() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -45,6 +53,8 @@ func (s *DefaultServer) Loop() {
 				log.Println("Recovered from runtime panic:", r)
 				log.Println("Panic location: ", identifyPanic())
 			}
+
+			abort(s.conns, fmt.Errorf("Runtime panic: %v", r))
 		}
 	}()
 
