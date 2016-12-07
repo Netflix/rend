@@ -1,4 +1,4 @@
-// Copyright 2015 Netflix, Inc.
+// Copyright 2016 Netflix, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,33 +15,23 @@
 package batched
 
 import (
-	"bufio"
+	"bytes"
 	"math/rand"
 	"time"
-	"encoding/binary"
 
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
-	"github.com/netflix/rend/metrics"
 )
 
-func randSeed() int64 {
-	b := make([]byte, 8)
-	if _, err := crand.Read(b); err != nil {
-		panic(err)
-	}
-	return int64(binary.LittleEndian.Uint64(b))
-}
-
 type conn struct {
-	rand rand.Rand
+	rand    *rand.Rand
 	reqchan chan request
 }
 
 func newConn() conn {
 	return conn{
-		rand: rand.New(rand.NewSource(randSeed())),
-		reqchan: new(chan request),
+		rand:    rand.New(rand.NewSource(randSeed())),
+		reqchan: make(chan request),
 	}
 }
 
@@ -52,12 +42,12 @@ func (c conn) loop() {
 
 	for {
 		select {
-		case req = <-reqchan:
+		case req = <-c.reqchan:
 			timedout = false
 			// queue up the request
 			reqs = append(reqs, req)
 
-		case <-time.After(1 * time.Millisecond):
+		case <-time.After(500 * time.Microsecond):
 			timedout = true
 		}
 
@@ -69,100 +59,135 @@ func (c conn) loop() {
 
 		// need a way to block until a request comes in if there's a timeout earlier
 		if timedout {
-			req = <-reqchan
+			req = <-c.reqchan
 			timedout = false
 		}
 	}
 }
 
 // The opaque value in the requests is related to the base value returned by its index in the array
-// meaning the first request sent out will hav the opaque value <base>, the second <base+1>, and so on
+// meaning the first request sent out will have the opaque value <base>, the second <base+1>, and so on
 // The base is a random uint32 value. This is done to prevent possible confusion between requests,
 // where one request would get another's data. This would be really bad if we sent things like user
-// information to the wrong place.  
-func batchIntoBuffer(reqs []request) ([]byte, []chan response, uint32 base) {
-	// get ranom base value
+// information to the wrong place.
+func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]chan response) {
+	// get random base value
 	// serialize all requests into a buffer
 	// while serializing, collect channels
 	// return everything
 
 	// Get base opaque value
+	opaque := uint32(c.rand.Int31())
+	buf := new(bytes.Buffer)
+	response := make(map[uint32]chan response)
 
+	for _, req := range reqs {
+
+		// maintain the "sequence number"
+		opaque++
+
+		// serialize the requests into the buffer. There's no error handling because writes to a bytes.Buffer
+		// never return an error.
+		switch req.reqtype {
+		case common.RequestSet:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteSetCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestAdd:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteAddCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestReplace:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteReplaceCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestAppend:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteAppendCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestPrepend:
+			cmd := req.req.(common.SetRequest)
+			binprot.WritePrependCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestDelete:
+			cmd := req.req.(common.DeleteRequest)
+			binprot.WriteDeleteCmd(buf, cmd.Key, opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestTouch:
+			cmd := req.req.(common.TouchRequest)
+			binprot.WriteTouchCmd(buf, cmd.Key, cmd.Exptime, opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestGat:
+			cmd := req.req.(common.GATRequest)
+			binprot.WriteGATCmd(buf, cmd.Key, cmd.Exptime, opaque)
+			response[opaque] = req.reschan
+
+		case common.RequestGet:
+			cmd := req.req.(common.GetRequest)
+
+			for _, key := range cmd.Keys {
+				binprot.WriteGetCmd(buf, key, opaque)
+				response[opaque] = req.reschan
+				opaque++
+			}
+
+		case common.RequestGetE:
+			cmd := req.req.(common.GetRequest)
+
+			for _, key := range cmd.Keys {
+				binprot.WriteGetECmd(buf, key, opaque)
+				response[opaque] = req.reschan
+				opaque++
+			}
+		}
+	}
+
+	return buf.Bytes(), response
 }
 
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
-	resHeader, err := binprot.ReadResponseHeader(r)
-	if err != nil {
-		return binprot.ResponseHeader{}, err
-	}
-
-	if err := binprot.DecodeError(resHeader); err != nil {
-		binprot.PutResponseHeader(resHeader)
-		return resHeader, err
-	}
-
-	binprot.PutResponseHeader(resHeader)
-	return resHeader, nil
-}
-
-func (h Handler) Set(cmd common.SetRequest) error {
-	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
+/*
 	return h.handleSetCommon(cmd)
-}
 
-func (h Handler) Add(cmd common.SetRequest) error {
-	if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
-}
 
-func (h Handler) Replace(cmd common.SetRequest) error {
-	if err := binprot.WriteReplaceCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
-}
 
-func (h Handler) Append(cmd common.SetRequest) error {
-	if err := binprot.WriteAppendCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
-}
 
-func (h Handler) Prepend(cmd common.SetRequest) error {
-	if err := binprot.WritePrependCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
-}
+GAT:
+
+			data, flags, _, err := getLocal(h.rw, false)
+			if err != nil {
+				if err == common.ErrKeyNotFound {
+					return common.GetResponse{
+						Miss:   true,
+						Quiet:  false,
+						Opaque: cmd.Opaque,
+						Flags:  flags,
+						Key:    cmd.Key,
+						Data:   nil,
+					}, nil
+				}
+
+				return common.GetResponse{}, err
+			}
+
+			return common.GetResponse{
+				Miss:   false,
+				Quiet:  false,
+				Opaque: cmd.Opaque,
+				Flags:  flags,
+				Key:    cmd.Key,
+				Data:   data,
+			}, nil
+
+
+
+
 
 func (h Handler) handleSetCommon(cmd common.SetRequest) error {
 	// TODO: should there be a unique flags value for regular data?
@@ -291,47 +316,4 @@ func realHandleGetE(cmd common.GetRequest, dataOut chan common.GetEResponse, err
 	}
 }
 
-func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
-	if err := binprot.WriteGATCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
-		return common.GetResponse{}, err
-	}
-
-	data, flags, _, err := getLocal(h.rw, false)
-	if err != nil {
-		if err == common.ErrKeyNotFound {
-			return common.GetResponse{
-				Miss:   true,
-				Quiet:  false,
-				Opaque: cmd.Opaque,
-				Flags:  flags,
-				Key:    cmd.Key,
-				Data:   nil,
-			}, nil
-		}
-
-		return common.GetResponse{}, err
-	}
-
-	return common.GetResponse{
-		Miss:   false,
-		Quiet:  false,
-		Opaque: cmd.Opaque,
-		Flags:  flags,
-		Key:    cmd.Key,
-		Data:   data,
-	}, nil
-}
-
-func (h Handler) Delete(cmd common.DeleteRequest) error {
-	if err := binprot.WriteDeleteCmd(h.rw.Writer, cmd.Key); err != nil {
-		return err
-	}
-	return simpleCmdLocal(h.rw)
-}
-
-func (h Handler) Touch(cmd common.TouchRequest) error {
-	if err := binprot.WriteTouchCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
-		return err
-	}
-	return simpleCmdLocal(h.rw)
-}
+*/

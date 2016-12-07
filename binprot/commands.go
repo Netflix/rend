@@ -23,12 +23,12 @@ import (
 )
 
 // Data commands are those that send a header, key, exptime, and data
-func writeDataCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, dataSize uint32) error {
+func writeDataCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, dataSize, opaque uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
 	extrasLen := 8
 	totalBodyLength := len(key) + extrasLen + int(dataSize)
-	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength, opaque)
 
 	writeRequestHeader(w, header)
 
@@ -45,29 +45,32 @@ func writeDataCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, d
 	return err
 }
 
-func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+// WriteSetCmd writes out the binary representation of a set request header to the given io.Writer
+func WriteSetCmd(w io.Writer, key []byte, flags, exptime, dataSize, opaque uint32) error {
 	//fmt.Printf("Set: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
-	return writeDataCmdCommon(w, OpcodeSet, key, flags, exptime, dataSize)
+	return writeDataCmdCommon(w, OpcodeSet, key, flags, exptime, dataSize, opaque)
 }
 
-func WriteAddCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+// WriteAddCmd writes out the binary representation of an add request header to the given io.Writer
+func WriteAddCmd(w io.Writer, key []byte, flags, exptime, dataSize, opaque uint32) error {
 	//fmt.Printf("Add: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
-	return writeDataCmdCommon(w, OpcodeAdd, key, flags, exptime, dataSize)
+	return writeDataCmdCommon(w, OpcodeAdd, key, flags, exptime, dataSize, opaque)
 }
 
-func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+// WriteReplaceCmd writes out the binary representation of a replace request header to the given io.Writer
+func WriteReplaceCmd(w io.Writer, key []byte, flags, exptime, dataSize, opaque uint32) error {
 	//fmt.Printf("Replace: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
-	return writeDataCmdCommon(w, OpcodeReplace, key, flags, exptime, dataSize)
+	return writeDataCmdCommon(w, OpcodeReplace, key, flags, exptime, dataSize, opaque)
 }
 
-func writeAppendPrependCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, dataSize uint32) error {
+func writeAppendPrependCmdCommon(w io.Writer, opcode uint8, key []byte, flags, exptime, dataSize, opaque uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + body
 	totalBodyLength := len(key) + int(dataSize)
-	header := makeRequestHeader(opcode, len(key), 0, totalBodyLength)
+	header := makeRequestHeader(opcode, len(key), 0, totalBodyLength, opaque)
 
 	writeRequestHeader(w, header)
 
@@ -79,22 +82,24 @@ func writeAppendPrependCmdCommon(w io.Writer, opcode uint8, key []byte, flags, e
 	return err
 }
 
-func WriteAppendCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+// WriteAppendCmd writes out the binary representation of an append request header to the given io.Writer
+func WriteAppendCmd(w io.Writer, key []byte, flags, exptime, dataSize, opaque uint32) error {
 	//fmt.Printf("Append: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
-	return writeAppendPrependCmdCommon(w, OpcodeAppend, key, flags, exptime, dataSize)
+	return writeAppendPrependCmdCommon(w, OpcodeAppend, key, flags, exptime, dataSize, opaque)
 }
 
-func WritePrependCmd(w io.Writer, key []byte, flags, exptime, dataSize uint32) error {
+// WritePrependCmd writes out the binary representation of a prepend request header to the given io.Writer
+func WritePrependCmd(w io.Writer, key []byte, flags, exptime, dataSize, opaque uint32) error {
 	//fmt.Printf("Prepend: key: %v | flags: %v | exptime: %v | dataSize: %v | totalBodyLength: %v\n",
 	//string(key), flags, exptime, dataSize, totalBodyLength)
-	return writeAppendPrependCmdCommon(w, OpcodePrepend, key, flags, exptime, dataSize)
+	return writeAppendPrependCmdCommon(w, OpcodePrepend, key, flags, exptime, dataSize, opaque)
 }
 
 // Key commands send the header and key only
-func writeKeyCmd(w io.Writer, opcode uint8, key []byte) error {
+func writeKeyCmd(w io.Writer, opcode uint8, key []byte, opaque uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := makeRequestHeader(opcode, len(key), 0, len(key))
+	header := makeRequestHeader(opcode, len(key), 0, len(key), opaque)
 	writeRequestHeader(w, header)
 
 	n, err := w.Write(key)
@@ -105,38 +110,43 @@ func writeKeyCmd(w io.Writer, opcode uint8, key []byte) error {
 	return err
 }
 
-func WriteGetCmd(w io.Writer, key []byte) error {
+// WriteGetCmd writes out the binary representation of a get request header to the given io.Writer
+func WriteGetCmd(w io.Writer, key []byte, opaque uint32) error {
 	//fmt.Printf("Get: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return writeKeyCmd(w, OpcodeGet, key)
+	return writeKeyCmd(w, OpcodeGet, key, opaque)
 }
 
-func WriteGetQCmd(w io.Writer, key []byte) error {
+// WriteGetQCmd writes out the binary representation of a getq request header to the given io.Writer
+func WriteGetQCmd(w io.Writer, key []byte, opaque uint32) error {
 	//fmt.Printf("GetQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return writeKeyCmd(w, OpcodeGetQ, key)
+	return writeKeyCmd(w, OpcodeGetQ, key, opaque)
 }
 
-func WriteGetECmd(w io.Writer, key []byte) error {
+// WriteGetECmd writes out the binary representation of a gete request header to the given io.Writer
+func WriteGetECmd(w io.Writer, key []byte, opaque uint32) error {
 	//fmt.Printf("GetE: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return writeKeyCmd(w, OpcodeGetE, key)
+	return writeKeyCmd(w, OpcodeGetE, key, opaque)
 }
 
-func WriteGetEQCmd(w io.Writer, key []byte) error {
+// WriteGetEQCmd writes out the binary representation of a geteq request header to the given io.Writer
+func WriteGetEQCmd(w io.Writer, key []byte, opaque uint32) error {
 	//fmt.Printf("GetEQ: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return writeKeyCmd(w, OpcodeGetEQ, key)
+	return writeKeyCmd(w, OpcodeGetEQ, key, opaque)
 }
 
-func WriteDeleteCmd(w io.Writer, key []byte) error {
+// WriteDeleteCmd writes out the binary representation of a delete request header to the given io.Writer
+func WriteDeleteCmd(w io.Writer, key []byte, opaque uint32) error {
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
-	return writeKeyCmd(w, OpcodeDelete, key)
+	return writeKeyCmd(w, OpcodeDelete, key, opaque)
 }
 
 // Key Exptime commands send the header, key, and an exptime
-func writeKeyExptimeCmd(w io.Writer, opcode uint8, key []byte, exptime uint32) error {
+func writeKeyExptimeCmd(w io.Writer, opcode uint8, key []byte, exptime, opaque uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
 	// key + extras + body
 	extrasLen := 4
 	totalBodyLength := len(key) + extrasLen
-	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength)
+	header := makeRequestHeader(opcode, len(key), extrasLen, totalBodyLength, opaque)
 
 	writeRequestHeader(w, header)
 
@@ -152,28 +162,31 @@ func writeKeyExptimeCmd(w io.Writer, opcode uint8, key []byte, exptime uint32) e
 	return err
 }
 
-func WriteTouchCmd(w io.Writer, key []byte, exptime uint32) error {
+// WriteTouchCmd writes out the binary representation of a touch request header to the given io.Writer
+func WriteTouchCmd(w io.Writer, key []byte, exptime, opaque uint32) error {
 	//fmt.Printf("Touch: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, totalBodyLength)
-	return writeKeyExptimeCmd(w, OpcodeTouch, key, exptime)
+	return writeKeyExptimeCmd(w, OpcodeTouch, key, exptime, opaque)
 }
 
-func WriteGATCmd(w io.Writer, key []byte, exptime uint32) error {
+// WriteGATCmd writes out the binary representation of a get-and-touch request header to the given io.Writer
+func WriteGATCmd(w io.Writer, key []byte, exptime, opaque uint32) error {
 	//fmt.Printf("GAT: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
-	return writeKeyExptimeCmd(w, OpcodeGat, key, exptime)
+	return writeKeyExptimeCmd(w, OpcodeGat, key, exptime, opaque)
 }
 
-func WriteGATQCmd(w io.Writer, key []byte, exptime uint32) error {
+// WriteGATQCmd writes out the binary representation of a get-and-touch quiet request header to the given io.Writer
+func WriteGATQCmd(w io.Writer, key []byte, exptime, opaque uint32) error {
 	//fmt.Printf("GATQ: key: %v | exptime: %v | totalBodyLength: %v\n", string(key),
 	//exptime, len(key))
-	return writeKeyExptimeCmd(w, OpcodeGatQ, key, exptime)
+	return writeKeyExptimeCmd(w, OpcodeGatQ, key, exptime, opaque)
 }
 
-// And the noop command is just a header
-func WriteNoopCmd(w io.Writer) error {
+// WriteNoopCmd writes out the binary representation of a noop request header to the given io.Writer
+func WriteNoopCmd(w io.Writer, opaque uint32) error {
 	// opcode, keyLength, extraLength, totalBodyLength
-	header := makeRequestHeader(OpcodeNoop, 0, 0, 0)
+	header := makeRequestHeader(OpcodeNoop, 0, 0, 0, opaque)
 	//fmt.Printf("Delete: key: %v | totalBodyLength: %v\n", string(key), len(key))
 
 	err := writeRequestHeader(w, header)

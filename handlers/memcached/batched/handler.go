@@ -1,4 +1,4 @@
-// Copyright 2015 Netflix, Inc.
+// Copyright 2016 Netflix, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,33 @@ package batched
 import (
 	"bufio"
 	"io"
+	"math/rand"
+	"sync"
 
 	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
 )
 
+var start sync.Once
+
+type Handler struct {
+	rw      *bufio.ReadWriter
+	conn    io.Closer
+	rand    *rand.Rand
+	reschan chan response
+}
+
 func NewHandler(conn io.ReadWriteCloser) Handler {
+	start.Do(func() {
+		// initialize the relay, which will init the first connection
+	})
+
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	return Handler{
 		rw:      rw,
 		conn:    conn,
+		rand:    rand.New(rand.NewSource(randSeed())),
 		reschan: make(chan response),
 	}
 }

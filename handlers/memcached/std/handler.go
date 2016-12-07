@@ -38,11 +38,14 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	return resHeader, nil
 }
 
+// Handler implements a backend for Rend that communicates to a remote memcached server
 type Handler struct {
 	rw   *bufio.ReadWriter
 	conn io.Closer
 }
 
+// NewHandler returns an implementation of handlers.Handler that implements a straightforward
+// request-response like normal memcached usage.
 func NewHandler(conn io.ReadWriteCloser) Handler {
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	return Handler{
@@ -51,42 +54,47 @@ func NewHandler(conn io.ReadWriteCloser) Handler {
 	}
 }
 
-// Closes the Handler's underlying io.ReadWriteCloser.
-// Any calls to the handler after a Close() are invalid.
+// Close closes the Handler's underlying io.ReadWriteCloser.
+// Any calls to the handler after Close is called are invalid.
 func (h Handler) Close() error {
 	return h.conn.Close()
 }
 
+// Set performs a set request on the remote backend
 func (h Handler) Set(cmd common.SetRequest) error {
-	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), 0); err != nil {
 		return err
 	}
 	return h.handleSetCommon(cmd)
 }
 
+// Add performs an add request on the remote backend
 func (h Handler) Add(cmd common.SetRequest) error {
-	if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+	if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), 0); err != nil {
 		return err
 	}
 	return h.handleSetCommon(cmd)
 }
 
+// Replace performs a replace request on the remote backend
 func (h Handler) Replace(cmd common.SetRequest) error {
-	if err := binprot.WriteReplaceCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+	if err := binprot.WriteReplaceCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), 0); err != nil {
 		return err
 	}
 	return h.handleSetCommon(cmd)
 }
 
+// Append performs an append request on the remote backend
 func (h Handler) Append(cmd common.SetRequest) error {
-	if err := binprot.WriteAppendCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+	if err := binprot.WriteAppendCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), 0); err != nil {
 		return err
 	}
 	return h.handleSetCommon(cmd)
 }
 
+// Prepend performs a prepend request on the remote backend
 func (h Handler) Prepend(cmd common.SetRequest) error {
-	if err := binprot.WritePrependCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
+	if err := binprot.WritePrependCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), 0); err != nil {
 		return err
 	}
 	return h.handleSetCommon(cmd)
@@ -123,6 +131,9 @@ func (h Handler) handleSetCommon(cmd common.SetRequest) error {
 	return nil
 }
 
+// Get performs a batched get request on the remote backend. The channels returned
+// are expected to be read from until either a single error is received or the
+// response channel is exhausted.
 func (h Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {
 	dataOut := make(chan common.GetResponse)
 	errorOut := make(chan error)
@@ -135,7 +146,7 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 	defer close(dataOut)
 
 	for idx, key := range cmd.Keys {
-		if err := binprot.WriteGetCmd(rw.Writer, key); err != nil {
+		if err := binprot.WriteGetCmd(rw.Writer, key, 0); err != nil {
 			errorOut <- err
 			return
 		}
@@ -170,6 +181,9 @@ func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, error
 	}
 }
 
+// GetE performs a batched gete request on the remote backend. The channels returned
+// are expected to be read from until either a single error is received or the
+// response channel is exhausted.
 func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
 	dataOut := make(chan common.GetEResponse)
 	errorOut := make(chan error)
@@ -182,7 +196,7 @@ func realHandleGetE(cmd common.GetRequest, dataOut chan common.GetEResponse, err
 	defer close(dataOut)
 
 	for idx, key := range cmd.Keys {
-		if err := binprot.WriteGetECmd(rw.Writer, key); err != nil {
+		if err := binprot.WriteGetECmd(rw.Writer, key, 0); err != nil {
 			errorOut <- err
 			return
 		}
@@ -219,8 +233,9 @@ func realHandleGetE(cmd common.GetRequest, dataOut chan common.GetEResponse, err
 	}
 }
 
+// GAT performs a get-and-touch request on the remote backend
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
-	if err := binprot.WriteGATCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
+	if err := binprot.WriteGATCmd(h.rw.Writer, cmd.Key, cmd.Exptime, 0); err != nil {
 		return common.GetResponse{}, err
 	}
 
@@ -250,15 +265,17 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	}, nil
 }
 
+// Delete performs a delete request on the remote backend
 func (h Handler) Delete(cmd common.DeleteRequest) error {
-	if err := binprot.WriteDeleteCmd(h.rw.Writer, cmd.Key); err != nil {
+	if err := binprot.WriteDeleteCmd(h.rw.Writer, cmd.Key, 0); err != nil {
 		return err
 	}
 	return simpleCmdLocal(h.rw)
 }
 
+// Touch performs a touch request on the remote backend
 func (h Handler) Touch(cmd common.TouchRequest) error {
-	if err := binprot.WriteTouchCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
+	if err := binprot.WriteTouchCmd(h.rw.Writer, cmd.Key, cmd.Exptime, 0); err != nil {
 		return err
 	}
 	return simpleCmdLocal(h.rw)

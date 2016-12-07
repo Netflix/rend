@@ -15,13 +15,15 @@
 package batched
 
 import (
-	"bufio"
-	"io"
+	"encoding/binary"
+
+	crand "crypto/rand"
 
 	"github.com/netflix/rend/common"
 )
 
 type request struct {
+	reqtype common.RequestType
 	req     common.Request
 	reschan chan response
 }
@@ -31,8 +33,10 @@ type response struct {
 	gr  common.GetResponse
 }
 
-type Handler struct {
-	rw      *bufio.ReadWriter
-	conn    io.Closer
-	reschan chan response
+func randSeed() int64 {
+	b := make([]byte, 8)
+	if _, err := crand.Read(b); err != nil {
+		panic(err)
+	}
+	return int64(binary.LittleEndian.Uint64(b))
 }

@@ -111,11 +111,15 @@ func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
 	return resHeader, nil
 }
 
+// Handler implements a backend for Rend that communicates to a remote memcached server
 type Handler struct {
 	rw   *bufio.ReadWriter
 	conn io.ReadWriteCloser
 }
 
+// NewHandler returns an implementation of handlers.Handler that implements a special interaction
+// with the memcached server to pack data into fixed-size chunks in order to store either very
+// large objects or to avoid memory fragmentation overhead when data sizes rapidly change.
 func NewHandler(conn io.ReadWriteCloser) Handler {
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	return Handler{
@@ -129,20 +133,23 @@ func (h Handler) reset() {
 	h.rw.Writer.Reset(bufio.NewWriter(h.conn))
 }
 
-// Closes the Handler's underlying io.ReadWriteCloser.
-// Any calls to the handler after a Close() are invalid.
+// Close closes the Handler's underlying io.ReadWriteCloser.
+// Any calls to the handler after Close is called are invalid.
 func (h Handler) Close() error {
 	return h.conn.Close()
 }
 
+// Set performs a set request on the remote backend
 func (h Handler) Set(cmd common.SetRequest) error {
 	return h.handleSetCommon(cmd, common.RequestSet)
 }
 
+// Add performs an add request on the remote backend
 func (h Handler) Add(cmd common.SetRequest) error {
 	return h.handleSetCommon(cmd, common.RequestAdd)
 }
 
+// Replace performs a replace request on the remote backend
 func (h Handler) Replace(cmd common.SetRequest) error {
 	return h.handleSetCommon(cmd, common.RequestReplace)
 }
@@ -226,15 +233,15 @@ func (h Handler) handleSetCommon(cmd common.SetRequest, reqType common.RequestTy
 	// TODO: should there be a unique flags value for chunked data?
 	switch reqType {
 	case common.RequestSet:
-		if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
+		if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize, 0); err != nil {
 			return err
 		}
 	case common.RequestAdd:
-		if err := binprot.WriteAddCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
+		if err := binprot.WriteAddCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize, 0); err != nil {
 			return err
 		}
 	case common.RequestReplace:
-		if err := binprot.WriteReplaceCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize); err != nil {
+		if err := binprot.WriteReplaceCmd(h.rw.Writer, metaKey, cmd.Flags, cmd.Exptime, metadataSize, 0); err != nil {
 			return err
 		}
 	default:
@@ -276,7 +283,7 @@ func (h Handler) handleSetCommon(cmd common.SetRequest, reqType common.RequestTy
 		key := chunkKey(cmd.Key, chunkNum)
 
 		// Write the key
-		if err := binprot.WriteSetCmd(h.rw.Writer, key, cmd.Flags, cmd.Exptime, fullSize); err != nil {
+		if err := binprot.WriteSetCmd(h.rw.Writer, key, cmd.Flags, cmd.Exptime, fullSize, 0); err != nil {
 			return err
 		}
 		// Write token
@@ -327,10 +334,12 @@ func (h Handler) handleSetCommon(cmd common.SetRequest, reqType common.RequestTy
 	return nil
 }
 
+// Append performs an append request on the remote backend
 func (h Handler) Append(cmd common.SetRequest) error {
 	return h.handleAppendPrependCommon(cmd, common.RequestAppend)
 }
 
+// Prepend performs a prepend request on the remote backend
 func (h Handler) Prepend(cmd common.SetRequest) error {
 	return h.handleAppendPrependCommon(cmd, common.RequestPrepend)
 }
@@ -366,9 +375,9 @@ func (h Handler) handleAppendPrependCommon(cmd common.SetRequest, reqType common
 	cmdbuf := bytes.NewBuffer(make([]byte, 0, cmdSize))
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
-		binprot.WriteGetQCmd(cmdbuf, chunkKey)
+		binprot.WriteGetQCmd(cmdbuf, chunkKey, 0)
 	}
-	binprot.WriteNoopCmd(cmdbuf)
+	binprot.WriteNoopCmd(cmdbuf, 0)
 
 	// Write everyhing and flush to ensure it's sent
 	if _, err := h.rw.ReadFrom(cmdbuf); err != nil {
@@ -453,6 +462,9 @@ func (h Handler) handleAppendPrependCommon(cmd common.SetRequest, reqType common
 	return h.handleSetCommon(setcmd, common.RequestSet)
 }
 
+// Get performs a batched get request on the remote backend. The channels returned
+// are expected to be read from until either a single error is received or the
+// response channel is exhausted.
 func (h Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {
 	// No buffering here so there's not multiple gets in memory
 	dataOut := make(chan common.GetResponse)
@@ -502,14 +514,14 @@ outer:
 		for i := 0; i < int(metaData.NumChunks); i++ {
 			chunkKey := chunkKey(key, i)
 			// bytes.Buffer doesn't error
-			binprot.WriteGetQCmd(cmdbuf, chunkKey)
+			binprot.WriteGetQCmd(cmdbuf, chunkKey, 0)
 		}
 
 		// The final command must be Get or Noop to guarantee a response
 		// We use Noop to make coding easier, but it's (very) slightly less efficient
 		// since we send 24 extra bytes in each direction
 		// bytes.Buffer doesn't error
-		binprot.WriteNoopCmd(cmdbuf)
+		binprot.WriteNoopCmd(cmdbuf, 0)
 
 		// bufio's ReadFrom will end up doing an io.Copy(cmdbuf, socket), which is more
 		// efficient than writing directly into the bufio or using cmdbuf.WriteTo(rw)
@@ -588,6 +600,9 @@ outer:
 	}
 }
 
+// GetE performs a batched gete request on the remote backend. The channels returned
+// are expected to be read from until either a single error is received or the
+// response channel is exhausted.
 func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
 	// Being minimalist, not lazy. The chunked handler is not meant to be used with a
 	// backing store that supports the GetE protocol extension. It would be a waste of
@@ -602,6 +617,7 @@ func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan
 	panic("GetE not supported in Rend chunked mode")
 }
 
+// GAT performs a get-and-touch request on the remote backend
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	missResponse := common.GetResponse{
 		Miss:   true,
@@ -627,7 +643,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	// Write all the GAT commands before reading
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
-		if err := binprot.WriteGATQCmd(h.rw.Writer, chunkKey, cmd.Exptime); err != nil {
+		if err := binprot.WriteGATQCmd(h.rw.Writer, chunkKey, cmd.Exptime, 0); err != nil {
 			return common.GetResponse{}, err
 		}
 	}
@@ -635,7 +651,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	// The final command must be GAT or Noop to guarantee a response
 	// We use Noop to make coding easier, but it's (very) slightly less efficient
 	// since we send 24 extra bytes in each direction
-	if err := binprot.WriteNoopCmd(h.rw.Writer); err != nil {
+	if err := binprot.WriteNoopCmd(h.rw.Writer, 0); err != nil {
 		return common.GetResponse{}, err
 	}
 
@@ -705,6 +721,7 @@ func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
 	}, nil
 }
 
+// Delete performs a delete request on the remote backend
 func (h Handler) Delete(cmd common.DeleteRequest) error {
 	// read metadata
 	// delete metadata
@@ -721,7 +738,7 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 	}
 
 	// Delete metadata first
-	if err := binprot.WriteDeleteCmd(h.rw.Writer, metaKey); err != nil {
+	if err := binprot.WriteDeleteCmd(h.rw.Writer, metaKey, 0); err != nil {
 		return err
 	}
 	if err := simpleCmdLocal(h.rw, true); err != nil {
@@ -734,7 +751,7 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 	// Then delete data chunks
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
-		if err := binprot.WriteDeleteCmd(h.rw.Writer, chunkKey); err != nil {
+		if err := binprot.WriteDeleteCmd(h.rw.Writer, chunkKey, 0); err != nil {
 			return err
 		}
 	}
@@ -760,6 +777,7 @@ func (h Handler) Delete(cmd common.DeleteRequest) error {
 	return nil
 }
 
+// Touch performs a touch request on the remote backend
 func (h Handler) Touch(cmd common.TouchRequest) error {
 	// read metadata
 	// for 0 to metadata.numChunks
@@ -783,7 +801,7 @@ func (h Handler) Touch(cmd common.TouchRequest) error {
 	// First touch all the chunks as a batch
 	for i := 0; i < int(metaData.NumChunks); i++ {
 		chunkKey := chunkKey(cmd.Key, i)
-		if err := binprot.WriteTouchCmd(h.rw.Writer, chunkKey, cmd.Exptime); err != nil {
+		if err := binprot.WriteTouchCmd(h.rw.Writer, chunkKey, cmd.Exptime, 0); err != nil {
 			return err
 		}
 	}
@@ -809,7 +827,7 @@ func (h Handler) Touch(cmd common.TouchRequest) error {
 	// Overwrite the metadata with the new expiration time
 	metrics.IncCounter(MetricCmdTouchMetaSet)
 	metaData.Exptime, _ = exptime(cmd.Exptime)
-	if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, metaData.OrigFlags, cmd.Exptime, metadataSize); err != nil {
+	if err := binprot.WriteSetCmd(h.rw.Writer, metaKey, metaData.OrigFlags, cmd.Exptime, metadataSize, 0); err != nil {
 		return err
 	}
 
