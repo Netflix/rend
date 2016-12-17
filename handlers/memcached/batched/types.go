@@ -30,7 +30,8 @@ type request struct {
 
 type response struct {
 	err error
-	gr  common.GetResponse
+	// a GetEResponse is a superset of all other responses
+	gr common.GetEResponse
 }
 
 func randSeed() int64 {

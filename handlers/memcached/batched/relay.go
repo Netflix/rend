@@ -48,3 +48,17 @@ func submit(req request, rand rand.Rand) {
 	c := cs[idx]
 	c.reqchan <- req
 }
+
+func monitor() {
+	// do monitoring stuff
+	// keep track of queue depths
+	// this will need some handles to all the connections
+	// atomic swap 0 in to each high water mark gauge
+	// take max of all of them
+	// since batch size is universal, we can compare against that
+	// if the historical trend (5 times checked?) is above, say, 80% of capacity
+	// add another connection
+	// maybe double if maxxed out and add a single if above a lower limit
+
+	newConn()
+}
