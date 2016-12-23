@@ -16,30 +16,54 @@ package batched
 
 import (
 	"math/rand"
+	"net"
 	"sync"
 	"sync/atomic"
+	"time"
+)
+
+const (
+	connBatchSize            = 10
+	connReadBufSize          = 8192
+	connWriteBufSize         = 32768
+	loadFactorHeuristicRatio = 0.75
 )
 
 var (
 	conns       = atomic.Value{}
 	addConnLock = new(sync.Mutex)
+	expand      = make(chan struct{}, 1)
 )
+
+type relay struct{}
+
+// Creates a new relay with one connection
+func newRelay() {
+	firstConnSetup := make(chan struct{})
+	go monitor(firstConnSetup)
+	<-firstConnSetup
+}
 
 // Adds a connection to the pool. This is one way only, making this effectively
 // a high-water-mark pool with no connections being torn down.
-func addConn(conn) {
+func addConn(c net.Conn) {
+	// Ensure there's races when adding a connection
 	addConnLock.Lock()
 	defer addConnLock.Unlock()
 
-	temp := conns.Load().([]conn)
-	temp = append(temp)
+	newConn(c, 500, connBatchSize, connReadBufSize, connWriteBufSize)
 
+	// Add the new connection (but with a new slice header)
+	temp := conns.Load().([]conn)
+	temp = append(temp, conn)
+
+	// Store the modified slice
 	conns.Store(temp)
 }
 
 // Submits a request to a random connection in the pool. The random number generator
 // is passed in so there is no sharing between external connections.
-func submit(req request, rand rand.Rand) {
+func (r relay) submit(req request, rand rand.Rand) {
 	// use rand to select a connection to submit to
 	// the connection should notify the frontend by the channel
 	// in the request struct
@@ -49,7 +73,7 @@ func submit(req request, rand rand.Rand) {
 	c.reqchan <- req
 }
 
-func monitor() {
+func monitor(firstConnSetup chan struct{}) {
 	// do monitoring stuff
 	// keep track of queue depths
 	// this will need some handles to all the connections
@@ -60,5 +84,38 @@ func monitor() {
 	// add another connection
 	// maybe double if maxxed out and add a single if above a lower limit
 
-	newConn()
+	// create first connection and notify after it's complete
+	addConn()
+	firstConnSetup <- struct{}{}
+
+	for {
+		// Re-evaluate either after 30 seconds or when a connection notifies that
+		// it is overloaded.
+		select {
+		case <-time.After(30 * time.Second):
+		case <-expand:
+		}
+
+		cs := conns.Load().([]conn)
+		maxes := make([]uint32, len(cs))
+
+		// Extract the maximum batch sizes seen since the last check
+		for i, c := range cs {
+			maxes[i] = atomic.SwapUint32(c.maxBatchSize, 0)
+		}
+
+		// Heuristic: calculate the percentage of the total batch capacity used
+		var used uint64
+		for _, u := range maxes {
+			used += u
+		}
+
+		total := float64(len(cs)) * connBatchSize
+		loadFactor := flaot64(used) / total
+
+		// if we are over our load factor ratio, add a connection
+		if loadFactor > loadFactorHeuristicRatio {
+
+		}
+	}
 }

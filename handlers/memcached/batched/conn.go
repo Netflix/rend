@@ -29,11 +29,12 @@ import (
 )
 
 type conn struct {
-	rw         *bufio.ReadWriter
-	rand       *rand.Rand
-	batchDelay time.Duration
-	batchSize  uint32
-	reqchan    chan request
+	rw           *bufio.ReadWriter
+	rand         *rand.Rand
+	batchDelay   time.Duration
+	batchSize    uint32
+	maxBatchSize *uint32
+	reqchan      chan request
 }
 
 func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int) conn {
@@ -42,11 +43,12 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize,
 	w := bufio.NewWriterSize(c, writerSize)
 
 	return conn{
-		rw:         bufio.NewReadWriter(r, w),
-		rand:       rand.New(rand.NewSource(randSeed())),
-		batchDelay: batchDelay,
-		batchSize:  batchSize,
-		reqchan:    make(chan request),
+		rw:           bufio.NewReadWriter(r, w),
+		rand:         rand.New(rand.NewSource(randSeed())),
+		batchDelay:   batchDelay,
+		batchSize:    batchSize,
+		maxBatchSize: new(uint32),
+		reqchan:      make(chan request),
 	}
 }
 
