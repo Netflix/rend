@@ -113,8 +113,21 @@ func (c conn) do(reqs []request) error {
 				return err
 			}
 
-			oops(err, responses)
-			return err
+			if rh, ok := responses[resHeader.OpaqueToken]; ok {
+				// this is an application-level error and should be treated as such
+				rh.reschan <- response{
+					err: nil,
+					gr: common.GetEResponse{
+						Miss:   true,
+						Quiet:  rh.quiet,
+						Opaque: rh.opaque,
+						Key:    rh.key,
+					},
+				}
+				return nil
+			} else {
+				// FATAL ERROR!!!! no idea what to do here though...
+			}
 		}
 
 		// if reading information (and not just a response header) from the remote
@@ -176,6 +189,7 @@ func (c conn) do(reqs []request) error {
 			}
 
 		} else {
+			// Non-get repsonses
 			// Discard the message for non-get responses
 			n, err := c.rw.Discard(int(resHeader.TotalBodyLength))
 			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
@@ -220,7 +234,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 	// Get base opaque value
 	opaque := uint32(c.rand.Int31())
 	buf := new(bytes.Buffer)
-	response := make(map[uint32]chan response)
+	response := make(map[uint32]reshandle)
 
 	for _, req := range reqs {
 
@@ -233,58 +247,108 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestSet:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteSetCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestAdd:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAddCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestReplace:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteReplaceCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestAppend:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAppendCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestPrepend:
 			cmd := req.req.(common.SetRequest)
 			binprot.WritePrependCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestDelete:
 			cmd := req.req.(common.DeleteRequest)
 			binprot.WriteDeleteCmd(buf, cmd.Key, opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestTouch:
 			cmd := req.req.(common.TouchRequest)
 			binprot.WriteTouchCmd(buf, cmd.Key, cmd.Exptime, opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestGat:
 			cmd := req.req.(common.GATRequest)
 			binprot.WriteGATCmd(buf, cmd.Key, cmd.Exptime, opaque)
-			response[opaque] = req.reschan
+			response[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
 
 		case common.RequestGet:
 			cmd := req.req.(common.GetRequest)
 
-			for _, key := range cmd.Keys {
-				binprot.WriteGetCmd(buf, key, opaque)
-				response[opaque] = req.reschan
+			for idx := range cmd.Keys {
+				binprot.WriteGetCmd(buf, cmd.Keys[idx], cmd.Opaques[idx])
+				response[opaque] = reshandle{
+					key:     cmd.Keys[idx],
+					opaque:  cmd.Opaques[idx],
+					quiet:   cmd.Quiet[idx],
+					reschan: req.reschan,
+				}
 				opaque++
 			}
 
 		case common.RequestGetE:
 			cmd := req.req.(common.GetRequest)
 
-			for _, key := range cmd.Keys {
-				binprot.WriteGetECmd(buf, key, opaque)
-				response[opaque] = req.reschan
+			for idx := range cmd.Keys {
+				binprot.WriteGetECmd(buf, cmd.Keys[idx], cmd.Opaques[idx])
+				response[opaque] = reshandle{
+					key:     cmd.Keys[idx],
+					opaque:  cmd.Opaques[idx],
+					quiet:   cmd.Quiet[idx],
+					reschan: req.reschan,
+				}
 				opaque++
 			}
 		}

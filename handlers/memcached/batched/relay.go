@@ -30,50 +30,91 @@ const (
 )
 
 var (
-	conns       = atomic.Value{}
-	addConnLock = new(sync.Mutex)
-	expand      = make(chan struct{}, 1)
+	relays    map[string]*relay
+	relayLock *sync.RWMutex
 )
 
-type relay struct{}
+type relay struct {
+	sock        string
+	conns       atomic.Value
+	addConnLock *sync.Mutex
+	expand      chan struct{}
+}
 
 // Creates a new relay with one connection
-func newRelay() {
+func getRelay(sock string) *relay {
+	relayLock.RLock()
+	if r, ok := relays[sock]; ok {
+		relayLock.RUnlock()
+		return r
+	}
+	relayLock.RUnlock()
+
+	// Lock here because we are creating a new relay for the given socket path
+	// The rest of the new connections will block here and then pick it up on
+	// the double check
+	relayLock.Lock()
+
+	// double check
+	if r, ok := relays[sock]; ok {
+		relayLock.Unlock()
+		return r
+	}
+
+	// Create a new relay and wait for the first connection to be established
+	// so it's usable.
+	r := &relay{
+		sock:        sock,
+		conns:       atomic.Value{},
+		addConnLock: new(sync.Mutex),
+		expand:      make(chan struct{}, 1),
+	}
+
 	firstConnSetup := make(chan struct{})
-	go monitor(firstConnSetup)
+	go r.monitor(firstConnSetup)
 	<-firstConnSetup
+
+	relays[sock] = r
+	relayLock.Unlock()
+
+	return r
 }
 
 // Adds a connection to the pool. This is one way only, making this effectively
 // a high-water-mark pool with no connections being torn down.
-func addConn(c net.Conn) {
-	// Ensure there's races when adding a connection
-	addConnLock.Lock()
-	defer addConnLock.Unlock()
+func (r *relay) addConn() {
+	// Ensure there's no races when adding a connection
+	r.addConnLock.Lock()
+	defer r.addConnLock.Unlock()
 
-	newConn(c, 500, connBatchSize, connReadBufSize, connWriteBufSize)
+	c, err := net.Dial("unix", r.sock)
+	if err != nil {
+		// uh oh...
+	}
+
+	poolconn := newConn(c, 500, connBatchSize, connReadBufSize, connWriteBufSize)
 
 	// Add the new connection (but with a new slice header)
-	temp := conns.Load().([]conn)
-	temp = append(temp, conn)
+	temp := r.conns.Load().([]conn)
+	temp = append(temp, poolconn)
 
 	// Store the modified slice
-	conns.Store(temp)
+	r.conns.Store(temp)
 }
 
 // Submits a request to a random connection in the pool. The random number generator
 // is passed in so there is no sharing between external connections.
-func (r relay) submit(req request, rand rand.Rand) {
+func (r *relay) submit(rand *rand.Rand, req request) {
 	// use rand to select a connection to submit to
 	// the connection should notify the frontend by the channel
 	// in the request struct
-	cs := conns.Load().([]conn)
+	cs := r.conns.Load().([]conn)
 	idx := rand.Intn(len(cs))
 	c := cs[idx]
 	c.reqchan <- req
 }
 
-func monitor(firstConnSetup chan struct{}) {
+func (r *relay) monitor(firstConnSetup chan struct{}) {
 	// do monitoring stuff
 	// keep track of queue depths
 	// this will need some handles to all the connections
@@ -85,7 +126,7 @@ func monitor(firstConnSetup chan struct{}) {
 	// maybe double if maxxed out and add a single if above a lower limit
 
 	// create first connection and notify after it's complete
-	addConn()
+	r.addConn()
 	firstConnSetup <- struct{}{}
 
 	for {
@@ -93,10 +134,10 @@ func monitor(firstConnSetup chan struct{}) {
 		// it is overloaded.
 		select {
 		case <-time.After(30 * time.Second):
-		case <-expand:
+		case <-r.expand:
 		}
 
-		cs := conns.Load().([]conn)
+		cs := r.conns.Load().([]conn)
 		maxes := make([]uint32, len(cs))
 
 		// Extract the maximum batch sizes seen since the last check
@@ -107,15 +148,15 @@ func monitor(firstConnSetup chan struct{}) {
 		// Heuristic: calculate the percentage of the total batch capacity used
 		var used uint64
 		for _, u := range maxes {
-			used += u
+			used += uint64(u)
 		}
 
 		total := float64(len(cs)) * connBatchSize
-		loadFactor := flaot64(used) / total
+		loadFactor := float64(used) / total
 
 		// if we are over our load factor ratio, add a connection
 		if loadFactor > loadFactorHeuristicRatio {
-
+			r.addConn()
 		}
 	}
 }

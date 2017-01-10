@@ -62,14 +62,6 @@ func Chunked(sock string) handlers.HandlerConst {
 // requests on to a connection pool in order to reduce the overhead per request.
 func Batched(sock string) handlers.HandlerConst {
 	return func() (handlers.Handler, error) {
-		conn, err := net.Dial("unix", sock)
-		if err != nil {
-			log.Println("Error opening connection:", err.Error())
-			if conn != nil {
-				conn.Close()
-			}
-			return nil, err
-		}
-		return batched.NewHandler(conn), nil
+		return batched.NewHandler(sock), nil
 	}
 }

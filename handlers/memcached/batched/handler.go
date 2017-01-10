@@ -15,252 +15,236 @@
 package batched
 
 import (
-	"bufio"
-	"io"
 	"math/rand"
-	"sync"
 
-	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
-	"github.com/netflix/rend/metrics"
 )
 
-var start sync.Once
-
+// Handler implements the handlers.Handler interface. It is an implementation of the interface
+// that defers all requests to a connection pool to the backend. This is done in order to decrease
+// the number of syscalls that the process has to make by batching requests as much as possible
+// per connection. The connection pool is a grow-only style where more connections may be added as
+// needed but they are never torn down.
 type Handler struct {
-	rw      *bufio.ReadWriter
-	conn    io.Closer
-	rand    *rand.Rand
-	reschan chan response
+	relay *relay
+	rand  *rand.Rand
 }
 
-func NewHandler(conn io.ReadWriteCloser) Handler {
-	start.Do(func() {
-		// initialize the relay, which will init the first connection
-	})
-
-	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+// NewHandler creates a new handler with the given unix socket as the connected backend. The first
+// time this method is called it creates a background monitor that will add connections as needed
+// for the given domain socket.
+func NewHandler(sock string) Handler {
 	return Handler{
-		rw:      rw,
-		conn:    conn,
-		rand:    rand.New(rand.NewSource(randSeed())),
-		reschan: make(chan response),
+		relay: getRelay(sock),
+		rand:  rand.New(rand.NewSource(randSeed())),
 	}
 }
 
-// Close does nothing for this Handler
+// Close does nothing for this Handler as the connections are pooled behind it and are not explicitly controlled.
 func (h Handler) Close() error {
 	return nil
 }
 
+// Set performs a set operation on the backend. It unconditionall sets a key to a value.
 func (h Handler) Set(cmd common.SetRequest) error {
-	submit(request{
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
 		req:     cmd,
-		reschan: h.reschan,
+		reqtype: common.RequestSet,
+		reschan: reschan,
 	})
 
-	if err := binprot.WriteSetCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
+	// wait for the response from the pool over the response channel
+	// and return whatever it gives as the error
+	res := <-reschan
+	return res.err
 }
 
+// Add performs an add operation on the backend. It only sets the value if it does not already exist.
 func (h Handler) Add(cmd common.SetRequest) error {
-	if err := binprot.WriteAddCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestAdd,
+		reschan: reschan,
+	})
+
+	res := <-reschan
+	return res.err
 }
 
+// Replace performs a replace operation on the backend. It only sets the value if it already exists.
 func (h Handler) Replace(cmd common.SetRequest) error {
-	if err := binprot.WriteReplaceCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestReplace,
+		reschan: reschan,
+	})
+
+	res := <-reschan
+	return res.err
 }
 
+// Append performs an append operation on the backend. It will append the data to the value only if it already exists.
 func (h Handler) Append(cmd common.SetRequest) error {
-	if err := binprot.WriteAppendCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestAppend,
+		reschan: reschan,
+	})
+
+	res := <-reschan
+	return res.err
 }
 
+// Prepend performs a prepend operation on the backend. It will prepend the data to the value only if it already exists.
 func (h Handler) Prepend(cmd common.SetRequest) error {
-	if err := binprot.WritePrependCmd(h.rw.Writer, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data))); err != nil {
-		return err
-	}
-	return h.handleSetCommon(cmd)
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestPrepend,
+		reschan: reschan,
+	})
+
+	res := <-reschan
+	return res.err
 }
 
-func (h Handler) handleSetCommon(cmd common.SetRequest) error {
-	// TODO: should there be a unique flags value for regular data?
-
-	// Write value
-	h.rw.Write(cmd.Data)
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(len(cmd.Data)))
-
-	if err := h.rw.Flush(); err != nil {
-		return err
+func getEResponseToGetResponse(res common.GetEResponse) common.GetResponse {
+	return common.GetResponse{
+		Key:    res.Key,
+		Data:   res.Data,
+		Flags:  res.Flags,
+		Opaque: res.Opaque,
+		Quiet:  res.Quiet,
+		Miss:   res.Miss,
 	}
-
-	// Read server's response
-	resHeader, err := readResponseHeader(h.rw.Reader)
-	if err != nil {
-		// Discard response body
-		n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
-		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-		if ioerr != nil {
-			return ioerr
-		}
-
-		// For Add and Replace, the error here will be common.ErrKeyExists or common.ErrKeyNotFound
-		// respectively. For each, this is the right response to send to the requestor. The error
-		// here is overloaded because it would signal a true error for sets, but a normal "error"
-		// response for Add and Replace.
-		return err
-	}
-
-	return nil
 }
 
+// Get performs a get operation on the backend. It retrieves the whole of the batch of keys given as a group and returns
+// them one at a time over the request channel.
 func (h Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {
 	dataOut := make(chan common.GetResponse)
 	errorOut := make(chan error)
-	go realHandleGet(cmd, dataOut, errorOut, h.rw)
+	go realHandleGet(h, cmd, dataOut, errorOut)
 	return dataOut, errorOut
 }
 
-func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error, rw *bufio.ReadWriter) {
+func realHandleGet(h Handler, cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error) {
 	defer close(errorOut)
 	defer close(dataOut)
 
-	for idx, key := range cmd.Keys {
-		if err := binprot.WriteGetCmd(rw.Writer, key); err != nil {
-			errorOut <- err
-			return
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestGet,
+		reschan: reschan,
+	})
+
+	var errored bool
+
+	for res := range reschan {
+		if res.err != nil {
+			errorOut <- res.err
+			errored = true
 		}
 
-		data, flags, _, err := getLocal(rw, false)
-		if err != nil {
-			if err == common.ErrKeyNotFound {
-				dataOut <- common.GetResponse{
-					Miss:   true,
-					Quiet:  cmd.Quiet[idx],
-					Opaque: cmd.Opaques[idx],
-					Flags:  flags,
-					Key:    key,
-					Data:   nil,
-				}
-
-				continue
-			}
-
-			errorOut <- err
-			return
+		// after an error, drop all the rest of the responses. The contract of the handler interface
+		// says that an error will be the last thing to come through.
+		if errored {
+			continue
 		}
 
-		dataOut <- common.GetResponse{
-			Miss:   false,
-			Quiet:  cmd.Quiet[idx],
-			Opaque: cmd.Opaques[idx],
-			Flags:  flags,
-			Key:    key,
-			Data:   data,
-		}
+		dataOut <- getEResponseToGetResponse(res.gr)
 	}
 }
 
+// GetE performs a get-with-expiration on the backend. It is a custom command only implemented in Rend. It retrieves the
+// whole batch of keys given as a group and returns them one at a time over the request channel.
 func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
 	dataOut := make(chan common.GetEResponse)
 	errorOut := make(chan error)
-	go realHandleGetE(cmd, dataOut, errorOut, h.rw)
+	go realHandleGetE(h, cmd, dataOut, errorOut)
 	return dataOut, errorOut
 }
 
-func realHandleGetE(cmd common.GetRequest, dataOut chan common.GetEResponse, errorOut chan error, rw *bufio.ReadWriter) {
+func realHandleGetE(h Handler, cmd common.GetRequest, dataOut chan common.GetEResponse, errorOut chan error) {
 	defer close(errorOut)
 	defer close(dataOut)
 
-	for idx, key := range cmd.Keys {
-		if err := binprot.WriteGetECmd(rw.Writer, key); err != nil {
-			errorOut <- err
-			return
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestGet,
+		reschan: reschan,
+	})
+
+	var errored bool
+
+	for res := range reschan {
+		if res.err != nil {
+			errorOut <- res.err
+			errored = true
 		}
 
-		data, flags, exp, err := getLocal(rw, true)
-		if err != nil {
-			if err == common.ErrKeyNotFound {
-				dataOut <- common.GetEResponse{
-					Miss:    true,
-					Quiet:   cmd.Quiet[idx],
-					Opaque:  cmd.Opaques[idx],
-					Flags:   flags,
-					Exptime: exp,
-					Key:     key,
-					Data:    nil,
-				}
-
-				continue
-			}
-
-			errorOut <- err
-			return
+		// after an error, drop all the rest of the responses. The contract of the handler interface
+		// says that an error will be the last thing to come through.
+		if errored {
+			continue
 		}
 
-		dataOut <- common.GetEResponse{
-			Miss:    false,
-			Quiet:   cmd.Quiet[idx],
-			Opaque:  cmd.Opaques[idx],
-			Flags:   flags,
-			Exptime: exp,
-			Key:     key,
-			Data:    data,
-		}
+		dataOut <- res.gr
 	}
 }
 
+// GAT performs a get-and-touch on the backend for the given key. It will retrieve the value while updating the TTL to
+// the one supplied.
 func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
-	if err := binprot.WriteGATCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
-		return common.GetResponse{}, err
-	}
+	reschan := make(chan response)
 
-	data, flags, _, err := getLocal(h.rw, false)
-	if err != nil {
-		if err == common.ErrKeyNotFound {
-			return common.GetResponse{
-				Miss:   true,
-				Quiet:  false,
-				Opaque: cmd.Opaque,
-				Flags:  flags,
-				Key:    cmd.Key,
-				Data:   nil,
-			}, nil
-		}
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestGat,
+		reschan: reschan,
+	})
 
-		return common.GetResponse{}, err
-	}
-
-	return common.GetResponse{
-		Miss:   false,
-		Quiet:  false,
-		Opaque: cmd.Opaque,
-		Flags:  flags,
-		Key:    cmd.Key,
-		Data:   data,
-	}, nil
+	res := <-reschan
+	return getEResponseToGetResponse(res.gr), res.err
 }
 
+// Delete performs a delete operation on the backend. It will unconditionally remove the value.
 func (h Handler) Delete(cmd common.DeleteRequest) error {
-	if err := binprot.WriteDeleteCmd(h.rw.Writer, cmd.Key); err != nil {
-		return err
-	}
-	return simpleCmdLocal(h.rw)
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestDelete,
+		reschan: reschan,
+	})
+
+	res := <-reschan
+	return res.err
 }
 
+// Touch performs a touch operation on the backend. It will overwrite the expiration time with a new one.
 func (h Handler) Touch(cmd common.TouchRequest) error {
-	if err := binprot.WriteTouchCmd(h.rw.Writer, cmd.Key, cmd.Exptime); err != nil {
-		return err
-	}
-	return simpleCmdLocal(h.rw)
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestTouch,
+		reschan: reschan,
+	})
+
+	res := <-reschan
+	return res.err
 }
