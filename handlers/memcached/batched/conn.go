@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -38,11 +39,12 @@ type conn struct {
 }
 
 func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int) conn {
+	println("NEWCONN")
 
 	r := bufio.NewReaderSize(c, readerSize)
 	w := bufio.NewWriterSize(c, writerSize)
 
-	return conn{
+	nc := conn{
 		rw:           bufio.NewReadWriter(r, w),
 		rand:         rand.New(rand.NewSource(randSeed())),
 		batchDelay:   batchDelay,
@@ -50,6 +52,10 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize,
 		maxBatchSize: new(uint32),
 		reqchan:      make(chan request),
 	}
+
+	go nc.loop()
+
+	return nc
 }
 
 func (c conn) loop() {
@@ -65,18 +71,23 @@ func (c conn) loop() {
 			reqs = append(reqs, req)
 
 		case <-time.After(c.batchDelay * time.Microsecond):
+			println("TIMEDOUT")
 			timedout = true
 		}
+		println(timedout)
+		fmt.Printf("%#v\n", reqs)
 
 		// After 1 millisecond we want to get the requests that do exist moving along
 		// Or, if there's enough to batch together, send them off
-		if timedout || len(reqs) > int(c.batchSize) {
+		if (timedout && len(reqs) > 0) || len(reqs) > int(c.batchSize) {
 			c.do(reqs)
 		}
 
-		// need a way to block until a request comes in if there's a timeout earlier
+		// block until a request comes in if there's a timeout earlier so this doesn't constantly spin
 		if timedout {
+			println("BLOCKING")
 			req = <-c.reqchan
+			reqs = append(reqs, req)
 			timedout = false
 		}
 	}
@@ -85,7 +96,9 @@ func (c conn) loop() {
 func (c conn) do(reqs []request) error {
 
 	// batch and perform requests
-	buf, responses := c.batchIntoBuffer(reqs)
+	buf, responses, channels := c.batchIntoBuffer(reqs)
+
+	fmt.Printf("%#v\n%#v\n", buf, responses)
 
 	// Write out the whole buffer
 	c.rw.Write(buf)
@@ -94,8 +107,12 @@ func (c conn) do(reqs []request) error {
 		return err
 	}
 
+	println("flushed")
+
 	// read in all of the responses
-	for {
+	for len(responses) > 0 {
+		println(len(responses))
+		println("READING HEADER")
 		resHeader, err := binprot.ReadResponseHeader(c.rw)
 		if err != nil {
 			oops(err, responses)
@@ -103,8 +120,11 @@ func (c conn) do(reqs []request) error {
 		}
 		defer binprot.PutResponseHeader(resHeader)
 
+		println("GOT HEADER")
+
 		err = binprot.DecodeError(resHeader)
 		if err != nil {
+			println("ERROR NOT NIL")
 			n, ioerr := c.rw.Discard(int(resHeader.TotalBodyLength))
 			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 
@@ -113,7 +133,9 @@ func (c conn) do(reqs []request) error {
 				return err
 			}
 
+			// TODO: these are not necessarily all misses, check the error
 			if rh, ok := responses[resHeader.OpaqueToken]; ok {
+				println("SENDING MISS")
 				// this is an application-level error and should be treated as such
 				rh.reschan <- response{
 					err: nil,
@@ -124,9 +146,14 @@ func (c conn) do(reqs []request) error {
 						Key:    rh.key,
 					},
 				}
-				return nil
+				println("MISS SENT")
+
+				delete(responses, resHeader.OpaqueToken)
+				continue
+
 			} else {
 				// FATAL ERROR!!!! no idea what to do here though...
+				panic("FATAL ERROR")
 			}
 		}
 
@@ -198,9 +225,14 @@ func (c conn) do(reqs []request) error {
 				return err
 			}
 		}
-
-		return err
 	}
+
+	println("CLOSING CHANNELS")
+	for _, c := range channels {
+		close(c)
+	}
+
+	return nil
 }
 
 // Need a struct here to hold all the metadata about the request.
@@ -225,7 +257,7 @@ func oops(err error, res map[uint32]reshandle) {
 // The base is a random uint32 value. This is done to prevent possible confusion between requests,
 // where one request would get another's data. This would be really bad if we sent things like user
 // information to the wrong place.
-func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
+func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []chan response) {
 	// get random base value
 	// serialize all requests into a buffer
 	// while serializing, collect channels
@@ -234,12 +266,16 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 	// Get base opaque value
 	opaque := uint32(c.rand.Int31())
 	buf := new(bytes.Buffer)
-	response := make(map[uint32]reshandle)
+	responses := make(map[uint32]reshandle)
+	channels := make([]chan response, 0, len(reqs))
 
 	for _, req := range reqs {
 
 		// maintain the "sequence number"
 		opaque++
+
+		// build slice of channels for closing later
+		channels = append(channels, req.reschan)
 
 		// serialize the requests into the buffer. There's no error handling because writes to a bytes.Buffer
 		// never return an error.
@@ -247,7 +283,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestSet:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteSetCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -257,7 +293,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestAdd:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAddCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -267,7 +303,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestReplace:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteReplaceCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -277,7 +313,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestAppend:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAppendCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -287,7 +323,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestPrepend:
 			cmd := req.req.(common.SetRequest)
 			binprot.WritePrependCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -297,7 +333,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestDelete:
 			cmd := req.req.(common.DeleteRequest)
 			binprot.WriteDeleteCmd(buf, cmd.Key, opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -307,7 +343,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestTouch:
 			cmd := req.req.(common.TouchRequest)
 			binprot.WriteTouchCmd(buf, cmd.Key, cmd.Exptime, opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -317,7 +353,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		case common.RequestGat:
 			cmd := req.req.(common.GATRequest)
 			binprot.WriteGATCmd(buf, cmd.Key, cmd.Exptime, opaque)
-			response[opaque] = reshandle{
+			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
 				quiet:   cmd.Quiet,
@@ -328,8 +364,8 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 			cmd := req.req.(common.GetRequest)
 
 			for idx := range cmd.Keys {
-				binprot.WriteGetCmd(buf, cmd.Keys[idx], cmd.Opaques[idx])
-				response[opaque] = reshandle{
+				binprot.WriteGetCmd(buf, cmd.Keys[idx], opaque)
+				responses[opaque] = reshandle{
 					key:     cmd.Keys[idx],
 					opaque:  cmd.Opaques[idx],
 					quiet:   cmd.Quiet[idx],
@@ -342,8 +378,8 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 			cmd := req.req.(common.GetRequest)
 
 			for idx := range cmd.Keys {
-				binprot.WriteGetECmd(buf, cmd.Keys[idx], cmd.Opaques[idx])
-				response[opaque] = reshandle{
+				binprot.WriteGetECmd(buf, cmd.Keys[idx], opaque)
+				responses[opaque] = reshandle{
 					key:     cmd.Keys[idx],
 					opaque:  cmd.Opaques[idx],
 					quiet:   cmd.Quiet[idx],
@@ -354,7 +390,9 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle) {
 		}
 	}
 
-	return buf.Bytes(), response
+	fmt.Printf("%#v\n", responses)
+
+	return buf.Bytes(), responses, channels
 }
 
 /*

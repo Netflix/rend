@@ -30,8 +30,8 @@ const (
 )
 
 var (
-	relays    map[string]*relay
-	relayLock *sync.RWMutex
+	relays    = make(map[string]*relay)
+	relayLock = new(sync.RWMutex)
 )
 
 type relay struct {
@@ -69,6 +69,9 @@ func getRelay(sock string) *relay {
 		addConnLock: new(sync.Mutex),
 		expand:      make(chan struct{}, 1),
 	}
+
+	// initialize the atomic value
+	r.conns.Store(make([]conn, 0))
 
 	firstConnSetup := make(chan struct{})
 	go r.monitor(firstConnSetup)
