@@ -55,9 +55,10 @@ func init() {
 
 // Flags
 var (
-	chunked bool
-	l1sock  string
-	l1inmem bool
+	chunked   bool
+	l1sock    string
+	l1inmem   bool
+	l1batched bool
 
 	l2enabled bool
 	l2sock    string
@@ -76,6 +77,7 @@ func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
 	flag.BoolVar(&l1inmem, "l1-inmem", false, "Use the debug in-memory in-process L1 cache")
 	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
+	flag.BoolVar(&l1batched, "l1-batched", false, "Uses the batching handler for L1")
 
 	flag.BoolVar(&l2enabled, "l2-enabled", false, "Specifies if l2 is enabled")
 	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2. Only used if --l2-enabled is true.")
@@ -116,10 +118,13 @@ func main() {
 	var h2 handlers.HandlerConst
 	var h1 handlers.HandlerConst
 
+	// Choose the proper L1 handler
 	if l1inmem {
 		h1 = inmem.New
 	} else if chunked {
 		h1 = memcached.Chunked(l1sock)
+	} else if l1batched {
+		h1 = memcached.Batched(l1sock)
 	} else {
 		h1 = memcached.Regular(l1sock)
 	}
