@@ -81,6 +81,7 @@ func (c conn) loop() {
 		// Or, if there's enough to batch together, send them off
 		if (timedout && len(reqs) > 0) || len(reqs) > int(c.batchSize) {
 			c.do(reqs)
+			reqs = nil
 		}
 
 		// block until a request comes in if there's a timeout earlier so this doesn't constantly spin
@@ -209,6 +210,8 @@ func (c conn) do(reqs []request) error {
 					},
 				}
 
+				delete(responses, resHeader.OpaqueToken)
+
 			} else {
 				// we are out of sync here, something is really wrong. We got the wrong opaque
 				// value for the set of requests we thing we sent. We can't fix this, so we have
@@ -223,6 +226,17 @@ func (c conn) do(reqs []request) error {
 			if err != nil {
 				oops(err, responses)
 				return err
+			}
+
+			if rh, ok := responses[resHeader.OpaqueToken]; ok {
+				// send the response back on the channel assigned to this token
+				rh.reschan <- response{}
+				delete(responses, resHeader.OpaqueToken)
+
+			} else {
+				// we are out of sync here, something is really wrong. We got the wrong opaque
+				// value for the set of requests we thing we sent. We can't fix this, so we have
+				// to close the connection
 			}
 		}
 	}
@@ -283,6 +297,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []c
 		case common.RequestSet:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteSetCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
 			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
@@ -293,6 +308,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []c
 		case common.RequestAdd:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAddCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
 			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
@@ -303,6 +319,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []c
 		case common.RequestReplace:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteReplaceCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
 			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
@@ -313,6 +330,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []c
 		case common.RequestAppend:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAppendCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
 			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
@@ -323,6 +341,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []c
 		case common.RequestPrepend:
 			cmd := req.req.(common.SetRequest)
 			binprot.WritePrependCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
 			responses[opaque] = reshandle{
 				key:     cmd.Key,
 				opaque:  cmd.Opaque,
