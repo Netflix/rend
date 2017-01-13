@@ -18,10 +18,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"math/rand"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/netflix/rend/binprot"
@@ -36,9 +36,10 @@ type conn struct {
 	batchSize    uint32
 	maxBatchSize *uint32
 	reqchan      chan request
+	expand       chan struct{}
 }
 
-func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int) conn {
+func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int, expand chan struct{}) conn {
 	println("NEWCONN")
 
 	r := bufio.NewReaderSize(c, readerSize)
@@ -51,6 +52,7 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize,
 		batchSize:    batchSize,
 		maxBatchSize: new(uint32),
 		reqchan:      make(chan request),
+		expand:       expand,
 	}
 
 	go nc.loop()
@@ -71,22 +73,41 @@ func (c conn) loop() {
 			reqs = append(reqs, req)
 
 		case <-time.After(c.batchDelay * time.Microsecond):
-			println("TIMEDOUT")
+			//println("TIMEDOUT")
 			timedout = true
 		}
-		println(timedout)
-		fmt.Printf("%#v\n", reqs)
+		//println(timedout)
+		//fmt.Printf("%#v\n", reqs)
 
 		// After 1 millisecond we want to get the requests that do exist moving along
 		// Or, if there's enough to batch together, send them off
-		if (timedout && len(reqs) > 0) || len(reqs) > int(c.batchSize) {
+		if (timedout && len(reqs) > 0) || len(reqs) >= int(c.batchSize) {
+			// store the batch size if it's greater than the maxBatchSize
+			for {
+				max := atomic.LoadUint32(c.maxBatchSize)
+				if uint32(len(reqs)) < max || atomic.CompareAndSwapUint32(c.maxBatchSize, max, uint32(len(reqs))) {
+					break
+				}
+			}
+
+			// If we hit the max size, notify the monitor to add a new connection
+			if len(reqs) >= int(c.batchSize) {
+				println("NOTIFYING WE NEED TO EXPAND")
+				select {
+				case c.expand <- struct{}{}:
+					println("SUCCESS")
+				default:
+					println("FAIL")
+				}
+			}
+
 			c.do(reqs)
 			reqs = nil
 		}
 
 		// block until a request comes in if there's a timeout earlier so this doesn't constantly spin
 		if timedout {
-			println("BLOCKING")
+			//println("BLOCKING")
 			req = <-c.reqchan
 			reqs = append(reqs, req)
 			timedout = false
@@ -95,11 +116,12 @@ func (c conn) loop() {
 }
 
 func (c conn) do(reqs []request) error {
+	//println("DO")
 
 	// batch and perform requests
 	buf, responses, channels := c.batchIntoBuffer(reqs)
 
-	fmt.Printf("%#v\n%#v\n", buf, responses)
+	//fmt.Printf("%#v\n%#v\n", buf, responses)
 
 	// Write out the whole buffer
 	c.rw.Write(buf)
@@ -108,12 +130,12 @@ func (c conn) do(reqs []request) error {
 		return err
 	}
 
-	println("flushed")
+	//println("flushed")
 
 	// read in all of the responses
 	for len(responses) > 0 {
-		println(len(responses))
-		println("READING HEADER")
+		//println(len(responses))
+		//println("READING HEADER")
 		resHeader, err := binprot.ReadResponseHeader(c.rw)
 		if err != nil {
 			oops(err, responses)
@@ -121,11 +143,11 @@ func (c conn) do(reqs []request) error {
 		}
 		defer binprot.PutResponseHeader(resHeader)
 
-		println("GOT HEADER")
+		//println("GOT HEADER")
 
 		err = binprot.DecodeError(resHeader)
 		if err != nil {
-			println("ERROR NOT NIL")
+			//println("ERROR NOT NIL")
 			n, ioerr := c.rw.Discard(int(resHeader.TotalBodyLength))
 			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 
@@ -134,9 +156,13 @@ func (c conn) do(reqs []request) error {
 				return err
 			}
 
+			if err != common.ErrKeyNotFound && err != common.ErrKeyExists && err != common.ErrItemNotStored {
+				println("UH OH", err.Error())
+			}
+
 			// TODO: these are not necessarily all misses, check the error
 			if rh, ok := responses[resHeader.OpaqueToken]; ok {
-				println("SENDING MISS")
+				//println("SENDING MISS")
 				// this is an application-level error and should be treated as such
 				rh.reschan <- response{
 					err: nil,
@@ -147,7 +173,7 @@ func (c conn) do(reqs []request) error {
 						Key:    rh.key,
 					},
 				}
-				println("MISS SENT")
+				//println("MISS SENT")
 
 				delete(responses, resHeader.OpaqueToken)
 				continue
@@ -207,6 +233,8 @@ func (c conn) do(reqs []request) error {
 						Data:    buf,
 						Flags:   serverFlags,
 						Exptime: serverExp,
+						Opaque:  rh.opaque,
+						Quiet:   rh.quiet,
 					},
 				}
 
@@ -216,6 +244,7 @@ func (c conn) do(reqs []request) error {
 				// we are out of sync here, something is really wrong. We got the wrong opaque
 				// value for the set of requests we thing we sent. We can't fix this, so we have
 				// to close the connection
+				panic("FATAL ERROR 2")
 			}
 
 		} else {
@@ -237,11 +266,12 @@ func (c conn) do(reqs []request) error {
 				// we are out of sync here, something is really wrong. We got the wrong opaque
 				// value for the set of requests we thing we sent. We can't fix this, so we have
 				// to close the connection
+				panic("FATAL ERROR 3")
 			}
 		}
 	}
 
-	println("CLOSING CHANNELS")
+	//println("CLOSING CHANNELS")
 	for _, c := range channels {
 		close(c)
 	}
@@ -261,6 +291,7 @@ type reshandle struct {
 // If something goes seriously wrong (i.e. an I/O error on this connection) then send back the
 // error to all of the connections waiting on responses from this connection.
 func oops(err error, res map[uint32]reshandle) {
+	println("OOPS", err.Error())
 	for _, c := range res {
 		c.reschan <- response{err: err}
 	}
@@ -409,252 +440,7 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []c
 		}
 	}
 
-	fmt.Printf("%#v\n", responses)
+	//fmt.Printf("%#v\n", responses)
 
 	return buf.Bytes(), responses, channels
 }
-
-/*
-	return h.handleSetCommon(cmd)
-
-
-
-
-GAT:
-
-			data, flags, _, err := getLocal(h.rw, false)
-			if err != nil {
-				if err == common.ErrKeyNotFound {
-					return common.GetResponse{
-						Miss:   true,
-						Quiet:  false,
-						Opaque: cmd.Opaque,
-						Flags:  flags,
-						Key:    cmd.Key,
-						Data:   nil,
-					}, nil
-				}
-
-				return common.GetResponse{}, err
-			}
-
-			return common.GetResponse{
-				Miss:   false,
-				Quiet:  false,
-				Opaque: cmd.Opaque,
-				Flags:  flags,
-				Key:    cmd.Key,
-				Data:   data,
-			}, nil
-
-
-
-
-
-func simpleCmdLocal(rw *bufio.ReadWriter) error {
-	if err := rw.Flush(); err != nil {
-		return err
-	}
-
-	resHeader, err := binprot.ReadResponseHeader(rw)
-	if err != nil {
-		return err
-	}
-	defer binprot.PutResponseHeader(resHeader)
-
-	err = binprot.DecodeError(resHeader)
-	if err != nil {
-		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
-		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-		if ioerr != nil {
-			return ioerr
-		}
-		return err
-	}
-
-	// Read in the message bytes from the body
-	n, err := rw.Discard(int(resHeader.TotalBodyLength))
-	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-
-	return err
-}
-
-func getLocal(rw *bufio.ReadWriter, readExp bool) (data []byte, flags, exp uint32, err error) {
-	if err := rw.Flush(); err != nil {
-		return nil, 0, 0, err
-	}
-
-	resHeader, err := binprot.ReadResponseHeader(rw)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	defer binprot.PutResponseHeader(resHeader)
-
-	err = binprot.DecodeError(resHeader)
-	if err != nil {
-		n, ioerr := rw.Discard(int(resHeader.TotalBodyLength))
-		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-		if ioerr != nil {
-			return nil, 0, 0, ioerr
-		}
-		return nil, 0, 0, err
-	}
-
-	var serverFlags uint32
-	binary.Read(rw, binary.BigEndian, &serverFlags)
-	metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
-
-	var serverExp uint32
-	if readExp {
-		binary.Read(rw, binary.BigEndian, &serverExp)
-		metrics.IncCounterBy(common.MetricBytesReadLocal, 4)
-	}
-
-	// total body - key - extra
-	dataLen := resHeader.TotalBodyLength - uint32(resHeader.KeyLength) - uint32(resHeader.ExtraLength)
-	buf := make([]byte, dataLen)
-
-	// Read in value
-	n, err := io.ReadAtLeast(rw, buf, int(dataLen))
-	metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-	if err != nil {
-		return nil, 0, 0, err
-	}
-
-	return buf, serverFlags, serverExp, nil
-}
-
-
-
-
-
-
-
-func (h Handler) handleSetCommon(cmd common.SetRequest) error {
-	// TODO: should there be a unique flags value for regular data?
-
-	// Write value
-	h.rw.Write(cmd.Data)
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(len(cmd.Data)))
-
-	if err := h.rw.Flush(); err != nil {
-		return err
-	}
-
-	// Read server's response
-	resHeader, err := readResponseHeader(h.rw.Reader)
-	if err != nil {
-		// Discard response body
-		n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
-		metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-		if ioerr != nil {
-			return ioerr
-		}
-
-		// For Add and Replace, the error here will be common.ErrKeyExists or common.ErrKeyNotFound
-		// respectively. For each, this is the right response to send to the requestor. The error
-		// here is overloaded because it would signal a true error for sets, but a normal "error"
-		// response for Add and Replace.
-		return err
-	}
-
-	return nil
-}
-
-func (h Handler) Get(cmd common.GetRequest) (<-chan common.GetResponse, <-chan error) {
-	dataOut := make(chan common.GetResponse)
-	errorOut := make(chan error)
-	go realHandleGet(cmd, dataOut, errorOut, h.rw)
-	return dataOut, errorOut
-}
-
-func realHandleGet(cmd common.GetRequest, dataOut chan common.GetResponse, errorOut chan error, rw *bufio.ReadWriter) {
-	defer close(errorOut)
-	defer close(dataOut)
-
-	for idx, key := range cmd.Keys {
-		if err := binprot.WriteGetCmd(rw.Writer, key); err != nil {
-			errorOut <- err
-			return
-		}
-
-		data, flags, _, err := getLocal(rw, false)
-		if err != nil {
-			if err == common.ErrKeyNotFound {
-				dataOut <- common.GetResponse{
-					Miss:   true,
-					Quiet:  cmd.Quiet[idx],
-					Opaque: cmd.Opaques[idx],
-					Flags:  flags,
-					Key:    key,
-					Data:   nil,
-				}
-
-				continue
-			}
-
-			errorOut <- err
-			return
-		}
-
-		dataOut <- common.GetResponse{
-			Miss:   false,
-			Quiet:  cmd.Quiet[idx],
-			Opaque: cmd.Opaques[idx],
-			Flags:  flags,
-			Key:    key,
-			Data:   data,
-		}
-	}
-}
-
-func (h Handler) GetE(cmd common.GetRequest) (<-chan common.GetEResponse, <-chan error) {
-	dataOut := make(chan common.GetEResponse)
-	errorOut := make(chan error)
-	go realHandleGetE(cmd, dataOut, errorOut, h.rw)
-	return dataOut, errorOut
-}
-
-func realHandleGetE(cmd common.GetRequest, dataOut chan common.GetEResponse, errorOut chan error, rw *bufio.ReadWriter) {
-	defer close(errorOut)
-	defer close(dataOut)
-
-	for idx, key := range cmd.Keys {
-		if err := binprot.WriteGetECmd(rw.Writer, key); err != nil {
-			errorOut <- err
-			return
-		}
-
-		data, flags, exp, err := getLocal(rw, true)
-		if err != nil {
-			if err == common.ErrKeyNotFound {
-				dataOut <- common.GetEResponse{
-					Miss:    true,
-					Quiet:   cmd.Quiet[idx],
-					Opaque:  cmd.Opaques[idx],
-					Flags:   flags,
-					Exptime: exp,
-					Key:     key,
-					Data:    nil,
-				}
-
-				continue
-			}
-
-			errorOut <- err
-			return
-		}
-
-		dataOut <- common.GetEResponse{
-			Miss:    false,
-			Quiet:   cmd.Quiet[idx],
-			Opaque:  cmd.Opaques[idx],
-			Flags:   flags,
-			Exptime: exp,
-			Key:     key,
-			Data:    data,
-		}
-	}
-}
-
-*/

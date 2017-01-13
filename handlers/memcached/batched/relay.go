@@ -24,6 +24,7 @@ import (
 
 const (
 	connBatchSize            = 10
+	connBatchDelay           = 250
 	connReadBufSize          = 8192
 	connWriteBufSize         = 32768
 	loadFactorHeuristicRatio = 0.75
@@ -95,7 +96,7 @@ func (r *relay) addConn() {
 		// uh oh...
 	}
 
-	poolconn := newConn(c, 500, connBatchSize, connReadBufSize, connWriteBufSize)
+	poolconn := newConn(c, connBatchDelay, connBatchSize, connReadBufSize, connWriteBufSize, r.expand)
 
 	// Add the new connection (but with a new slice header)
 	temp := r.conns.Load().([]conn)
@@ -137,8 +138,12 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		// it is overloaded.
 		select {
 		case <-time.After(30 * time.Second):
+			println("MONITOR TIMED OUT")
 		case <-r.expand:
+			println("NOTIFIED TO EXPAND")
 		}
+
+		println("MONITOR RUNNING")
 
 		cs := r.conns.Load().([]conn)
 		maxes := make([]uint32, len(cs))
@@ -146,6 +151,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		// Extract the maximum batch sizes seen since the last check
 		for i, c := range cs {
 			maxes[i] = atomic.SwapUint32(c.maxBatchSize, 0)
+			println("MAX BATCH SIZE", i, maxes[i])
 		}
 
 		// Heuristic: calculate the percentage of the total batch capacity used
@@ -157,8 +163,26 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		total := float64(len(cs)) * connBatchSize
 		loadFactor := float64(used) / total
 
-		// if we are over our load factor ratio, add a connection
+		var shouldAdd bool
+
+		// if we are over our load factor ratio
 		if loadFactor > loadFactorHeuristicRatio {
+			// TODO: increment metric
+			shouldAdd = true
+		}
+
+		// If any one connection got very close to their limit or hit it
+		for _, m := range maxes {
+			if m >= connBatchSize-1 {
+				// TODO: increment metric
+				shouldAdd = true
+				break
+			}
+		}
+
+		// if we are over our load factor ratio, add a connection
+		if loadFactor > loadFactorHeuristicRatio || shouldAdd {
+			println("EXPANDING")
 			r.addConn()
 		}
 	}
