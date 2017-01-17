@@ -71,7 +71,10 @@ func consumeResponse(r *bufio.Reader) ([]byte, error) {
 
 	// read body in regardless of the error in the header
 	buf := make([]byte, res.BodyLen)
-	io.ReadFull(r, buf)
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return nil, err
+	}
 
 	// ignore extras for now
 	buf = buf[res.ExtraLen:]
@@ -92,7 +95,10 @@ func consumeResponseCheckOpaque(r *bufio.Reader, opq int) ([]byte, error) {
 
 	// read body in regardless of the error in the header
 	buf := make([]byte, res.BodyLen)
-	io.ReadFull(r, buf)
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return nil, err
+	}
 
 	// ignore extras for now
 	buf = buf[res.ExtraLen:]

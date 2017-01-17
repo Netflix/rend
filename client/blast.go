@@ -101,7 +101,7 @@ func main() {
 		"\tover the %v protocol\n\n",
 		f.NumOps, f.NumWorkers, usedCmds, protString)
 
-	tasks := make(chan *common.Task)
+	tasks := make(chan *common.Task, f.NumOps)
 	taskGens := new(sync.WaitGroup)
 	comms := new(sync.WaitGroup)
 
@@ -297,11 +297,14 @@ func communicator(prot common.Prot, conn net.Conn, tasks <-chan *common.Task, me
 		if err != nil {
 			// don't print get misses, adds not stored, and replaces not stored
 			if !isMiss(err) {
-				fmt.Printf("Error performing operation %s on key %s: %s\n", item.Cmd, item.Key, err.Error())
-			}
-			// if the socket was closed, stop. Otherwise keep on hammering.
-			if err == io.EOF {
-				break
+				fmt.Printf("Error performing operation %s on key %s: %v\n", item.Cmd, item.Key, err)
+
+				// if the socket was closed, stop. Otherwise keep on hammering.
+				if err == io.EOF {
+					conn.Close()
+					comms.Done()
+					return
+				}
 			}
 		}
 
