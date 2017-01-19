@@ -36,7 +36,13 @@ type conn struct {
 	batchSize    uint32
 	maxBatchSize *uint32
 	reqchan      chan request
+	batchchan    chan batch
 	expand       chan struct{}
+}
+
+type batch struct {
+	responses map[uint32]reshandle
+	channels  []chan response
 }
 
 func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int, expand chan struct{}) conn {
@@ -52,20 +58,23 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize,
 		batchSize:    batchSize,
 		maxBatchSize: new(uint32),
 		reqchan:      make(chan request),
+		batchchan:    make(chan batch, 1),
 		expand:       expand,
 	}
 
-	go nc.loop()
+	go nc.batcher()
+	go nc.reader()
 
 	return nc
 }
 
-func (c conn) loop() {
+func (c conn) batcher() {
 	var req request
 	var reqs []request
 	var timedout bool
 
 	for {
+		//println("LOOP")
 		select {
 		case req = <-c.reqchan:
 			timedout = false
@@ -115,7 +124,7 @@ func (c conn) loop() {
 	}
 }
 
-func (c conn) do(reqs []request) error {
+func (c conn) do(reqs []request) {
 	//println("DO")
 
 	// batch and perform requests
@@ -123,160 +132,165 @@ func (c conn) do(reqs []request) error {
 
 	//fmt.Printf("%#v\n%#v\n", buf, responses)
 
+	// send the batch before the write because the write may block for a long time until
+	// some responses can be read from memcached.
+	c.batchchan <- batch{
+		responses: responses,
+		channels:  channels,
+	}
+
 	// Write out the whole buffer
 	c.rw.Write(buf)
 	if err := c.rw.Flush(); err != nil {
 		oops(err, responses)
-		return err
 	}
 
 	//println("flushed")
+}
 
-	// read in all of the responses
-	for len(responses) > 0 {
-		//println(len(responses))
-		//println("READING HEADER")
-		resHeader, err := binprot.ReadResponseHeader(c.rw)
-		if err != nil {
-			oops(err, responses)
-			return err
-		}
-		defer binprot.PutResponseHeader(resHeader)
+func (c conn) reader() {
+	for {
 
-		//println("GOT HEADER")
+		batch := <-c.batchchan
 
-		err = binprot.DecodeError(resHeader)
-		if err != nil {
-			//println("ERROR NOT NIL")
-			n, ioerr := c.rw.Discard(int(resHeader.TotalBodyLength))
-			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-
-			if ioerr != nil {
-				oops(ioerr, responses)
-				return err
-			}
-
-			if err != common.ErrKeyNotFound && err != common.ErrKeyExists && err != common.ErrItemNotStored {
-				println("UH OH", err.Error())
-			}
-
-			// TODO: these are not necessarily all misses, check the error
-			if rh, ok := responses[resHeader.OpaqueToken]; ok {
-				//println("SENDING MISS")
-				// this is an application-level error and should be treated as such
-				rh.reschan <- response{
-					err: nil,
-					gr: common.GetEResponse{
-						Miss:   true,
-						Quiet:  rh.quiet,
-						Opaque: rh.opaque,
-						Key:    rh.key,
-					},
-				}
-				//println("MISS SENT")
-
-				delete(responses, resHeader.OpaqueToken)
-				continue
-
-			} else {
-				// FATAL ERROR!!!! no idea what to do here though...
-				panic("FATAL ERROR")
-			}
-		}
-
-		// if reading information (and not just a response header) from the remote
-		// process, do some extra parsing
-		if resHeader.Opcode == binprot.OpcodeGet ||
-			resHeader.Opcode == binprot.OpcodeGetQ ||
-			resHeader.Opcode == binprot.OpcodeGat ||
-			resHeader.Opcode == binprot.OpcodeGetE ||
-			resHeader.Opcode == binprot.OpcodeGetEQ {
-
-			b := make([]byte, 4)
-			n, err := io.ReadAtLeast(c.rw, b, 4)
-			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+		// read in all of the responses
+		for len(batch.responses) > 0 {
+			//println(len(responses))
+			//println("READING HEADER")
+			resHeader, err := binprot.ReadResponseHeader(c.rw)
 			if err != nil {
-				oops(err, responses)
-				return err
+				oops(err, batch.responses)
 			}
-			serverFlags := binary.BigEndian.Uint32(b)
+			defer binprot.PutResponseHeader(resHeader)
 
-			var serverExp uint32
-			if resHeader.Opcode == binprot.OpcodeGetE || resHeader.Opcode == binprot.OpcodeGetEQ {
-				n, err = io.ReadAtLeast(c.rw, b, 4)
+			//println("GOT HEADER")
+
+			err = binprot.DecodeError(resHeader)
+			if err != nil {
+				//println("ERROR NOT NIL")
+				n, ioerr := c.rw.Discard(int(resHeader.TotalBodyLength))
+				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+
+				if ioerr != nil {
+					oops(ioerr, batch.responses)
+				}
+
+				if err != common.ErrKeyNotFound && err != common.ErrKeyExists && err != common.ErrItemNotStored {
+					println("UH OH", err.Error())
+				}
+
+				// TODO: these are not necessarily all misses, check the error
+				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {
+					//println("SENDING MISS")
+					// this is an application-level error and should be treated as such
+					rh.reschan <- response{
+						err: nil,
+						gr: common.GetEResponse{
+							Miss:   true,
+							Quiet:  rh.quiet,
+							Opaque: rh.opaque,
+							Key:    rh.key,
+						},
+					}
+					//println("MISS SENT")
+
+					delete(batch.responses, resHeader.OpaqueToken)
+					continue
+
+				} else {
+					// FATAL ERROR!!!! no idea what to do here though...
+					panic("FATAL ERROR")
+				}
+			}
+
+			// if reading information (and not just a response header) from the remote
+			// process, do some extra parsing
+			if resHeader.Opcode == binprot.OpcodeGet ||
+				resHeader.Opcode == binprot.OpcodeGetQ ||
+				resHeader.Opcode == binprot.OpcodeGat ||
+				resHeader.Opcode == binprot.OpcodeGetE ||
+				resHeader.Opcode == binprot.OpcodeGetEQ {
+
+				b := make([]byte, 4)
+				n, err := io.ReadAtLeast(c.rw, b, 4)
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 				if err != nil {
-					oops(err, responses)
-					return err
+					oops(err, batch.responses)
 				}
-				serverExp = binary.BigEndian.Uint32(b)
-			}
+				serverFlags := binary.BigEndian.Uint32(b)
 
-			// total body - key - extra
-			dataLen := resHeader.TotalBodyLength - uint32(resHeader.KeyLength) - uint32(resHeader.ExtraLength)
-			buf := make([]byte, dataLen)
-
-			// Read in value
-			n, err = io.ReadAtLeast(c.rw, buf, int(dataLen))
-			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-			if err != nil {
-				oops(err, responses)
-				return err
-			}
-
-			if rh, ok := responses[resHeader.OpaqueToken]; ok {
-				// send the response back on the channel assigned to this token
-				rh.reschan <- response{
-					err: nil,
-					gr: common.GetEResponse{
-						Key:     rh.key,
-						Data:    buf,
-						Flags:   serverFlags,
-						Exptime: serverExp,
-						Opaque:  rh.opaque,
-						Quiet:   rh.quiet,
-					},
+				var serverExp uint32
+				if resHeader.Opcode == binprot.OpcodeGetE || resHeader.Opcode == binprot.OpcodeGetEQ {
+					n, err = io.ReadAtLeast(c.rw, b, 4)
+					metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+					if err != nil {
+						oops(err, batch.responses)
+					}
+					serverExp = binary.BigEndian.Uint32(b)
 				}
 
-				delete(responses, resHeader.OpaqueToken)
+				// total body - key - extra
+				dataLen := resHeader.TotalBodyLength - uint32(resHeader.KeyLength) - uint32(resHeader.ExtraLength)
+				buf := make([]byte, dataLen)
+
+				// Read in value
+				n, err = io.ReadAtLeast(c.rw, buf, int(dataLen))
+				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+				if err != nil {
+					oops(err, batch.responses)
+				}
+
+				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {
+					// send the response back on the channel assigned to this token
+					rh.reschan <- response{
+						err: nil,
+						gr: common.GetEResponse{
+							Key:     rh.key,
+							Data:    buf,
+							Flags:   serverFlags,
+							Exptime: serverExp,
+							Opaque:  rh.opaque,
+							Quiet:   rh.quiet,
+						},
+					}
+
+					delete(batch.responses, resHeader.OpaqueToken)
+
+				} else {
+					// we are out of sync here, something is really wrong. We got the wrong opaque
+					// value for the set of requests we thing we sent. We can't fix this, so we have
+					// to close the connection
+					panic("FATAL ERROR 2")
+				}
 
 			} else {
-				// we are out of sync here, something is really wrong. We got the wrong opaque
-				// value for the set of requests we thing we sent. We can't fix this, so we have
-				// to close the connection
-				panic("FATAL ERROR 2")
-			}
+				// Non-get repsonses
+				// Discard the message for non-get responses
+				n, err := c.rw.Discard(int(resHeader.TotalBodyLength))
+				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
+				if err != nil {
+					oops(err, batch.responses)
+				}
 
-		} else {
-			// Non-get repsonses
-			// Discard the message for non-get responses
-			n, err := c.rw.Discard(int(resHeader.TotalBodyLength))
-			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
-			if err != nil {
-				oops(err, responses)
-				return err
-			}
+				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {
+					// send the response back on the channel assigned to this token
+					rh.reschan <- response{}
+					delete(batch.responses, resHeader.OpaqueToken)
 
-			if rh, ok := responses[resHeader.OpaqueToken]; ok {
-				// send the response back on the channel assigned to this token
-				rh.reschan <- response{}
-				delete(responses, resHeader.OpaqueToken)
-
-			} else {
-				// we are out of sync here, something is really wrong. We got the wrong opaque
-				// value for the set of requests we thing we sent. We can't fix this, so we have
-				// to close the connection
-				panic("FATAL ERROR 3")
+				} else {
+					// we are out of sync here, something is really wrong. We got the wrong opaque
+					// value for the set of requests we thing we sent. We can't fix this, so we have
+					// to close the connection
+					panic("FATAL ERROR 3")
+				}
 			}
 		}
-	}
 
-	//println("CLOSING CHANNELS")
-	for _, c := range channels {
-		close(c)
+		//println("CLOSING CHANNELS")
+		for _, c := range batch.channels {
+			close(c)
+		}
 	}
-
-	return nil
 }
 
 // Need a struct here to hold all the metadata about the request.
@@ -441,6 +455,8 @@ func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []c
 	}
 
 	//fmt.Printf("%#v\n", responses)
+	//println(buf.Len())
+	//fmt.Println(buf.Bytes())
 
 	return buf.Bytes(), responses, channels
 }
