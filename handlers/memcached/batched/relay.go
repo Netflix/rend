@@ -42,7 +42,8 @@ type relay struct {
 	expand      chan struct{}
 }
 
-// Creates a new relay with one connection
+// Creates a new relay with one connection or returns an existing relay for the
+// given socket.
 func getRelay(sock string) *relay {
 	relayLock.RLock()
 	if r, ok := relays[sock]; ok {

@@ -71,6 +71,7 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize,
 func (c conn) batcher() {
 	var req request
 	var reqs []request
+	var batchTimeout <-chan time.Time
 	var timedout bool
 
 	for {
@@ -80,10 +81,17 @@ func (c conn) batcher() {
 			timedout = false
 			// queue up the request
 			reqs = append(reqs, req)
+			if batchTimeout == nil {
+				batchTimeout = time.After(c.batchDelay * time.Microsecond)
+			}
 
-		case <-time.After(c.batchDelay * time.Microsecond):
+		case <-batchTimeout:
 			//println("TIMEDOUT")
-			timedout = true
+			if batchTimeout == nil {
+				batchTimeout = time.After(c.batchDelay * time.Microsecond)
+			} else {
+				timedout = true
+			}
 		}
 		//println(timedout)
 		//fmt.Printf("%#v\n", reqs)
@@ -99,6 +107,9 @@ func (c conn) batcher() {
 				}
 			}
 
+			// Set batch timeout channel nil to make the rest work
+			batchTimeout = nil
+
 			// If we hit the max size, notify the monitor to add a new connection
 			if len(reqs) >= int(c.batchSize) {
 				println("NOTIFYING WE NEED TO EXPAND")
@@ -110,6 +121,7 @@ func (c conn) batcher() {
 				}
 			}
 
+			// do
 			c.do(reqs)
 			reqs = nil
 		}
@@ -120,6 +132,7 @@ func (c conn) batcher() {
 			req = <-c.reqchan
 			reqs = append(reqs, req)
 			timedout = false
+			batchTimeout = time.After(c.batchDelay * time.Microsecond)
 		}
 	}
 }
@@ -151,6 +164,7 @@ func (c conn) do(reqs []request) {
 func (c conn) reader() {
 	for {
 
+		// read the next batch to process
 		batch := <-c.batchchan
 
 		// read in all of the responses
