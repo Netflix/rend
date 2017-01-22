@@ -24,7 +24,7 @@ import (
 )
 
 func TestUnknownCommand(t *testing.T) {
-	r := bufio.NewReader(bytes.NewBuffer([]byte{
+	r := bufio.NewReader(bytes.NewReader([]byte{
 		0x80,       // Magic
 		0xFF,       // Bad opcode
 		0x00, 0x00, // key length
@@ -36,7 +36,7 @@ func TestUnknownCommand(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, // CAS
 		0x00, 0x00, 0x00, 0x00, // CAS
 	}))
-	req, reqType, err := binprot.NewBinaryParser(r).Parse()
+	req, reqType, _, err := binprot.NewBinaryParser(r).Parse()
 
 	if req != nil {
 		t.Fatal("Expected request struct to be nil")
