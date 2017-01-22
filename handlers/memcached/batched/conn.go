@@ -75,7 +75,6 @@ func (c conn) batcher() {
 	var timedout bool
 
 	for {
-		//println("LOOP")
 		select {
 		case req = <-c.reqchan:
 			timedout = false
@@ -86,17 +85,14 @@ func (c conn) batcher() {
 			}
 
 		case <-batchTimeout:
-			//println("TIMEDOUT")
 			if batchTimeout == nil {
 				batchTimeout = time.After(c.batchDelay * time.Microsecond)
 			} else {
 				timedout = true
 			}
 		}
-		//println(timedout)
-		//fmt.Printf("%#v\n", reqs)
 
-		// After 1 millisecond we want to get the requests that do exist moving along
+		// After the batch delay we want to get the requests that do exist moving along
 		// Or, if there's enough to batch together, send them off
 		if (timedout && len(reqs) > 0) || len(reqs) >= int(c.batchSize) {
 			// store the batch size if it's greater than the maxBatchSize
@@ -128,7 +124,6 @@ func (c conn) batcher() {
 
 		// block until a request comes in if there's a timeout earlier so this doesn't constantly spin
 		if timedout {
-			//println("BLOCKING")
 			req = <-c.reqchan
 			reqs = append(reqs, req)
 			timedout = false
