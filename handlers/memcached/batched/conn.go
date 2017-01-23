@@ -75,21 +75,18 @@ func (c conn) batcher() {
 	var timedout bool
 
 	for {
+		if batchTimeout == nil {
+			batchTimeout = time.After(c.batchDelay * time.Microsecond)
+		}
+
 		select {
 		case req = <-c.reqchan:
 			timedout = false
 			// queue up the request
 			reqs = append(reqs, req)
-			if batchTimeout == nil {
-				batchTimeout = time.After(c.batchDelay * time.Microsecond)
-			}
 
 		case <-batchTimeout:
-			if batchTimeout == nil {
-				batchTimeout = time.After(c.batchDelay * time.Microsecond)
-			} else {
-				timedout = true
-			}
+			timedout = true
 		}
 
 		// After the batch delay we want to get the requests that do exist moving along
@@ -103,7 +100,7 @@ func (c conn) batcher() {
 				}
 			}
 
-			// Set batch timeout channel nil to make the rest work
+			// Set batch timeout channel nil to reset it. Next batch will get a new timeout.
 			batchTimeout = nil
 
 			// If we hit the max size, notify the monitor to add a new connection
@@ -126,8 +123,10 @@ func (c conn) batcher() {
 		if timedout {
 			req = <-c.reqchan
 			reqs = append(reqs, req)
+
+			// Reset timeout variables to base state
 			timedout = false
-			batchTimeout = time.After(c.batchDelay * time.Microsecond)
+			batchTimeout = nil
 		}
 	}
 }
