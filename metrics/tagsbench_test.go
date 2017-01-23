@@ -15,7 +15,6 @@
 package metrics_test
 
 import "testing"
-import crand "crypto/rand"
 
 type tags map[string]string
 
@@ -30,20 +29,7 @@ var (
 		"fooo7": "baar7",
 		"fooo8": "baar8",
 	}
-
-	dyntags tags
 )
-
-func init() {
-	dyntags = make(tags)
-
-	dat := make([]byte, 10)
-
-	for i := 0; i < 8; i++ {
-		crand.Read(dat)
-		dyntags[string(dat[:5])] = string(dat[5:])
-	}
-}
 
 func TagsBuildStringAppend(tgs tags) string {
 	var ret string
@@ -103,24 +89,5 @@ func TagsBuildStringByteSlice(tgs tags) string {
 func BenchmarkTagsBuildStringByteSlice(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = TagsBuildStringByteSlice(tgs)
-	}
-}
-
-func TagsBuildStringByteSliceDynamicData(tgs tags) string {
-	var ret []byte
-
-	for k, v := range tgs {
-		ret = append(ret, byte('|'))
-		ret = append(ret, k...)
-		ret = append(ret, byte('*'))
-		ret = append(ret, v...)
-	}
-
-	return string(ret)
-}
-
-func BenchmarkTagsBuildStringByteSliceDynamicData(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = TagsBuildStringByteSlice(dyntags)
 	}
 }
