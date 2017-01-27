@@ -121,9 +121,9 @@ func main() {
 
 ## Testing
 
-Rend somes with a separately developed client library under the client/ directory. It is used to do load and functional testing of Rend during development.
+Rend comes with a separately developed client library under the [`client`](client/) directory. It is used to do load and functional testing of Rend during development.
 
-### blast<i></i>.go
+### [`blast.go`](client/blast.go)
 
 The blast script sends random requests of all types to the target, including:
 * `set`
@@ -141,25 +141,25 @@ Use the binary memcached protocol with 10 worker goroutines (i.e. 10 connections
 
     go run blast.go --binary -n 1000000 -p 11211 -w 10 -kl 5
 
-### setget<i></i>.go
+### [`setget.go`](client/setget.go)
 
 Run sets followed by gets, with verification of contents. The data is between 5 and 20k in length.
 
     go run setget.go --binary -n 100000 -p 11211 -w 10
 
-### sizes<i></i>.go
+### [`sizes.go`](client/sizes.go)
 
 Runs sets of a steadily increasing size to catch errors with specific size data. It runs sets from 0 bytes all the way up to 100k for the value.
 
     go run sizes.go --binary -p 11211
 
-### fill<i></i>.go
+### [`fill.go`](client/fill.go)
 
 Simply sends sets into the cache to test set rate and eviction policy. The following sends 1 billion sets with random 10 character keys on 100 connections:
 
     go run fill.go --binary -p 11211 -h localhost -kl 10 -w 100 -n 1000000000
 
-### setops<i></i>.go
+### [`setops.go`](client/setops.go)
 
 Sends all different kinds of set operations at the target, including:
 * `set`
