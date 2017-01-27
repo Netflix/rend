@@ -1,0 +1,6 @@
+# Default options and settings are described in:
+# https://docs.travis-ci.com/user/languages/go
+language: go
+
+dist: trusty
+sudo: false
