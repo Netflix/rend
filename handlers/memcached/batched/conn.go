@@ -30,14 +30,16 @@ import (
 )
 
 type conn struct {
-	rw           *bufio.ReadWriter
-	rand         *rand.Rand
-	batchDelay   time.Duration
-	batchSize    uint32
-	maxBatchSize *uint32
-	reqchan      chan request
-	batchchan    chan batch
-	expand       chan struct{}
+	rw         *bufio.ReadWriter
+	rand       *rand.Rand
+	batchDelay time.Duration
+	batchSize  uint32
+	// TODO: incorporate check if last batch is also max, then notify.
+	lastBatchSize uint32
+	maxBatchSize  *uint32
+	reqchan       chan request
+	batchchan     chan batch
+	expand        chan struct{}
 }
 
 type batch struct {
@@ -156,6 +158,7 @@ func (c conn) do(reqs []request) {
 }
 
 func (c conn) reader() {
+	println("NEW READER")
 	for {
 
 		// read the next batch to process

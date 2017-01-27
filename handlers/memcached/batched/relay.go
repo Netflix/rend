@@ -23,11 +23,13 @@ import (
 )
 
 const (
-	connBatchSize            = 10
-	connBatchDelay           = 250
-	connReadBufSize          = 8192
-	connWriteBufSize         = 32768
-	loadFactorHeuristicRatio = 0.75
+	connBatchSize             = 10
+	connBatchDelay            = 250
+	connReadBufSize           = 8192
+	connWriteBufSize          = 32768
+	loadFactorHeuristicRatio  = 0.8
+	overloadedConnectionRatio = 0.2
+	overloadedConnectionAbs   = 5
 )
 
 var (
@@ -88,6 +90,9 @@ func getRelay(sock string) *relay {
 // Adds a connection to the pool. This is one way only, making this effectively
 // a high-water-mark pool with no connections being torn down.
 func (r *relay) addConn() {
+
+	// TODO: increment metric
+
 	// Ensure there's no races when adding a connection
 	r.addConnLock.Lock()
 	defer r.addConnLock.Unlock()
@@ -172,17 +177,28 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 			shouldAdd = true
 		}
 
-		// If any one connection got very close to their limit or hit it
+		// If a configurable percentage or absolute number of connections got
+		// very close to their limit or hit it
+		var numOverloaded int
 		for _, m := range maxes {
 			if m >= connBatchSize-1 {
 				// TODO: increment metric
-				shouldAdd = true
-				break
+				numOverloaded++
 			}
 		}
 
-		// if we are over our load factor ratio, add a connection
-		if loadFactor > loadFactorHeuristicRatio || shouldAdd {
+		if float64(numOverloaded)/float64(len(cs)) > overloadedConnectionRatio {
+			// TODO: increment metric
+			shouldAdd = true
+		}
+
+		if numOverloaded >= overloadedConnectionAbs {
+			// TODO: increment metric
+			shouldAdd = true
+		}
+
+		// add a connection if needed
+		if shouldAdd {
 			println("EXPANDING")
 			r.addConn()
 		}
