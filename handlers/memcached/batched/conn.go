@@ -30,16 +30,15 @@ import (
 )
 
 type conn struct {
-	rw         *bufio.ReadWriter
-	rand       *rand.Rand
-	batchDelay time.Duration
-	batchSize  uint32
-	// TODO: incorporate check if last batch is also max, then notify.
-	lastBatchSize uint32
-	maxBatchSize  *uint32
-	reqchan       chan request
-	batchchan     chan batch
-	expand        chan struct{}
+	rw           *bufio.ReadWriter
+	rand         *rand.Rand
+	batchDelay   time.Duration
+	batchSize    uint32
+	maxBatchSize *uint32
+	avgBatchData *uint64
+	reqchan      chan request
+	batchchan    chan batch
+	expand       chan struct{}
 }
 
 type batch struct {
@@ -59,6 +58,7 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize,
 		batchDelay:   batchDelay,
 		batchSize:    batchSize,
 		maxBatchSize: new(uint32),
+		avgBatchData: new(uint64),
 		reqchan:      make(chan request),
 		batchchan:    make(chan batch, 1),
 		expand:       expand,
@@ -75,6 +75,7 @@ func (c conn) batcher() {
 	var reqs []request
 	var batchTimeout <-chan time.Time
 	var timedout bool
+	var lastBatchSize uint32
 
 	for {
 		if batchTimeout == nil {
@@ -102,11 +103,19 @@ func (c conn) batcher() {
 				}
 			}
 
+			// Update the average batch size. The uint64 is two packed uint32's
+			// The upper 32 bits is the count of the number of batches since the last reset by the monitor
+			// The lower 32 bits are the count of the commands sent in all of the batches
+			// By packing these into one 64 bit int, we can do the atomic add and increment both counters together atomically
+			// This bit arithmetic assumes a batch will never be greater than 2^32 items
+			avgUpdate := 1<<32 | (uint64(len(reqs)) & 0xFFFFFFFF)
+			atomic.AddUint64(c.avgBatchData, avgUpdate)
+
 			// Set batch timeout channel nil to reset it. Next batch will get a new timeout.
 			batchTimeout = nil
 
-			// If we hit the max size, notify the monitor to add a new connection
-			if len(reqs) >= int(c.batchSize) {
+			// If we hit the max size twice in a row, notify the monitor to add a new connection
+			if len(reqs) >= int(c.batchSize) && lastBatchSize >= c.batchSize {
 				println("NOTIFYING WE NEED TO EXPAND")
 				select {
 				case c.expand <- struct{}{}:
@@ -115,6 +124,8 @@ func (c conn) batcher() {
 					println("FAIL")
 				}
 			}
+
+			lastBatchSize = uint32(len(reqs))
 
 			// do
 			c.do(reqs)

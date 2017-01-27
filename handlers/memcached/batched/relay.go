@@ -27,9 +27,8 @@ const (
 	connBatchDelay            = 250
 	connReadBufSize           = 8192
 	connWriteBufSize          = 32768
-	loadFactorHeuristicRatio  = 0.8
+	loadFactorHeuristicRatio  = 0.75
 	overloadedConnectionRatio = 0.2
-	overloadedConnectionAbs   = 5
 )
 
 var (
@@ -140,6 +139,8 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 	firstConnSetup <- struct{}{}
 
 	for {
+		var shouldAdd bool
+
 		// Re-evaluate either after 30 seconds or when a connection notifies that
 		// it is overloaded.
 		select {
@@ -147,6 +148,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 			println("MONITOR TIMED OUT")
 		case <-r.expand:
 			println("NOTIFIED TO EXPAND")
+			//shouldAdd = true
 		}
 
 		println("MONITOR RUNNING")
@@ -160,27 +162,37 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 			println("MAX BATCH SIZE", i, maxes[i])
 		}
 
-		// Heuristic: calculate the percentage of the total batch capacity used
-		var used uint64
-		for _, u := range maxes {
-			used += uint64(u)
+		averages := make([]float64, len(cs))
+
+		// Extract the packed average data and calculate all the averages
+		for i, c := range cs {
+			avgData := atomic.SwapUint64(c.avgBatchData, 0)
+			numBatches := avgData >> 32
+			numCmds := avgData & 0xFFFFFFFF
+			averages[i] = float64(numCmds) / float64(numBatches)
+			println("AVERAGE BATCH SIZE", i, averages[i])
+		}
+
+		// Heuristic: calculate the percentage of the total batch capacity used on average
+		var used float64
+		for _, u := range averages {
+			used += u
 		}
 
 		total := float64(len(cs)) * connBatchSize
 		loadFactor := float64(used) / total
 
-		var shouldAdd bool
-
 		// if we are over our load factor ratio
 		if loadFactor > loadFactorHeuristicRatio {
 			// TODO: increment metric
+			println("LOAD FACTOR")
 			shouldAdd = true
 		}
 
 		// If a configurable percentage or absolute number of connections got
 		// very close to their limit or hit it
 		var numOverloaded int
-		for _, m := range maxes {
+		for _, m := range averages {
 			if m >= connBatchSize-1 {
 				// TODO: increment metric
 				numOverloaded++
@@ -189,11 +201,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 
 		if float64(numOverloaded)/float64(len(cs)) > overloadedConnectionRatio {
 			// TODO: increment metric
-			shouldAdd = true
-		}
-
-		if numOverloaded >= overloadedConnectionAbs {
-			// TODO: increment metric
+			println("OVERLOADED RATIO")
 			shouldAdd = true
 		}
 
