@@ -162,15 +162,23 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 			println("MAX BATCH SIZE", i, maxes[i])
 		}
 
-		averages := make([]float64, len(cs))
+		averages := make([]float64, 0, len(cs))
 
 		// Extract the packed average data and calculate all the averages
 		for i, c := range cs {
 			avgData := atomic.SwapUint64(c.avgBatchData, 0)
 			numBatches := avgData >> 32
 			numCmds := avgData & 0xFFFFFFFF
-			averages[i] = float64(numCmds) / float64(numBatches)
-			println("AVERAGE BATCH SIZE", i, averages[i])
+
+			// Don't produce averages for connections that haven't sent a batch
+			// since the last time we checked
+			if numBatches == 0 {
+				continue
+			}
+
+			avg := float64(numCmds) / float64(numBatches)
+			averages = append(averages, avg)
+			println("AVERAGE BATCH SIZE", i, avg)
 		}
 
 		// Heuristic: calculate the percentage of the total batch capacity used on average

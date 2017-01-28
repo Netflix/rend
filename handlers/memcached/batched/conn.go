@@ -21,6 +21,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -59,7 +60,7 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize,
 		batchSize:    batchSize,
 		maxBatchSize: new(uint32),
 		avgBatchData: new(uint64),
-		reqchan:      make(chan request),
+		reqchan:      make(chan request, batchSize),
 		batchchan:    make(chan batch, 1),
 		expand:       expand,
 	}
@@ -160,12 +161,190 @@ func (c conn) do(reqs []request) {
 	}
 
 	// Write out the whole buffer
-	c.rw.Write(buf)
+	c.rw.Write(buf.Bytes())
 	if err := c.rw.Flush(); err != nil {
 		oops(err, responses)
 	}
 
+	batcherPool.Put(buf)
+
 	//println("flushed")
+}
+
+// Need a struct here to hold all the metadata about the request.
+// Responses don't have all the metadata, so it needs to be kept to the side
+type reshandle struct {
+	key     []byte
+	opaque  uint32
+	quiet   bool
+	reschan chan response
+}
+
+// If something goes seriously wrong (i.e. an I/O error on this connection) then send back the
+// error to all of the connections waiting on responses from this connection.
+func oops(err error, res map[uint32]reshandle) {
+	println("OOPS", err.Error())
+	for _, c := range res {
+		c.reschan <- response{err: err}
+	}
+}
+
+var batcherPool = &sync.Pool{
+	New: func() interface{} {
+		// 16k by default
+		return bytes.NewBuffer(make([]byte, 0, 16384))
+	},
+}
+
+// The opaque value in the requests is related to the base value returned by its index in the array
+// meaning the first request sent out will have the opaque value <base>, the second <base+1>, and so on
+// The base is a random uint32 value. This is done to prevent possible confusion between requests,
+// where one request would get another's data. This would be really bad if we sent things like user
+// information to the wrong place.
+func (c conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshandle, []chan response) {
+	// get random base value
+	// serialize all requests into a buffer
+	// while serializing, collect channels
+	// return everything
+
+	// Get base opaque value
+	opaque := uint32(c.rand.Int31())
+	buf := batcherPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	responses := make(map[uint32]reshandle)
+	channels := make([]chan response, 0, len(reqs))
+
+	for _, req := range reqs {
+
+		// maintain the "sequence number"
+		opaque++
+
+		// build slice of channels for closing later
+		channels = append(channels, req.reschan)
+
+		// serialize the requests into the buffer. There's no error handling because writes to a bytes.Buffer
+		// never return an error.
+		switch req.reqtype {
+		case common.RequestSet:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteSetCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestAdd:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteAddCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestReplace:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteReplaceCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestAppend:
+			cmd := req.req.(common.SetRequest)
+			binprot.WriteAppendCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestPrepend:
+			cmd := req.req.(common.SetRequest)
+			binprot.WritePrependCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
+			buf.Write(cmd.Data)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestDelete:
+			cmd := req.req.(common.DeleteRequest)
+			binprot.WriteDeleteCmd(buf, cmd.Key, opaque)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestTouch:
+			cmd := req.req.(common.TouchRequest)
+			binprot.WriteTouchCmd(buf, cmd.Key, cmd.Exptime, opaque)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestGat:
+			cmd := req.req.(common.GATRequest)
+			binprot.WriteGATCmd(buf, cmd.Key, cmd.Exptime, opaque)
+			responses[opaque] = reshandle{
+				key:     cmd.Key,
+				opaque:  cmd.Opaque,
+				quiet:   cmd.Quiet,
+				reschan: req.reschan,
+			}
+
+		case common.RequestGet:
+			cmd := req.req.(common.GetRequest)
+
+			for idx := range cmd.Keys {
+				binprot.WriteGetCmd(buf, cmd.Keys[idx], opaque)
+				responses[opaque] = reshandle{
+					key:     cmd.Keys[idx],
+					opaque:  cmd.Opaques[idx],
+					quiet:   cmd.Quiet[idx],
+					reschan: req.reschan,
+				}
+				opaque++
+			}
+
+		case common.RequestGetE:
+			cmd := req.req.(common.GetRequest)
+
+			for idx := range cmd.Keys {
+				binprot.WriteGetECmd(buf, cmd.Keys[idx], opaque)
+				responses[opaque] = reshandle{
+					key:     cmd.Keys[idx],
+					opaque:  cmd.Opaques[idx],
+					quiet:   cmd.Quiet[idx],
+					reschan: req.reschan,
+				}
+				opaque++
+			}
+		}
+	}
+
+	//fmt.Printf("%#v\n", responses)
+	//println(buf.Len())
+	//fmt.Println(buf.Bytes())
+
+	return buf, responses, channels
 }
 
 func (c conn) reader() {
@@ -313,172 +492,4 @@ func (c conn) reader() {
 			close(c)
 		}
 	}
-}
-
-// Need a struct here to hold all the metadata about the request.
-// Responses don't have all the metadata, so it needs to be kept to the side
-type reshandle struct {
-	key     []byte
-	opaque  uint32
-	quiet   bool
-	reschan chan response
-}
-
-// If something goes seriously wrong (i.e. an I/O error on this connection) then send back the
-// error to all of the connections waiting on responses from this connection.
-func oops(err error, res map[uint32]reshandle) {
-	println("OOPS", err.Error())
-	for _, c := range res {
-		c.reschan <- response{err: err}
-	}
-}
-
-// The opaque value in the requests is related to the base value returned by its index in the array
-// meaning the first request sent out will have the opaque value <base>, the second <base+1>, and so on
-// The base is a random uint32 value. This is done to prevent possible confusion between requests,
-// where one request would get another's data. This would be really bad if we sent things like user
-// information to the wrong place.
-func (c conn) batchIntoBuffer(reqs []request) ([]byte, map[uint32]reshandle, []chan response) {
-	// get random base value
-	// serialize all requests into a buffer
-	// while serializing, collect channels
-	// return everything
-
-	// Get base opaque value
-	opaque := uint32(c.rand.Int31())
-	buf := new(bytes.Buffer)
-	responses := make(map[uint32]reshandle)
-	channels := make([]chan response, 0, len(reqs))
-
-	for _, req := range reqs {
-
-		// maintain the "sequence number"
-		opaque++
-
-		// build slice of channels for closing later
-		channels = append(channels, req.reschan)
-
-		// serialize the requests into the buffer. There's no error handling because writes to a bytes.Buffer
-		// never return an error.
-		switch req.reqtype {
-		case common.RequestSet:
-			cmd := req.req.(common.SetRequest)
-			binprot.WriteSetCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			buf.Write(cmd.Data)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestAdd:
-			cmd := req.req.(common.SetRequest)
-			binprot.WriteAddCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			buf.Write(cmd.Data)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestReplace:
-			cmd := req.req.(common.SetRequest)
-			binprot.WriteReplaceCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			buf.Write(cmd.Data)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestAppend:
-			cmd := req.req.(common.SetRequest)
-			binprot.WriteAppendCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			buf.Write(cmd.Data)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestPrepend:
-			cmd := req.req.(common.SetRequest)
-			binprot.WritePrependCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
-			buf.Write(cmd.Data)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestDelete:
-			cmd := req.req.(common.DeleteRequest)
-			binprot.WriteDeleteCmd(buf, cmd.Key, opaque)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestTouch:
-			cmd := req.req.(common.TouchRequest)
-			binprot.WriteTouchCmd(buf, cmd.Key, cmd.Exptime, opaque)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestGat:
-			cmd := req.req.(common.GATRequest)
-			binprot.WriteGATCmd(buf, cmd.Key, cmd.Exptime, opaque)
-			responses[opaque] = reshandle{
-				key:     cmd.Key,
-				opaque:  cmd.Opaque,
-				quiet:   cmd.Quiet,
-				reschan: req.reschan,
-			}
-
-		case common.RequestGet:
-			cmd := req.req.(common.GetRequest)
-
-			for idx := range cmd.Keys {
-				binprot.WriteGetCmd(buf, cmd.Keys[idx], opaque)
-				responses[opaque] = reshandle{
-					key:     cmd.Keys[idx],
-					opaque:  cmd.Opaques[idx],
-					quiet:   cmd.Quiet[idx],
-					reschan: req.reschan,
-				}
-				opaque++
-			}
-
-		case common.RequestGetE:
-			cmd := req.req.(common.GetRequest)
-
-			for idx := range cmd.Keys {
-				binprot.WriteGetECmd(buf, cmd.Keys[idx], opaque)
-				responses[opaque] = reshandle{
-					key:     cmd.Keys[idx],
-					opaque:  cmd.Opaques[idx],
-					quiet:   cmd.Quiet[idx],
-					reschan: req.reschan,
-				}
-				opaque++
-			}
-		}
-	}
-
-	//fmt.Printf("%#v\n", responses)
-	//println(buf.Len())
-	//fmt.Println(buf.Bytes())
-
-	return buf.Bytes(), responses, channels
 }
