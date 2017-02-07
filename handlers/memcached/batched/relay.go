@@ -71,7 +71,7 @@ func getRelay(sock string) *relay {
 		sock:        sock,
 		conns:       atomic.Value{},
 		addConnLock: new(sync.Mutex),
-		expand:      make(chan struct{}, 1),
+		//expand:      make(chan struct{}, 1),
 	}
 
 	// initialize the atomic value
@@ -142,8 +142,11 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 	for {
 		var shouldAdd bool
 
+		// re-evaluate at regular interval regardless
 		<-time.After(evaluationIntervalSec * time.Second)
-		/*// Re-evaluate either after 30 seconds or when a connection notifies that
+
+		/* off for now
+		// Re-evaluate either after 30 seconds or when a connection notifies that
 		// it is overloaded.
 		select {
 		case <-time.After(evaluationIntervalSec * time.Second):
