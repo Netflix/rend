@@ -48,7 +48,7 @@ type batch struct {
 }
 
 func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int, expand chan struct{}) conn {
-	println("NEWCONN")
+	//println("NEWCONN")
 
 	r := bufio.NewReaderSize(c, readerSize)
 	w := bufio.NewWriterSize(c, writerSize)
@@ -76,7 +76,7 @@ func (c conn) batcher() {
 	var reqs []request
 	var batchTimeout <-chan time.Time
 	var timedout bool
-	var lastBatchSize uint32
+	//var lastBatchSize uint32
 
 	for {
 		if batchTimeout == nil {
@@ -97,12 +97,15 @@ func (c conn) batcher() {
 		// Or, if there's enough to batch together, send them off
 		if (timedout && len(reqs) > 0) || len(reqs) >= int(c.batchSize) {
 			// store the batch size if it's greater than the maxBatchSize
-			for {
-				max := atomic.LoadUint32(c.maxBatchSize)
-				if uint32(len(reqs)) < max || atomic.CompareAndSwapUint32(c.maxBatchSize, max, uint32(len(reqs))) {
-					break
+			// Commented out for now because it's not used in the monitor
+			/*
+				for {
+					max := atomic.LoadUint32(c.maxBatchSize)
+					if uint32(len(reqs)) < max || atomic.CompareAndSwapUint32(c.maxBatchSize, max, uint32(len(reqs))) {
+						break
+					}
 				}
-			}
+			*/
 
 			// Update the average batch size. The uint64 is two packed uint32's
 			// The upper 32 bits is the count of the number of batches since the last reset by the monitor
@@ -115,18 +118,20 @@ func (c conn) batcher() {
 			// Set batch timeout channel nil to reset it. Next batch will get a new timeout.
 			batchTimeout = nil
 
+			/* turn off for now, replaced by one second interval on monitor
 			// If we hit the max size twice in a row, notify the monitor to add a new connection
 			if len(reqs) >= int(c.batchSize) && lastBatchSize >= c.batchSize {
-				println("NOTIFYING WE NEED TO EXPAND")
+				//println("NOTIFYING WE NEED TO EXPAND")
 				select {
 				case c.expand <- struct{}{}:
-					println("SUCCESS")
+					//println("SUCCESS")
 				default:
-					println("FAIL")
+					//println("FAIL")
 				}
 			}
 
 			lastBatchSize = uint32(len(reqs))
+			*/
 
 			// do
 			c.do(reqs)
@@ -348,7 +353,7 @@ func (c conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshand
 }
 
 func (c conn) reader() {
-	println("NEW READER")
+	//println("NEW READER")
 	for {
 
 		// read the next batch to process

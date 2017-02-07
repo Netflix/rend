@@ -25,9 +25,10 @@ import (
 const (
 	connBatchSize             = 10
 	connBatchDelay            = 250
-	connReadBufSize           = 8192
+	connReadBufSize           = 32768
 	connWriteBufSize          = 32768
-	loadFactorHeuristicRatio  = 0.75
+	evaluationIntervalSec     = 1
+	loadFactorHeuristicRatio  = 0.3
 	overloadedConnectionRatio = 0.2
 )
 
@@ -141,44 +142,46 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 	for {
 		var shouldAdd bool
 
-		// Re-evaluate either after 30 seconds or when a connection notifies that
+		<-time.After(evaluationIntervalSec * time.Second)
+		/*// Re-evaluate either after 30 seconds or when a connection notifies that
 		// it is overloaded.
 		select {
-		case <-time.After(30 * time.Second):
+		case <-time.After(evaluationIntervalSec * time.Second):
 			println("MONITOR TIMED OUT")
 		case <-r.expand:
 			println("NOTIFIED TO EXPAND")
 			//shouldAdd = true
 		}
+		*/
 
-		println("MONITOR RUNNING")
+		//println("MONITOR RUNNING")
 
 		cs := r.conns.Load().([]conn)
-		maxes := make([]uint32, len(cs))
+		/*
+			maxes := make([]uint32, len(cs))
 
-		// Extract the maximum batch sizes seen since the last check
-		for i, c := range cs {
-			maxes[i] = atomic.SwapUint32(c.maxBatchSize, 0)
-			println("MAX BATCH SIZE", i, maxes[i])
-		}
+			// Extract the maximum batch sizes seen since the last check
+			for i, c := range cs {
+				maxes[i] = atomic.SwapUint32(c.maxBatchSize, 0)
+				//println("MAX BATCH SIZE", i, maxes[i])
+			}
+		*/
 
-		averages := make([]float64, 0, len(cs))
+		averages := make([]float64, len(cs))
 
 		// Extract the packed average data and calculate all the averages
 		for i, c := range cs {
 			avgData := atomic.SwapUint64(c.avgBatchData, 0)
 			numBatches := avgData >> 32
 			numCmds := avgData & 0xFFFFFFFF
+			var avg float64
 
-			// Don't produce averages for connections that haven't sent a batch
-			// since the last time we checked
-			if numBatches == 0 {
-				continue
+			if numBatches != 0 {
+				avg = float64(numCmds) / float64(numBatches)
 			}
 
-			avg := float64(numCmds) / float64(numBatches)
-			averages = append(averages, avg)
-			println("AVERAGE BATCH SIZE", i, avg)
+			averages[i] = avg
+			//println("AVERAGE BATCH SIZE", i, avg)
 		}
 
 		// Heuristic: calculate the percentage of the total batch capacity used on average
@@ -193,7 +196,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		// if we are over our load factor ratio
 		if loadFactor > loadFactorHeuristicRatio {
 			// TODO: increment metric
-			println("LOAD FACTOR")
+			//println("LOAD FACTOR")
 			shouldAdd = true
 		}
 
@@ -209,13 +212,13 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 
 		if float64(numOverloaded)/float64(len(cs)) > overloadedConnectionRatio {
 			// TODO: increment metric
-			println("OVERLOADED RATIO")
+			//println("OVERLOADED RATIO")
 			shouldAdd = true
 		}
 
 		// add a connection if needed
 		if shouldAdd {
-			println("EXPANDING")
+			//println("EXPANDING")
 			r.addConn()
 		}
 	}
