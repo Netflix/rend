@@ -20,13 +20,24 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/netflix/rend/metrics"
+)
+
+var (
+	MetricBatchMonitorRuns        = metrics.AddCounter("batch_monitor_runs", nil)
+	MetricBatchConnectionsCreated = metrics.AddCounter("batch_connections_created", nil)
+	MetricBatchConnectionFailure  = metrics.AddCounter("batch_connection_failure", nil)
+
+	MetricBatchPoolSize       = metrics.AddIntGauge("batch_pool_size", nil)
+	MetricBatchLastLoadFactor = metrics.AddFloatGauge("batch_last_load_factor", nil)
 )
 
 const (
 	connBatchSize             = 10
 	connBatchDelay            = 250
-	connReadBufSize           = 32768
-	connWriteBufSize          = 32768
+	connReadBufSize           = 1 << 16 // 64k
+	connWriteBufSize          = 1 << 16 // 64k
 	evaluationIntervalSec     = 1
 	loadFactorHeuristicRatio  = 0.3
 	overloadedConnectionRatio = 0.2
@@ -90,17 +101,18 @@ func getRelay(sock string) *relay {
 // Adds a connection to the pool. This is one way only, making this effectively
 // a high-water-mark pool with no connections being torn down.
 func (r *relay) addConn() {
-
-	// TODO: increment metric
-
 	// Ensure there's no races when adding a connection
 	r.addConnLock.Lock()
 	defer r.addConnLock.Unlock()
 
 	c, err := net.Dial("unix", r.sock)
 	if err != nil {
-		// uh oh...
+		// For now, just increment the metric and return.
+		metrics.IncCounter(MetricBatchConnectionFailure)
+		return
 	}
+
+	metrics.IncCounter(MetricBatchConnectionsCreated)
 
 	poolconn := newConn(c, connBatchDelay, connBatchSize, connReadBufSize, connWriteBufSize, r.expand)
 
@@ -144,6 +156,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 
 		// re-evaluate at regular interval regardless
 		<-time.After(evaluationIntervalSec * time.Second)
+		metrics.IncCounter(MetricBatchMonitorRuns)
 
 		/* off for now
 		// Re-evaluate either after 30 seconds or when a connection notifies that
@@ -196,6 +209,8 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		total := float64(len(cs)) * connBatchSize
 		loadFactor := float64(used) / total
 
+		metrics.SetFloatGauge(MetricBatchLastLoadFactor, loadFactor)
+
 		// if we are over our load factor ratio
 		if loadFactor > loadFactorHeuristicRatio {
 			// TODO: increment metric
@@ -223,6 +238,8 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		if shouldAdd {
 			//println("EXPANDING")
 			r.addConn()
+
+			metrics.SetIntGauge(MetricBatchPoolSize, uint64(len(r.conns.Load().([]conn))))
 		}
 	}
 }

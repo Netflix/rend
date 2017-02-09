@@ -30,6 +30,12 @@ import (
 	"github.com/netflix/rend/metrics"
 )
 
+var (
+	MetricBatchNumBatches      = metrics.AddCounter("batch_num_batches", nil)
+	MetricBatchFullBatches     = metrics.AddCounter("batch_full_batches", nil)
+	MetricBatchTimedoutBatches = metrics.AddCounter("batch_timedout_batches", nil)
+)
+
 type conn struct {
 	rw           *bufio.ReadWriter
 	rand         *rand.Rand
@@ -96,6 +102,14 @@ func (c conn) batcher() {
 		// After the batch delay we want to get the requests that do exist moving along
 		// Or, if there's enough to batch together, send them off
 		if (timedout && len(reqs) > 0) || len(reqs) >= int(c.batchSize) {
+
+			if timedout {
+				metrics.IncCounter(MetricBatchTimedoutBatches)
+			}
+			if len(reqs) >= int(c.batchSize) {
+				metrics.IncCounter(MetricBatchFullBatches)
+			}
+
 			// store the batch size if it's greater than the maxBatchSize
 			// Commented out for now because it's not used in the monitor
 			/*
@@ -154,6 +168,7 @@ func (c conn) do(reqs []request) {
 	//println("DO")
 
 	// batch and perform requests
+	metrics.IncCounter(MetricBatchNumBatches)
 	buf, responses, channels := c.batchIntoBuffer(reqs)
 
 	//fmt.Printf("%#v\n%#v\n", buf, responses)
@@ -166,7 +181,8 @@ func (c conn) do(reqs []request) {
 	}
 
 	// Write out the whole buffer
-	c.rw.Write(buf.Bytes())
+	n, _ := c.rw.Write(buf.Bytes())
+	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
 	if err := c.rw.Flush(); err != nil {
 		oops(err, responses)
 	}
@@ -196,8 +212,8 @@ func oops(err error, res map[uint32]reshandle) {
 
 var batcherPool = &sync.Pool{
 	New: func() interface{} {
-		// 16k by default
-		return bytes.NewBuffer(make([]byte, 0, 16384))
+		// 64k by default, may expand with use
+		return bytes.NewBuffer(make([]byte, 0, 1<<16))
 	},
 }
 
@@ -367,7 +383,6 @@ func (c conn) reader() {
 			if err != nil {
 				oops(err, batch.responses)
 			}
-			defer binprot.PutResponseHeader(resHeader)
 
 			//println("GOT HEADER")
 
@@ -401,11 +416,11 @@ func (c conn) reader() {
 					//println("MISS SENT")
 
 					delete(batch.responses, resHeader.OpaqueToken)
+					binprot.PutResponseHeader(resHeader)
 					continue
 
 				} else {
-					// FATAL ERROR!!!! no idea what to do here though...
-					panic("FATAL ERROR")
+					panic("FATAL ERROR: Batch out of sync")
 				}
 			}
 
@@ -466,7 +481,7 @@ func (c conn) reader() {
 					// we are out of sync here, something is really wrong. We got the wrong opaque
 					// value for the set of requests we thing we sent. We can't fix this, so we have
 					// to close the connection
-					panic("FATAL ERROR 2")
+					panic("FATAL ERROR: Batch out of sync")
 				}
 
 			} else {
@@ -484,12 +499,11 @@ func (c conn) reader() {
 					delete(batch.responses, resHeader.OpaqueToken)
 
 				} else {
-					// we are out of sync here, something is really wrong. We got the wrong opaque
-					// value for the set of requests we thing we sent. We can't fix this, so we have
-					// to close the connection
-					panic("FATAL ERROR 3")
+					panic("FATAL ERROR: Batch out of sync")
 				}
 			}
+
+			binprot.PutResponseHeader(resHeader)
 		}
 
 		//println("CLOSING CHANNELS")
