@@ -39,7 +39,7 @@ const (
 	connReadBufSize           = 1 << 16 // 64k
 	connWriteBufSize          = 1 << 16 // 64k
 	evaluationIntervalSec     = 1
-	loadFactorHeuristicRatio  = 0.3
+	loadFactorHeuristicRatio  = 0.75
 	overloadedConnectionRatio = 0.2
 )
 
