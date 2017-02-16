@@ -40,13 +40,14 @@ func AddIntGauge(name string, tgs Tags) uint32 {
 	id := atomic.AddUint32(curIntGaugeID, 1) - 1
 
 	if id >= maxNumGauges {
-		panic("Too many gauges")
+		panic("Too many int gauges")
 	}
 
 	intgnames[id] = name
 
 	tgs = copyTags(tgs)
 	tgs[TagMetricType] = MetricTypeGauge
+	tgs[TagDataType] = DataTypeUint64
 	intgtags[id] = tgs
 
 	return id
@@ -59,13 +60,14 @@ func AddFloatGauge(name string, tgs Tags) uint32 {
 	id := atomic.AddUint32(curFloatGaugeID, 1) - 1
 
 	if id >= maxNumGauges {
-		panic("Too many gauges")
+		panic("Too many float gauges")
 	}
 
 	floatgnames[id] = name
 
 	tgs = copyTags(tgs)
 	tgs[TagMetricType] = MetricTypeGauge
+	tgs[TagDataType] = DataTypeFloat64
 	floatgtags[id] = tgs
 
 	return id
