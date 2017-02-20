@@ -131,7 +131,7 @@ func (c conn) batcher() {
 
 			// do
 			c.do(reqs)
-			reqs = nil
+			reqs = reqs[:0]
 		}
 
 		// block until a request comes in if there's a timeout earlier so this doesn't constantly spin
