@@ -54,8 +54,6 @@ type batch struct {
 }
 
 func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int, expand chan struct{}) conn {
-	//println("NEWCONN")
-
 	r := bufio.NewReaderSize(c, readerSize)
 	w := bufio.NewWriterSize(c, writerSize)
 
@@ -82,7 +80,6 @@ func (c conn) batcher() {
 	var reqs []request
 	var batchTimeout <-chan time.Time
 	var timedout bool
-	//var lastBatchSize uint32
 
 	for {
 		if batchTimeout == nil {
@@ -132,21 +129,6 @@ func (c conn) batcher() {
 			// Set batch timeout channel nil to reset it. Next batch will get a new timeout.
 			batchTimeout = nil
 
-			/* turn off for now, replaced by one second interval on monitor
-			// If we hit the max size twice in a row, notify the monitor to add a new connection
-			if len(reqs) >= int(c.batchSize) && lastBatchSize >= c.batchSize {
-				//println("NOTIFYING WE NEED TO EXPAND")
-				select {
-				case c.expand <- struct{}{}:
-					//println("SUCCESS")
-				default:
-					//println("FAIL")
-				}
-			}
-
-			lastBatchSize = uint32(len(reqs))
-			*/
-
 			// do
 			c.do(reqs)
 			reqs = nil
@@ -165,13 +147,9 @@ func (c conn) batcher() {
 }
 
 func (c conn) do(reqs []request) {
-	//println("DO")
-
 	// batch and perform requests
 	metrics.IncCounter(MetricBatchNumBatches)
 	buf, responses, channels := c.batchIntoBuffer(reqs)
-
-	//fmt.Printf("%#v\n%#v\n", buf, responses)
 
 	// send the batch before the write because the write may block for a long time until
 	// some responses can be read from memcached.
@@ -188,8 +166,6 @@ func (c conn) do(reqs []request) {
 	}
 
 	batcherPool.Put(buf)
-
-	//println("flushed")
 }
 
 // Need a struct here to hold all the metadata about the request.
@@ -361,15 +337,10 @@ func (c conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshand
 		}
 	}
 
-	//fmt.Printf("%#v\n", responses)
-	//println(buf.Len())
-	//fmt.Println(buf.Bytes())
-
 	return buf, responses, channels
 }
 
 func (c conn) reader() {
-	//println("NEW READER")
 	for {
 
 		// read the next batch to process
@@ -377,18 +348,13 @@ func (c conn) reader() {
 
 		// read in all of the responses
 		for len(batch.responses) > 0 {
-			//println(len(responses))
-			//println("READING HEADER")
 			resHeader, err := binprot.ReadResponseHeader(c.rw)
 			if err != nil {
 				oops(err, batch.responses)
 			}
 
-			//println("GOT HEADER")
-
 			err = binprot.DecodeError(resHeader)
 			if err != nil {
-				//println("ERROR NOT NIL")
 				n, ioerr := c.rw.Discard(int(resHeader.TotalBodyLength))
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 
@@ -402,7 +368,6 @@ func (c conn) reader() {
 
 				// TODO: these are not necessarily all misses, check the error
 				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {
-					//println("SENDING MISS")
 					// this is an application-level error and should be treated as such
 					rh.reschan <- response{
 						err: nil,
@@ -413,7 +378,6 @@ func (c conn) reader() {
 							Key:    rh.key,
 						},
 					}
-					//println("MISS SENT")
 
 					delete(batch.responses, resHeader.OpaqueToken)
 					binprot.PutResponseHeader(resHeader)
@@ -506,7 +470,7 @@ func (c conn) reader() {
 			binprot.PutResponseHeader(resHeader)
 		}
 
-		//println("CLOSING CHANNELS")
+		// close all of the channels to clean up and guarantee the get loops break
 		for _, c := range batch.channels {
 			close(c)
 		}

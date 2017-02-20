@@ -25,9 +25,12 @@ import (
 )
 
 var (
-	MetricBatchMonitorRuns        = metrics.AddCounter("batch_monitor_runs", nil)
-	MetricBatchConnectionsCreated = metrics.AddCounter("batch_connections_created", nil)
-	MetricBatchConnectionFailure  = metrics.AddCounter("batch_connection_failure", nil)
+	MetricBatchRelaysCreated         = metrics.AddCounter("batch_relay_created", nil)
+	MetricBatchMonitorRuns           = metrics.AddCounter("batch_monitor_runs", nil)
+	MetricBatchConnectionsCreated    = metrics.AddCounter("batch_connections_created", nil)
+	MetricBatchConnectionFailure     = metrics.AddCounter("batch_connection_failure", nil)
+	MetricBatchExpandLoadFactor      = metrics.AddCounter("batch_expand_load_factor", nil)
+	MetricBatchExpandOverloadedRatio = metrics.AddCounter("batch_expand_overloaded_ratio", nil)
 
 	MetricBatchPoolSize       = metrics.AddIntGauge("batch_pool_size", nil)
 	MetricBatchLastLoadFactor = metrics.AddFloatGauge("batch_last_load_factor", nil)
@@ -75,6 +78,8 @@ func getRelay(sock string) *relay {
 		relayLock.Unlock()
 		return r
 	}
+
+	metrics.IncCounter(MetricBatchRelaysCreated)
 
 	// Create a new relay and wait for the first connection to be established
 	// so it's usable.
@@ -197,7 +202,6 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 			}
 
 			averages[i] = avg
-			//println("AVERAGE BATCH SIZE", i, avg)
 		}
 
 		// Heuristic: calculate the percentage of the total batch capacity used on average
@@ -213,8 +217,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 
 		// if we are over our load factor ratio
 		if loadFactor > loadFactorHeuristicRatio {
-			// TODO: increment metric
-			//println("LOAD FACTOR")
+			metrics.IncCounter(MetricBatchExpandLoadFactor)
 			shouldAdd = true
 		}
 
@@ -223,22 +226,18 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		var numOverloaded int
 		for _, m := range averages {
 			if m >= connBatchSize-1 {
-				// TODO: increment metric
 				numOverloaded++
 			}
 		}
 
 		if float64(numOverloaded)/float64(len(cs)) > overloadedConnectionRatio {
-			// TODO: increment metric
-			//println("OVERLOADED RATIO")
+			metrics.IncCounter(MetricBatchExpandOverloadedRatio)
 			shouldAdd = true
 		}
 
 		// add a connection if needed
 		if shouldAdd {
-			//println("EXPANDING")
 			r.addConn()
-
 			metrics.SetIntGauge(MetricBatchPoolSize, uint64(len(r.conns.Load().([]conn))))
 		}
 	}
