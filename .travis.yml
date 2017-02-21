@@ -4,3 +4,5 @@ language: go
 
 dist: trusty
 sudo: false
+
+go_import_path: github.com/netflix/rend
