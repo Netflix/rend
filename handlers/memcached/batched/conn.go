@@ -53,9 +53,9 @@ type batch struct {
 	channels  []chan response
 }
 
-func newConn(c net.Conn, batchDelay time.Duration, batchSize uint32, readerSize, writerSize int, expand chan struct{}) conn {
-	r := bufio.NewReaderSize(c, readerSize)
-	w := bufio.NewWriterSize(c, writerSize)
+func newConn(c net.Conn, batchDelay time.Duration, batchSize, readerSize, writerSize uint32, expand chan struct{}) conn {
+	r := bufio.NewReaderSize(c, int(readerSize))
+	w := bufio.NewWriterSize(c, int(writerSize))
 
 	nc := conn{
 		rw:           bufio.NewReadWriter(r, w),
@@ -83,7 +83,7 @@ func (c conn) batcher() {
 
 	for {
 		if batchTimeout == nil {
-			batchTimeout = time.After(c.batchDelay * time.Microsecond)
+			batchTimeout = time.After(c.batchDelay)
 		}
 
 		select {

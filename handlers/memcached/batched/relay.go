@@ -36,16 +36,6 @@ var (
 	MetricBatchLastLoadFactor = metrics.AddFloatGauge("batch_last_load_factor", nil)
 )
 
-const (
-	connBatchSize             = 10
-	connBatchDelay            = 250
-	connReadBufSize           = 1 << 16 // 64k
-	connWriteBufSize          = 1 << 16 // 64k
-	evaluationIntervalSec     = 1
-	loadFactorHeuristicRatio  = 0.75
-	overloadedConnectionRatio = 0.2
-)
-
 var (
 	relays    = make(map[string]*relay)
 	relayLock = new(sync.RWMutex)
@@ -56,11 +46,12 @@ type relay struct {
 	conns       atomic.Value
 	addConnLock *sync.Mutex
 	expand      chan struct{}
+	opts        internalOpts
 }
 
 // Creates a new relay with one connection or returns an existing relay for the
 // given socket.
-func getRelay(sock string) *relay {
+func getRelay(sock string, opts internalOpts) *relay {
 	relayLock.RLock()
 	if r, ok := relays[sock]; ok {
 		relayLock.RUnlock()
@@ -88,6 +79,7 @@ func getRelay(sock string) *relay {
 		conns:       atomic.Value{},
 		addConnLock: new(sync.Mutex),
 		//expand:      make(chan struct{}, 1),
+		opts: opts,
 	}
 
 	// initialize the atomic value
@@ -119,7 +111,8 @@ func (r *relay) addConn() {
 
 	metrics.IncCounter(MetricBatchConnectionsCreated)
 
-	poolconn := newConn(c, connBatchDelay, connBatchSize, connReadBufSize, connWriteBufSize, r.expand)
+	batchDelay := time.Duration(r.opts.batchDelayMicros) * time.Microsecond
+	poolconn := newConn(c, batchDelay, r.opts.batchSize, r.opts.readBufSize, r.opts.writeBufSize, r.expand)
 
 	// Add the new connection (but with a new slice header)
 	temp := r.conns.Load().([]conn)
@@ -160,7 +153,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		var shouldAdd bool
 
 		// re-evaluate at regular interval regardless
-		<-time.After(evaluationIntervalSec * time.Second)
+		<-time.After(time.Duration(r.opts.evaluationIntervalSec) * time.Second)
 		metrics.IncCounter(MetricBatchMonitorRuns)
 
 		/* off for now
@@ -210,13 +203,13 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 			used += u
 		}
 
-		total := float64(len(cs)) * connBatchSize
+		total := float64(len(cs)) * float64(r.opts.batchSize)
 		loadFactor := float64(used) / total
 
 		metrics.SetFloatGauge(MetricBatchLastLoadFactor, loadFactor)
 
 		// if we are over our load factor ratio
-		if loadFactor > loadFactorHeuristicRatio {
+		if loadFactor > r.opts.loadFactorExpandRatio {
 			metrics.IncCounter(MetricBatchExpandLoadFactor)
 			shouldAdd = true
 		}
@@ -225,12 +218,12 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		// very close to their limit or hit it
 		var numOverloaded int
 		for _, m := range averages {
-			if m >= connBatchSize-1 {
+			if m >= float64(r.opts.batchSize-1) {
 				numOverloaded++
 			}
 		}
 
-		if float64(numOverloaded)/float64(len(cs)) > overloadedConnectionRatio {
+		if float64(numOverloaded)/float64(len(cs)) > r.opts.overloadedConnRatio {
 			metrics.IncCounter(MetricBatchExpandOverloadedRatio)
 			shouldAdd = true
 		}

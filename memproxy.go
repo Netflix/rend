@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/handlers/inmem"
 	"github.com/netflix/rend/handlers/memcached"
+	"github.com/netflix/rend/handlers/memcached/batched"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
 	"github.com/netflix/rend/server"
@@ -55,10 +57,12 @@ func init() {
 
 // Flags
 var (
-	chunked   bool
-	l1sock    string
-	l1inmem   bool
+	chunked bool
+	l1sock  string
+	l1inmem bool
+
 	l1batched bool
+	batchOpts *batched.Opts
 
 	l2enabled bool
 	l2sock    string
@@ -77,7 +81,24 @@ func init() {
 	flag.BoolVar(&chunked, "chunked", false, "If --chunked is specified, the chunked handler is used for L1")
 	flag.BoolVar(&l1inmem, "l1-inmem", false, "Use the debug in-memory in-process L1 cache")
 	flag.StringVar(&l1sock, "l1-sock", "invalid.sock", "Specifies the unix socket to connect to L1")
+
+	var tempBatchSize,
+		tempBatchDelay,
+		tempBatchReadBufSize,
+		tempBatchWriteBufSize,
+		tempBatchEvalIntervalSec int
+
+	var tempBatchLoadFactorRatio,
+		tempBatchOverloadedRatio float64
+
 	flag.BoolVar(&l1batched, "l1-batched", false, "Uses the batching handler for L1")
+	flag.IntVar(&tempBatchSize, "batch-size", 0, "The size of each batch sent to the remote server in the batched handler. Positive values only. 0 assumes default.")
+	flag.IntVar(&tempBatchDelay, "batch-delay", 0, "The max time a batch will wait to fill up (microseconds). Positive values only. 0 assumes default.")
+	flag.IntVar(&tempBatchReadBufSize, "batch-read-buf-size", 0, "The read buffer size per pooled connection (bytes). Positive values only. 0 assumes default.")
+	flag.IntVar(&tempBatchWriteBufSize, "batch-write-buf-size", 0, "The write buffer size per pooled connection (bytes). Positive values only. 0 assumes default.")
+	flag.IntVar(&tempBatchEvalIntervalSec, "batch-eval-interval", 0, "The interval between evalations of the pool size (seconds). Positive values only. 0 assumes default.")
+	flag.Float64Var(&tempBatchLoadFactorRatio, "batch-expand-load-factor-ratio", 0, "The ratio of average batch size above which the pool will expand (float). Positive values only between 0 and 1. 0 assumes default.")
+	flag.Float64Var(&tempBatchOverloadedRatio, "batch-expand-overloaded-ratio", 0, "The ratio of connections whose average size is greater than the max batch size - 1 above which the pool will expand (float). Positive values only between 0 and 1. 0 assumes default.")
 
 	flag.BoolVar(&l2enabled, "l2-enabled", false, "Specifies if l2 is enabled")
 	flag.StringVar(&l2sock, "l2-sock", "invalid.sock", "Specifies the unix socket to connect to L2. Only used if --l2-enabled is true.")
@@ -93,8 +114,92 @@ func init() {
 
 	flag.Parse()
 
+	// Validation
+	if tempBatchSize != 0 {
+		if tempBatchSize < 0 {
+			fmt.Println("ERROR: argument --batch-size must be >= 0")
+			os.Exit(-1)
+		}
+		if batchOpts == nil {
+			batchOpts = new(batched.Opts)
+		}
+		temp := uint32(tempBatchSize)
+		batchOpts.BatchSize = &temp
+	}
+
+	if tempBatchDelay != 0 {
+		if tempBatchDelay < 0 {
+			fmt.Println("ERROR: argument --batch-delay must be >= 0")
+			os.Exit(-1)
+		}
+		if batchOpts == nil {
+			batchOpts = new(batched.Opts)
+		}
+		temp := uint32(tempBatchDelay)
+		batchOpts.BatchDelayMicros = &temp
+	}
+
+	if tempBatchReadBufSize != 0 {
+		if tempBatchReadBufSize < 0 {
+			fmt.Println("ERROR: argument --batch-read-buf-size must be >= 0")
+			os.Exit(-1)
+		}
+		if batchOpts == nil {
+			batchOpts = new(batched.Opts)
+		}
+		temp := uint32(tempBatchReadBufSize)
+		batchOpts.ReadBufSize = &temp
+	}
+
+	if tempBatchWriteBufSize != 0 {
+		if tempBatchWriteBufSize < 0 {
+			fmt.Println("ERROR: argument --batch-write-buf-size must be >= 0")
+			os.Exit(-1)
+		}
+		if batchOpts == nil {
+			batchOpts = new(batched.Opts)
+		}
+		temp := uint32(tempBatchWriteBufSize)
+		batchOpts.WriteBufSize = &temp
+	}
+
+	if tempBatchEvalIntervalSec != 0 {
+		if tempBatchEvalIntervalSec < 0 {
+			fmt.Println("ERROR: argument --batch-eval-interval must be >= 0")
+			os.Exit(-1)
+		}
+		if batchOpts == nil {
+			batchOpts = new(batched.Opts)
+		}
+		temp := uint32(tempBatchEvalIntervalSec)
+		batchOpts.EvaluationIntervalSec = &temp
+	}
+
+	if tempBatchLoadFactorRatio != 0 {
+		if tempBatchLoadFactorRatio < 0 {
+			fmt.Println("ERROR: argument --batch-expand-load-factor-ratio must be >= 0")
+			os.Exit(-1)
+		}
+		if batchOpts == nil {
+			batchOpts = new(batched.Opts)
+		}
+		batchOpts.LoadFactorExpandRatio = &tempBatchLoadFactorRatio
+	}
+
+	if tempBatchOverloadedRatio != 0 {
+		if tempBatchOverloadedRatio < 0 {
+			fmt.Println("ERROR: argument --batch-expand-overloaded-ratio must be >= 0")
+			os.Exit(-1)
+		}
+		if batchOpts == nil {
+			batchOpts = new(batched.Opts)
+		}
+		batchOpts.OverloadedConnRatio = &tempBatchOverloadedRatio
+	}
+
 	if concurrency >= 64 {
-		panic("Concurrency cannot be more than 2^64")
+		fmt.Println("ERROR: Concurrency cannot be more than 2^64")
+		os.Exit(-1)
 	}
 }
 
@@ -124,7 +229,7 @@ func main() {
 	} else if chunked {
 		h1 = memcached.Chunked(l1sock)
 	} else if l1batched {
-		h1 = memcached.Batched(l1sock)
+		h1 = memcached.Batched(l1sock, batchOpts)
 	} else {
 		h1 = memcached.Regular(l1sock)
 	}

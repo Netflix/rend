@@ -60,8 +60,8 @@ func Chunked(sock string) handlers.HandlerConst {
 
 // Batched returns an implementation of the Handler interface that multiplexes
 // requests on to a connection pool in order to reduce the overhead per request.
-func Batched(sock string) handlers.HandlerConst {
+func Batched(sock string, opts *batched.Opts) handlers.HandlerConst {
 	return func() (handlers.Handler, error) {
-		return batched.NewHandler(sock), nil
+		return batched.NewHandler(sock, opts), nil
 	}
 }

@@ -30,12 +30,84 @@ type Handler struct {
 	rand  *rand.Rand
 }
 
+// Opts is the set of tuning options for the batched handler.
+type Opts struct {
+	BatchSize             *uint32
+	BatchDelayMicros      *uint32
+	ReadBufSize           *uint32
+	WriteBufSize          *uint32
+	EvaluationIntervalSec *uint32
+	LoadFactorExpandRatio *float64
+	OverloadedConnRatio   *float64
+}
+
+type internalOpts struct {
+	batchSize             uint32
+	batchDelayMicros      uint32
+	readBufSize           uint32
+	writeBufSize          uint32
+	evaluationIntervalSec uint32
+	loadFactorExpandRatio float64
+	overloadedConnRatio   float64
+}
+
+var defaultOpts = internalOpts{
+	batchSize:             10,
+	batchDelayMicros:      250,
+	readBufSize:           1 << 16, // 64k
+	writeBufSize:          1 << 16, // 64k
+	evaluationIntervalSec: 2,
+	loadFactorExpandRatio: 0.75,
+	overloadedConnRatio:   0.2,
+}
+
+func uint32ValueOrDefault(ptr *uint32, def uint32) uint32 {
+	if ptr != nil {
+		return *ptr
+	}
+	return def
+}
+
+func float64ValueOrDefault(ptr *float64, def float64) float64 {
+	if ptr != nil {
+		return *ptr
+	}
+	return def
+}
+
 // NewHandler creates a new handler with the given unix socket as the connected backend. The first
 // time this method is called it creates a background monitor that will add connections as needed
-// for the given domain socket.
-func NewHandler(sock string) Handler {
+// for the given domain socket. The Opts parameter can be nil to accept the default settings, or
+// individual settings can be set by not being nil. Any nil settings will get the default values.
+//
+// Default values are:
+//
+// BatchSize:             10,
+// BatchDelayMicros:      250,
+// ReadBufSize:           1 << 16, // 64k
+// WriteBufSize:          1 << 16, // 64k
+// EvaluationIntervalSec: 2,
+// LoadFactorExpandRatio: 0.75,
+// OverloadedConnRatio:   0.2,
+func NewHandler(sock string, opts *Opts) Handler {
+	var io internalOpts
+
+	if opts == nil {
+		io = defaultOpts
+	} else {
+		io = internalOpts{
+			batchSize:             uint32ValueOrDefault(opts.BatchSize, defaultOpts.batchSize),
+			batchDelayMicros:      uint32ValueOrDefault(opts.BatchDelayMicros, defaultOpts.batchDelayMicros),
+			readBufSize:           uint32ValueOrDefault(opts.ReadBufSize, defaultOpts.readBufSize),
+			writeBufSize:          uint32ValueOrDefault(opts.WriteBufSize, defaultOpts.writeBufSize),
+			evaluationIntervalSec: uint32ValueOrDefault(opts.EvaluationIntervalSec, defaultOpts.evaluationIntervalSec),
+			loadFactorExpandRatio: float64ValueOrDefault(opts.LoadFactorExpandRatio, defaultOpts.loadFactorExpandRatio),
+			overloadedConnRatio:   float64ValueOrDefault(opts.OverloadedConnRatio, defaultOpts.overloadedConnRatio),
+		}
+	}
+
 	return Handler{
-		relay: getRelay(sock),
+		relay: getRelay(sock, io),
 		rand:  rand.New(rand.NewSource(randSeed())),
 	}
 }
