@@ -62,7 +62,7 @@ var (
 	l1inmem bool
 
 	l1batched bool
-	batchOpts *batched.Opts
+	batchOpts batched.Opts
 
 	l2enabled bool
 	l2sock    string
@@ -115,91 +115,48 @@ func init() {
 	flag.Parse()
 
 	// Validation
-	if tempBatchSize != 0 {
-		if tempBatchSize < 0 {
-			fmt.Println("ERROR: argument --batch-size must be >= 0")
-			os.Exit(-1)
-		}
-		if batchOpts == nil {
-			batchOpts = new(batched.Opts)
-		}
-		temp := uint32(tempBatchSize)
-		batchOpts.BatchSize = &temp
+	if tempBatchSize < 0 {
+		fmt.Println("ERROR: argument --batch-size must be >= 0")
+		os.Exit(-1)
 	}
-
-	if tempBatchDelay != 0 {
-		if tempBatchDelay < 0 {
-			fmt.Println("ERROR: argument --batch-delay must be >= 0")
-			os.Exit(-1)
-		}
-		if batchOpts == nil {
-			batchOpts = new(batched.Opts)
-		}
-		temp := uint32(tempBatchDelay)
-		batchOpts.BatchDelayMicros = &temp
+	if tempBatchDelay < 0 {
+		fmt.Println("ERROR: argument --batch-delay must be >= 0")
+		os.Exit(-1)
 	}
-
-	if tempBatchReadBufSize != 0 {
-		if tempBatchReadBufSize < 0 {
-			fmt.Println("ERROR: argument --batch-read-buf-size must be >= 0")
-			os.Exit(-1)
-		}
-		if batchOpts == nil {
-			batchOpts = new(batched.Opts)
-		}
-		temp := uint32(tempBatchReadBufSize)
-		batchOpts.ReadBufSize = &temp
+	if tempBatchReadBufSize < 0 {
+		fmt.Println("ERROR: argument --batch-read-buf-size must be >= 0")
+		os.Exit(-1)
 	}
-
-	if tempBatchWriteBufSize != 0 {
-		if tempBatchWriteBufSize < 0 {
-			fmt.Println("ERROR: argument --batch-write-buf-size must be >= 0")
-			os.Exit(-1)
-		}
-		if batchOpts == nil {
-			batchOpts = new(batched.Opts)
-		}
-		temp := uint32(tempBatchWriteBufSize)
-		batchOpts.WriteBufSize = &temp
+	if tempBatchWriteBufSize < 0 {
+		fmt.Println("ERROR: argument --batch-write-buf-size must be >= 0")
+		os.Exit(-1)
 	}
-
-	if tempBatchEvalIntervalSec != 0 {
-		if tempBatchEvalIntervalSec < 0 {
-			fmt.Println("ERROR: argument --batch-eval-interval must be >= 0")
-			os.Exit(-1)
-		}
-		if batchOpts == nil {
-			batchOpts = new(batched.Opts)
-		}
-		temp := uint32(tempBatchEvalIntervalSec)
-		batchOpts.EvaluationIntervalSec = &temp
+	if tempBatchEvalIntervalSec < 0 {
+		fmt.Println("ERROR: argument --batch-eval-interval must be >= 0")
+		os.Exit(-1)
 	}
-
-	if tempBatchLoadFactorRatio != 0 {
-		if tempBatchLoadFactorRatio < 0 {
-			fmt.Println("ERROR: argument --batch-expand-load-factor-ratio must be >= 0")
-			os.Exit(-1)
-		}
-		if batchOpts == nil {
-			batchOpts = new(batched.Opts)
-		}
-		batchOpts.LoadFactorExpandRatio = &tempBatchLoadFactorRatio
+	if tempBatchLoadFactorRatio < 0 {
+		fmt.Println("ERROR: argument --batch-expand-load-factor-ratio must be >= 0")
+		os.Exit(-1)
 	}
-
-	if tempBatchOverloadedRatio != 0 {
-		if tempBatchOverloadedRatio < 0 {
-			fmt.Println("ERROR: argument --batch-expand-overloaded-ratio must be >= 0")
-			os.Exit(-1)
-		}
-		if batchOpts == nil {
-			batchOpts = new(batched.Opts)
-		}
-		batchOpts.OverloadedConnRatio = &tempBatchOverloadedRatio
+	if tempBatchOverloadedRatio < 0 {
+		fmt.Println("ERROR: argument --batch-expand-overloaded-ratio must be >= 0")
+		os.Exit(-1)
 	}
 
 	if concurrency >= 64 {
 		fmt.Println("ERROR: Concurrency cannot be more than 2^64")
 		os.Exit(-1)
+	}
+
+	batchOpts = batched.Opts{
+		BatchSize:             uint32(tempBatchSize),
+		BatchDelayMicros:      uint32(tempBatchDelay),
+		ReadBufSize:           uint32(tempBatchReadBufSize),
+		WriteBufSize:          uint32(tempBatchWriteBufSize),
+		EvaluationIntervalSec: uint32(tempBatchEvalIntervalSec),
+		LoadFactorExpandRatio: tempBatchLoadFactorRatio,
+		OverloadedConnRatio:   tempBatchOverloadedRatio,
 	}
 }
 

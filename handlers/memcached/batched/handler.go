@@ -32,53 +32,43 @@ type Handler struct {
 
 // Opts is the set of tuning options for the batched handler.
 type Opts struct {
-	BatchSize             *uint32
-	BatchDelayMicros      *uint32
-	ReadBufSize           *uint32
-	WriteBufSize          *uint32
-	EvaluationIntervalSec *uint32
-	LoadFactorExpandRatio *float64
-	OverloadedConnRatio   *float64
+	BatchSize             uint32
+	BatchDelayMicros      uint32
+	ReadBufSize           uint32
+	WriteBufSize          uint32
+	EvaluationIntervalSec uint32
+	LoadFactorExpandRatio float64
+	OverloadedConnRatio   float64
 }
 
-type internalOpts struct {
-	batchSize             uint32
-	batchDelayMicros      uint32
-	readBufSize           uint32
-	writeBufSize          uint32
-	evaluationIntervalSec uint32
-	loadFactorExpandRatio float64
-	overloadedConnRatio   float64
+var defaultOpts = Opts{
+	BatchSize:             10,
+	BatchDelayMicros:      250,
+	ReadBufSize:           1 << 16, // 64k
+	WriteBufSize:          1 << 16, // 64k
+	EvaluationIntervalSec: 2,
+	LoadFactorExpandRatio: 0.75,
+	OverloadedConnRatio:   0.2,
 }
 
-var defaultOpts = internalOpts{
-	batchSize:             10,
-	batchDelayMicros:      250,
-	readBufSize:           1 << 16, // 64k
-	writeBufSize:          1 << 16, // 64k
-	evaluationIntervalSec: 2,
-	loadFactorExpandRatio: 0.75,
-	overloadedConnRatio:   0.2,
-}
-
-func uint32ValueOrDefault(ptr *uint32, def uint32) uint32 {
-	if ptr != nil {
-		return *ptr
+func uint32ValueOrDefault(val uint32, def uint32) uint32 {
+	if val <= 0 {
+		return val
 	}
 	return def
 }
 
-func float64ValueOrDefault(ptr *float64, def float64) float64 {
-	if ptr != nil {
-		return *ptr
+func float64ValueOrDefault(val float64, def float64) float64 {
+	if val <= 0 {
+		return val
 	}
 	return def
 }
 
 // NewHandler creates a new handler with the given unix socket as the connected backend. The first
 // time this method is called it creates a background monitor that will add connections as needed
-// for the given domain socket. The Opts parameter can be nil to accept the default settings, or
-// individual settings can be set by not being nil. Any nil settings will get the default values.
+// for the given domain socket. The Opts parameter can exclude any settings in order to take the
+// defaults. Any setting that is at the 0 value or negative will take the default.
 //
 // Default values are:
 //
@@ -89,21 +79,15 @@ func float64ValueOrDefault(ptr *float64, def float64) float64 {
 // EvaluationIntervalSec: 2,
 // LoadFactorExpandRatio: 0.75,
 // OverloadedConnRatio:   0.2,
-func NewHandler(sock string, opts *Opts) Handler {
-	var io internalOpts
-
-	if opts == nil {
-		io = defaultOpts
-	} else {
-		io = internalOpts{
-			batchSize:             uint32ValueOrDefault(opts.BatchSize, defaultOpts.batchSize),
-			batchDelayMicros:      uint32ValueOrDefault(opts.BatchDelayMicros, defaultOpts.batchDelayMicros),
-			readBufSize:           uint32ValueOrDefault(opts.ReadBufSize, defaultOpts.readBufSize),
-			writeBufSize:          uint32ValueOrDefault(opts.WriteBufSize, defaultOpts.writeBufSize),
-			evaluationIntervalSec: uint32ValueOrDefault(opts.EvaluationIntervalSec, defaultOpts.evaluationIntervalSec),
-			loadFactorExpandRatio: float64ValueOrDefault(opts.LoadFactorExpandRatio, defaultOpts.loadFactorExpandRatio),
-			overloadedConnRatio:   float64ValueOrDefault(opts.OverloadedConnRatio, defaultOpts.overloadedConnRatio),
-		}
+func NewHandler(sock string, opts Opts) Handler {
+	io := Opts{
+		BatchSize:             uint32ValueOrDefault(opts.BatchSize, defaultOpts.BatchSize),
+		BatchDelayMicros:      uint32ValueOrDefault(opts.BatchDelayMicros, defaultOpts.BatchDelayMicros),
+		ReadBufSize:           uint32ValueOrDefault(opts.ReadBufSize, defaultOpts.ReadBufSize),
+		WriteBufSize:          uint32ValueOrDefault(opts.WriteBufSize, defaultOpts.WriteBufSize),
+		EvaluationIntervalSec: uint32ValueOrDefault(opts.EvaluationIntervalSec, defaultOpts.EvaluationIntervalSec),
+		LoadFactorExpandRatio: float64ValueOrDefault(opts.LoadFactorExpandRatio, defaultOpts.LoadFactorExpandRatio),
+		OverloadedConnRatio:   float64ValueOrDefault(opts.OverloadedConnRatio, defaultOpts.OverloadedConnRatio),
 	}
 
 	return Handler{

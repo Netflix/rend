@@ -46,12 +46,12 @@ type relay struct {
 	conns       atomic.Value
 	addConnLock *sync.Mutex
 	expand      chan struct{}
-	opts        internalOpts
+	opts        Opts
 }
 
 // Creates a new relay with one connection or returns an existing relay for the
 // given socket.
-func getRelay(sock string, opts internalOpts) *relay {
+func getRelay(sock string, opts Opts) *relay {
 	relayLock.RLock()
 	if r, ok := relays[sock]; ok {
 		relayLock.RUnlock()
@@ -111,8 +111,8 @@ func (r *relay) addConn() {
 
 	metrics.IncCounter(MetricBatchConnectionsCreated)
 
-	batchDelay := time.Duration(r.opts.batchDelayMicros) * time.Microsecond
-	poolconn := newConn(c, batchDelay, r.opts.batchSize, r.opts.readBufSize, r.opts.writeBufSize, r.expand)
+	batchDelay := time.Duration(r.opts.BatchDelayMicros) * time.Microsecond
+	poolconn := newConn(c, batchDelay, r.opts.BatchSize, r.opts.ReadBufSize, r.opts.WriteBufSize, r.expand)
 
 	// Add the new connection (but with a new slice header)
 	temp := r.conns.Load().([]conn)
@@ -153,7 +153,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		var shouldAdd bool
 
 		// re-evaluate at regular interval regardless
-		<-time.After(time.Duration(r.opts.evaluationIntervalSec) * time.Second)
+		<-time.After(time.Duration(r.opts.EvaluationIntervalSec) * time.Second)
 		metrics.IncCounter(MetricBatchMonitorRuns)
 
 		/* off for now
@@ -203,13 +203,13 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 			used += u
 		}
 
-		total := float64(len(cs)) * float64(r.opts.batchSize)
+		total := float64(len(cs)) * float64(r.opts.BatchSize)
 		loadFactor := float64(used) / total
 
 		metrics.SetFloatGauge(MetricBatchLastLoadFactor, loadFactor)
 
 		// if we are over our load factor ratio
-		if loadFactor > r.opts.loadFactorExpandRatio {
+		if loadFactor > r.opts.LoadFactorExpandRatio {
 			metrics.IncCounter(MetricBatchExpandLoadFactor)
 			shouldAdd = true
 		}
@@ -218,12 +218,12 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		// very close to their limit or hit it
 		var numOverloaded int
 		for _, m := range averages {
-			if m >= float64(r.opts.batchSize-1) {
+			if m >= float64(r.opts.BatchSize-1) {
 				numOverloaded++
 			}
 		}
 
-		if float64(numOverloaded)/float64(len(cs)) > r.opts.overloadedConnRatio {
+		if float64(numOverloaded)/float64(len(cs)) > r.opts.OverloadedConnRatio {
 			metrics.IncCounter(MetricBatchExpandOverloadedRatio)
 			shouldAdd = true
 		}
