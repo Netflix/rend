@@ -137,15 +137,15 @@ func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	rw.Flush()
 
 	// read the header line
-	response, err := rw.ReadString('\n')
+	header, err := rw.ReadString('\n')
 	if err != nil {
 		return nil, err
 	}
 	if VERBOSE {
-		fmt.Println(response)
+		fmt.Println(header)
 	}
 
-	if strings.TrimSpace(response) == "END" {
+	if strings.TrimSpace(header) == "END" {
 		if VERBOSE {
 			fmt.Println("Empty response / cache miss")
 		}
@@ -153,24 +153,25 @@ func (t TextProt) Get(rw *bufio.ReadWriter, key []byte) ([]byte, error) {
 	}
 
 	// then read the value
-	response, err = rw.ReadString('\n')
+	value, err := rw.ReadString('\n')
 	if err != nil {
 		return nil, err
 	}
 	if VERBOSE {
-		fmt.Println(response)
+		fmt.Println(value)
 	}
+	value = strings.TrimSpace(value)
 
 	// then read the END
-	response, err = rw.ReadString('\n')
-	if err != nil {
+	if footer, err := rw.ReadString('\n'); err != nil {
 		return nil, err
+	} else {
+		if VERBOSE {
+			fmt.Println(footer)
+			fmt.Printf("Got key %s\n", key)
+		}
 	}
-	if VERBOSE {
-		fmt.Println(response)
-		fmt.Printf("Got key %s\n", key)
-	}
-	return []byte(response), nil
+	return []byte(value), nil
 }
 
 func (t TextProt) BatchGet(rw *bufio.ReadWriter, keys [][]byte) ([][]byte, error) {

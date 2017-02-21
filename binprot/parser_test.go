@@ -36,7 +36,7 @@ func TestUnknownCommand(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, // CAS
 		0x00, 0x00, 0x00, 0x00, // CAS
 	}))
-	req, reqType, err := binprot.NewBinaryParser(r).Parse()
+	req, reqType, _, err := binprot.NewBinaryParser(r).Parse()
 
 	if req != nil {
 		t.Fatal("Expected request struct to be nil")
