@@ -4,3 +4,7 @@ language: go
 
 dist: trusty
 sudo: false
+
+go_import_path: github.com/netflix/rend
+install: true
+script: go test -v $(go list ./... | grep -v client)
