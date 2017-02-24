@@ -58,7 +58,7 @@ type ResponseHeader struct {
 	CASToken        uint64
 }
 
-func makeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int) RequestHeader {
+func makeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int, opaque uint32) RequestHeader {
 	rh := reqHeadPool.Get().(RequestHeader)
 	rh.Magic = MagicRequest
 	rh.Opcode = opcode
@@ -67,7 +67,7 @@ func makeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int
 	rh.DataType = uint8(0)
 	rh.VBucket = uint16(0)
 	rh.TotalBodyLength = uint32(totalBodyLength)
-	rh.OpaqueToken = uint32(0)
+	rh.OpaqueToken = opaque
 	rh.CASToken = uint64(0)
 
 	return rh

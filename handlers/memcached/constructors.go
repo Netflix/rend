@@ -19,10 +19,14 @@ import (
 	"net"
 
 	"github.com/netflix/rend/handlers"
+	"github.com/netflix/rend/handlers/memcached/batched"
 	"github.com/netflix/rend/handlers/memcached/chunked"
 	"github.com/netflix/rend/handlers/memcached/std"
 )
 
+// Regular returns an implementation of the Handler interface that does standard,
+// direct interactions with the external memcached backend which is listening on
+// the specified unix domain socket.
 func Regular(sock string) handlers.HandlerConst {
 	return func() (handlers.Handler, error) {
 		conn, err := net.Dial("unix", sock)
@@ -36,6 +40,10 @@ func Regular(sock string) handlers.HandlerConst {
 	}
 }
 
+// Chunked returns an implementation of the Handler interface that implements an
+// interaction model which splits data to set size chunks before inserting. the
+// external memcached backend is expected to be listening on the specified unix
+// domain socket.
 func Chunked(sock string) handlers.HandlerConst {
 	return func() (handlers.Handler, error) {
 		conn, err := net.Dial("unix", sock)
@@ -47,5 +55,13 @@ func Chunked(sock string) handlers.HandlerConst {
 			return nil, err
 		}
 		return chunked.NewHandler(conn), nil
+	}
+}
+
+// Batched returns an implementation of the Handler interface that multiplexes
+// requests on to a connection pool in order to reduce the overhead per request.
+func Batched(sock string, opts batched.Opts) handlers.HandlerConst {
+	return func() (handlers.Handler, error) {
+		return batched.NewHandler(sock, opts), nil
 	}
 }

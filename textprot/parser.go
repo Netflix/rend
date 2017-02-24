@@ -43,7 +43,7 @@ func (t TextParser) Parse() (common.Request, common.RequestType, uint64, error) 
 
 	if err != nil {
 		if err == io.EOF {
-			log.Println("Connection closed")
+			//log.Println("Connection closed")
 		} else {
 			log.Printf("Error while reading text command line: %s\n", err.Error())
 		}
