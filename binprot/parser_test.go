@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package binprot_test
+package binprot
 
 import (
 	"bufio"
 	"bytes"
 	"testing"
 
-	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
 )
 
@@ -36,7 +35,7 @@ func TestUnknownCommand(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, // CAS
 		0x00, 0x00, 0x00, 0x00, // CAS
 	}))
-	req, reqType, _, err := binprot.NewBinaryParser(r).Parse()
+	req, reqType, _, err := NewBinaryParser(r).Parse()
 
 	if req != nil {
 		t.Fatal("Expected request struct to be nil")
@@ -47,4 +46,45 @@ func TestUnknownCommand(t *testing.T) {
 	if err != common.ErrUnknownCmd {
 		t.Fatal("Expected error to be Unknown Command")
 	}
+}
+
+type dummyIO struct{}
+
+func (d dummyIO) Read(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (d dummyIO) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+var (
+	reqHeaderBenchmarkSink RequestHeader
+	resHeaderBenchmarkSink ResponseHeader
+	errBenchmarkSink       error
+)
+
+func BenchmarkHeaders(b *testing.B) {
+	b.Run("readRequestHeader", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			reqHeaderBenchmarkSink, errBenchmarkSink = readRequestHeader(dummyIO{})
+		}
+	})
+	b.Run("writeRequestHeader", func(b *testing.B) {
+		temp := RequestHeader{}
+		for i := 0; i < b.N; i++ {
+			errBenchmarkSink = writeRequestHeader(dummyIO{}, temp)
+		}
+	})
+	b.Run("ReadResponseHeader", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			resHeaderBenchmarkSink, errBenchmarkSink = ReadResponseHeader(dummyIO{})
+		}
+	})
+	b.Run("writeResponseHeader", func(b *testing.B) {
+		temp := ResponseHeader{}
+		for i := 0; i < b.N; i++ {
+			errBenchmarkSink = writeResponseHeader(dummyIO{}, temp)
+		}
+	})
 }
