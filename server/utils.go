@@ -22,7 +22,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/netflix/rend/binprot"
+	"github.com/netflix/rend/protocol/binprot"
 )
 
 func isBinaryRequest(reader *bufio.Reader) (bool, error) {

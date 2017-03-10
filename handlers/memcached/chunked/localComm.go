@@ -18,9 +18,9 @@ import (
 	"bufio"
 	"io"
 
-	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/protocol/binprot"
 )
 
 // TODO: replace sending new empty metadata on miss with emptyMeta

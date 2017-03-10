@@ -19,9 +19,9 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/netflix/rend/binprot"
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/protocol/binprot"
 )
 
 func simpleCmdLocal(rw *bufio.ReadWriter) error {
