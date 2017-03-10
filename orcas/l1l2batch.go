@@ -20,16 +20,17 @@ import (
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/protocol"
 	"github.com/netflix/rend/timer"
 )
 
 type L1L2BatchOrca struct {
 	l1  handlers.Handler
 	l2  handlers.Handler
-	res common.Responder
+	res protocol.Responder
 }
 
-func L1L2Batch(l1, l2 handlers.Handler, res common.Responder) Orca {
+func L1L2Batch(l1, l2 handlers.Handler, res protocol.Responder) Orca {
 	return &L1L2BatchOrca{
 		l1:  l1,
 		l2:  l2,

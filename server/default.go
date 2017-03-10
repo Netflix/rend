@@ -22,20 +22,21 @@ import (
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/protocol"
 	"github.com/netflix/rend/timer"
 )
 
 // DefaultServer is the default server implementation that implements a server
 // REPL for a single external connection.
 type DefaultServer struct {
-	rp    common.RequestParser
+	rp    protocol.RequestParser
 	orca  orcas.Orca
 	conns []io.Closer
 }
 
 // Default creates a new *DefaultServer instance with the given connections,
 // request parser, and request orchestrator.
-func Default(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server {
+func Default(conns []io.Closer, rp protocol.RequestParser, o orcas.Orca) Server {
 	return &DefaultServer{
 		rp:    rp,
 		orca:  o,
@@ -44,7 +45,7 @@ func Default(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server {
 }
 
 // Loop acts as a master loop for the connection that it is given. Requests are
-// read using the given common.RequestParser and performed by the given orcas.Orca.
+// read using the given protocol.RequestParser and performed by the given orcas.Orca.
 // The connections will all be closed upon an unrecoverable error.
 func (s *DefaultServer) Loop() {
 	defer func() {

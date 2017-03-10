@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/netflix/rend/binprot"
-	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/protocol"
 	"github.com/netflix/rend/textprot"
 )
 
@@ -98,8 +98,8 @@ func ListenAndServe(l ListenArgs, s ServerConst, o orcas.OrcaConst, h1, h2 handl
 			remoteReader := bufio.NewReader(remoteConn)
 			remoteWriter := bufio.NewWriter(remoteConn)
 
-			var reqParser common.RequestParser
-			var responder common.Responder
+			var reqParser protocol.RequestParser
+			var responder protocol.Responder
 
 			// A connection is either binary protocol or text. It cannot switch between the two.
 			// This is the way memcached handles protocols, so it can be as strict here.

@@ -22,6 +22,7 @@ import (
 
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
+	"github.com/netflix/rend/protocol"
 )
 
 const maxLockSets = 1024
@@ -88,7 +89,7 @@ func Locked(oc OrcaConst, multipleReaders bool, concurrency uint8) (OrcaConst, u
 		},
 	}
 
-	return func(l1, l2 handlers.Handler, res common.Responder) Orca {
+	return func(l1, l2 handlers.Handler, res protocol.Responder) Orca {
 		return &LockedOrca{
 			wrapped: oc(l1, l2, res),
 			locks:   locks[slot],
@@ -110,7 +111,7 @@ func LockedWithExisting(oc OrcaConst, locksetID uint32) OrcaConst {
 		},
 	}
 
-	return func(l1, l2 handlers.Handler, res common.Responder) Orca {
+	return func(l1, l2 handlers.Handler, res protocol.Responder) Orca {
 		return &LockedOrca{
 			wrapped: oc(l1, l2, res),
 			locks:   locks[locksetID],

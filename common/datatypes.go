@@ -133,37 +133,6 @@ const (
 	RequestVersion
 )
 
-// RequestParser represents an interface to parse incoming requests. Each protocol provides its own
-// implementation. The return value is a generic Request, but not all hope is lost. The return result
-// is guaranteed by implementations to be castable to the type that matches the RequestType returned.
-// The return values are the Request value, the type of that value, the uint64 timestamp at which a
-// request arrived (for latency timing) and any error that may have occurred.
-type RequestParser interface {
-	Parse() (Request, RequestType, uint64, error)
-}
-
-// Responder is the interface for a protocol to respond to different commands. It responds in
-// whatever way is appropriate, including doing nothing or panic()-ing for unsupported interactions.
-// Unsupported interactions are OK to panic() on because they should never be returned from the
-// corresponding RequestParser.
-type Responder interface {
-	Set(opaque uint32, quiet bool) error
-	Add(opaque uint32, quiet bool) error
-	Replace(opaque uint32, quiet bool) error
-	Append(opaque uint32, quiet bool) error
-	Prepend(opaque uint32, quiet bool) error
-	Get(response GetResponse) error
-	GetEnd(opaque uint32, noopEnd bool) error
-	GetE(response GetEResponse) error
-	GAT(response GetResponse) error
-	Delete(opaque uint32) error
-	Touch(opaque uint32) error
-	Noop(opaque uint32) error
-	Quit(opaque uint32, quiet bool) error
-	Version(opaque uint32) error
-	Error(opaque uint32, reqType RequestType, err error, quiet bool) error
-}
-
 type Request interface {
 	GetOpaque() uint32
 	IsQuiet() bool

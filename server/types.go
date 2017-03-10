@@ -17,12 +17,12 @@ package server
 import (
 	"io"
 
-	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/protocol"
 )
 
-type ServerConst func(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server
+type ServerConst func(conns []io.Closer, rp protocol.RequestParser, o orcas.Orca) Server
 
 type Server interface {
 	Loop()
