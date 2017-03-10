@@ -15,23 +15,12 @@
 package server
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"log"
 	"runtime"
 	"strings"
-
-	"github.com/netflix/rend/protocol/binprot"
 )
-
-func isBinaryRequest(reader *bufio.Reader) (bool, error) {
-	headerByte, err := reader.Peek(1)
-	if err != nil {
-		return false, err
-	}
-	return headerByte[0] == binprot.MagicRequest, nil
-}
 
 func abort(toClose []io.Closer, err error) {
 	if err != nil && err != io.EOF {

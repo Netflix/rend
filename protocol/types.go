@@ -1,4 +1,4 @@
-// Copyright 2015 Netflix, Inc.
+// Copyright 2017 Netflix, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,11 @@
 // within Rend.
 package protocol
 
-import "github.com/netflix/rend/common"
+import (
+	"bufio"
+
+	"github.com/netflix/rend/common"
+)
 
 // RequestParser represents an interface to parse incoming requests. Each protocol provides its own
 // implementation. The return value is a generic Request, but not all hope is lost. The return result
@@ -47,4 +51,28 @@ type Responder interface {
 	Quit(opaque uint32, quiet bool) error
 	Version(opaque uint32) error
 	Error(opaque uint32, reqType common.RequestType, err error, quiet bool) error
+}
+
+// Peeker is an interface that is designed to restrict the functionality of a bufio.Reader for the
+// purposes of protocol disambiguation. A bufio.Reader must be cast to a protocol.Peeker to be used
+// in
+type Peeker interface {
+	Peek(n int) ([]byte, error)
+}
+
+// Disambiguator is an interface for protocols to implement to tell the server listener if the protocol
+// that implements it is capable of parsing the connection. The protocol will only be able to Peek as
+// far as the underlying bufio.Reader can. The assumption here is that the implementation is actually
+// a bufio.Reader but implementations should not rely on that fact and only use the Prrk methods.
+type Disambiguator interface {
+	CanParse() (bool, error)
+}
+
+// Components is a package of all the protocol-specific bits of the protocol impelmentation.
+// Packages are expected to provide an implementation of this interface to be usable in the
+// server.ListenAndServe loop.
+type Components interface {
+	NewDisambiguator(p Peeker) Disambiguator
+	NewRequestParser(r *bufio.Reader) RequestParser
+	NewResponder(w *bufio.Writer) Responder
 }

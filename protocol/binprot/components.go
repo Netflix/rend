@@ -1,0 +1,50 @@
+// Copyright 2017 Netflix, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package binprot
+
+import (
+	"bufio"
+
+	"github.com/netflix/rend/protocol"
+)
+
+// Components is the holder for all the different protocol components in the binprot package
+var Components protocol.Components = comps{}
+
+type comps struct{}
+
+func (c comps) NewRequestParser(r *bufio.Reader) protocol.RequestParser {
+	return NewBinaryParser(r)
+}
+
+func (c comps) NewResponder(w *bufio.Writer) protocol.Responder {
+	return NewBinaryResponder(w)
+}
+
+func (c comps) NewDisambiguator(p protocol.Peeker) protocol.Disambiguator {
+	return disam{p}
+}
+
+type disam struct {
+	p protocol.Peeker
+}
+
+func (d disam) CanParse() (bool, error) {
+	headerByte, err := d.p.Peek(1)
+	if err != nil {
+		return false, err
+	}
+	return headerByte[0] == MagicRequest, nil
+}

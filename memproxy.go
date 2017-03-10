@@ -30,6 +30,9 @@ import (
 	"github.com/netflix/rend/handlers/memcached/batched"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/protocol"
+	"github.com/netflix/rend/protocol/binprot"
+	"github.com/netflix/rend/protocol/textprot"
 	"github.com/netflix/rend/server"
 )
 
@@ -176,6 +179,8 @@ func main() {
 		}
 	}
 
+	protocols := []protocol.Components{binprot.Components, textprot.Components}
+
 	var o orcas.OrcaConst
 	var h2 handlers.HandlerConst
 	var h1 handlers.HandlerConst
@@ -212,7 +217,7 @@ func main() {
 		}
 	}
 
-	go server.ListenAndServe(l, server.Default, o, h1, h2)
+	go server.ListenAndServe(l, protocols, server.Default, o, h1, h2)
 
 	if l2enabled {
 		// If L2 is enabled, start the batch L1 / L2 orchestrator
@@ -227,7 +232,7 @@ func main() {
 			o = orcas.LockedWithExisting(o, lockset)
 		}
 
-		go server.ListenAndServe(l, server.Default, o, h1, h2)
+		go server.ListenAndServe(l, protocols, server.Default, o, h1, h2)
 	}
 
 	// Block forever
