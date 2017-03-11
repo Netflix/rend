@@ -20,11 +20,12 @@ import (
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/protocol"
 )
 
 type testPanicOrca struct{}
 
-func testPanicOrcaConst(l1, l2 handlers.Handler, res common.Responder) orcas.Orca {
+func testPanicOrcaConst(l1, l2 handlers.Handler, res protocol.Responder) orcas.Orca {
 	return testPanicOrca{}
 }
 

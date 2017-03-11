@@ -18,9 +18,10 @@ import (
 	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/handlers"
 	"github.com/netflix/rend/metrics"
+	"github.com/netflix/rend/protocol"
 )
 
-type OrcaConst func(l1, l2 handlers.Handler, res common.Responder) Orca
+type OrcaConst func(l1, l2 handlers.Handler, res protocol.Responder) Orca
 
 type Orca interface {
 	Set(req common.SetRequest) error

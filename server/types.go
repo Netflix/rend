@@ -17,12 +17,12 @@ package server
 import (
 	"io"
 
-	"github.com/netflix/rend/common"
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
+	"github.com/netflix/rend/protocol"
 )
 
-type ServerConst func(conns []io.Closer, rp common.RequestParser, o orcas.Orca) Server
+type ServerConst func(conns []io.Closer, rp protocol.RequestParser, o orcas.Orca) Server
 
 type Server interface {
 	Loop()
@@ -48,6 +48,10 @@ var (
 	MetricConnectionsEstablishedExt = metrics.AddCounter("conn_established_ext", nil)
 	MetricConnectionsEstablishedL1  = metrics.AddCounter("conn_established_l1", nil)
 	MetricConnectionsEstablishedL2  = metrics.AddCounter("conn_established_l2", nil)
+	MetricProtocolsAssigned         = metrics.AddCounter("protocols_assigned", nil)
+	MetricProtocolsAssignedError    = metrics.AddCounter("protocols_assigned_error", nil)
+	MetricProtocolsAssignedErrorEOF = metrics.AddCounter("protocols_assigned_error_eof", nil)
+	MetricProtocolsAssignedFallback = metrics.AddCounter("protocols_assigned_fallback", nil)
 	MetricCmdTotal                  = metrics.AddCounter("cmd_total", nil)
 	MetricErrAppError               = metrics.AddCounter("err_app_err", nil)
 	MetricErrUnrecoverable          = metrics.AddCounter("err_unrecoverable", nil)
