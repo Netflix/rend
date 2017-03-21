@@ -53,16 +53,16 @@ var defaultOpts = Opts{
 
 func uint32ValueOrDefault(val uint32, def uint32) uint32 {
 	if val <= 0 {
-		return val
+		return def
 	}
-	return def
+	return val
 }
 
 func float64ValueOrDefault(val float64, def float64) float64 {
 	if val <= 0 {
-		return val
+		return def
 	}
-	return def
+	return val
 }
 
 // NewHandler creates a new handler with the given unix socket as the connected backend. The first
