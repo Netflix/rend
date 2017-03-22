@@ -1,6 +1,9 @@
 # Rend: Memcached-Compatible Server and Proxy
 
-[![Dev chat at https://gitter.im/Netflix/rend](https://badges.gitter.im/Netflix/rend.svg)](https://gitter.im/Netflix/rend?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![GoDoc](https://godoc.org/github.com/netflix/rend?status.svg)](https://godoc.org/github.com/netflix/rend) [![GoReportCard](https://goreportcard.com/badge/github.com/netflix/rend)](https://goreportcard.com/report/github.com/netflix/rend)
+[![Build Status](https://travis-ci.org/Netflix/rend.svg?branch=master)](https://travis-ci.org/Netflix/rend)
+[![Dev chat at https://gitter.im/Netflix/rend](https://badges.gitter.im/Netflix/rend.svg)](https://gitter.im/Netflix/rend?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![GoDoc](https://godoc.org/github.com/netflix/rend?status.svg)](https://godoc.org/github.com/netflix/rend)
+[![GoReportCard](https://goreportcard.com/badge/github.com/netflix/rend)](https://goreportcard.com/report/github.com/netflix/rend)
 
 Rend is a proxy whose primary use case is to sit on the same server as both a [memcached](https://github.com/memcached/memcached) process and an SSD-backed L2 cache. It is written in [Go](https://github.com/golang/go) and is under active development at Netflix. Some more points about Rend:
 
