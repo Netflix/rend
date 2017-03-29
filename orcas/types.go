@@ -57,10 +57,14 @@ var (
 	MetricCmdGetKeysL1   = metrics.AddCounter("cmd_get_keys_l1", nil)
 	MetricCmdGetKeysL2   = metrics.AddCounter("cmd_get_keys_l2", nil)
 
-	// Batch L1L2 get metrics
 	MetricCmdGetSetL1       = metrics.AddCounter("cmd_get_set_l1", nil)
 	MetricCmdGetSetErrorsL1 = metrics.AddCounter("cmd_get_set_errors_l1", nil)
 	MetricCmdGetSetSucessL1 = metrics.AddCounter("cmd_get_set_success_l1", nil)
+
+	MetricCmdGetSetErrorL1DeleteL1       = metrics.AddCounter("cmd_get_set_l1_error_delete_l1", nil)
+	MetricCmdGetSetErrorL1DeleteHitsL1   = metrics.AddCounter("cmd_get_set_l1_error_delete_hits_l1", nil)
+	MetricCmdGetSetErrorL1DeleteMissesL1 = metrics.AddCounter("cmd_get_set_l1_error_delete_misses_l1", nil)
+	MetricCmdGetSetErrorL1DeleteErrorsL1 = metrics.AddCounter("cmd_get_set_l1_error_delete_errors_l1", nil)
 
 	MetricCmdGetEL1       = metrics.AddCounter("cmd_gete_l1", nil)
 	MetricCmdGetEL2       = metrics.AddCounter("cmd_gete_l2", nil)
@@ -86,11 +90,23 @@ var (
 	MetricCmdSetErrorsL1  = metrics.AddCounter("cmd_set_errors_l1", nil)
 	MetricCmdSetErrorsL2  = metrics.AddCounter("cmd_set_errors_l2", nil)
 
+	// L1L2 delete after failed L1 set metrics
+	MetricCmdSetL1ErrorDeleteL1       = metrics.AddCounter("cmd_set_l1_error_delete_l1", nil)
+	MetricCmdSetL1ErrorDeleteHitsL1   = metrics.AddCounter("cmd_set_l1_error_delete_hits_l1", nil)
+	MetricCmdSetL1ErrorDeleteMissesL1 = metrics.AddCounter("cmd_set_l1_error_delete_misses_l1", nil)
+	MetricCmdSetL1ErrorDeleteErrorsL1 = metrics.AddCounter("cmd_set_l1_error_delete_errors_l1", nil)
+
 	// Batch L1L2 set metrics
 	MetricCmdSetReplaceL1          = metrics.AddCounter("cmd_set_replace_l1", nil)
 	MetricCmdSetReplaceNotStoredL1 = metrics.AddCounter("cmd_set_replace_not_stored_l1", nil)
 	MetricCmdSetReplaceErrorsL1    = metrics.AddCounter("cmd_set_replace_errors_l1", nil)
 	MetricCmdSetReplaceStoredL1    = metrics.AddCounter("cmd_set_replace_stored_l1", nil)
+
+	// Batch L1L2 delete after failed set metrics
+	MetricsCmdSetReplaceL1ErrorDeleteL1       = metrics.AddCounter("cmd_set_replace_l1_error_delete_l1", nil)
+	MetricsCmdSetReplaceL1ErrorDeleteHitsL1   = metrics.AddCounter("cmd_set_replace_l1_error_delete_hits_l1", nil)
+	MetricsCmdSetReplaceL1ErrorDeleteMissesL1 = metrics.AddCounter("cmd_set_replace_l1_error_delete_misses_l1", nil)
+	MetricsCmdSetReplaceL1ErrorDeleteErrorsL1 = metrics.AddCounter("cmd_set_replace_l1_error_delete_errors_l1", nil)
 
 	MetricCmdAddL1          = metrics.AddCounter("cmd_add_l1", nil)
 	MetricCmdAddL2          = metrics.AddCounter("cmd_add_l2", nil)

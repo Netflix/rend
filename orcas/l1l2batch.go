@@ -72,8 +72,30 @@ func (l *L1L2BatchOrca) Set(req common.SetRequest) error {
 			metrics.IncCounter(MetricCmdSetReplaceNotStoredL1)
 		} else {
 			metrics.IncCounter(MetricCmdSetReplaceErrorsL1)
-			metrics.IncCounter(MetricCmdSetErrors)
-			return err
+
+			metrics.IncCounter(MetricsCmdSetReplaceL1ErrorDeleteL1)
+
+			// in order to ensure consistency, attempt a last-ditch delete from L1
+			// For keys that are unable to be set in L1 but were successfully set in
+			// L2 this may cause a shift in load. These keys tend to be large so this
+			// will probably put a significant burden on L2 if the keys are expensive.
+			// Note that even if there's a major problem, e.g. the connection being
+			// closed, this will still return success.
+			dcmd := common.DeleteRequest{
+				Key: req.Key,
+			}
+
+			start = timer.Now()
+			err = l.l1.Delete(dcmd)
+			metrics.ObserveHist(HistDeleteL1, timer.Since(start))
+
+			if err == common.ErrKeyNotFound {
+				metrics.IncCounter(MetricsCmdSetReplaceL1ErrorDeleteMissesL1)
+			} else if err != nil {
+				metrics.IncCounter(MetricsCmdSetReplaceL1ErrorDeleteErrorsL1)
+			} else {
+				metrics.IncCounter(MetricsCmdSetReplaceL1ErrorDeleteHitsL1)
+			}
 		}
 	} else {
 		metrics.IncCounter(MetricCmdSetReplaceStoredL1)

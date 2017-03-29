@@ -57,21 +57,20 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 	}
 	metrics.IncCounter(MetricCmdSetSuccessL2)
 
-	// Now set in L1. If L1 fails, we log the error and fail the request.
+	// Now set in L1. If L1 fails, we log the error but do not fail the request.
 	// If a user was writing a new piece of information, the error would be OK,
 	// since the next GET would be able to put the L2 information back into L1.
 	// In the case that the user was overwriting information, a failed set in L1
-	// and successful one in L2 would leave us inconsistent. If the response was
-	// positive in this situation, it would look like the server successfully
-	// processed the request but didn't store the information. Clients will
-	// retry failed writes. In this case L2 will get two writes for the same key
-	// but this is better because it is more correct overall, though less
-	// efficient. Note there are no retries at this level.
+	// and successful one in L2 would leave us inconsistent. In this case we do
+	// a delete from L1 and say the request was successful. This should keep the
+	// data store more consistent overall at the expense of a small bit of speed.
 	//
 	// It should be noted that errors on a straight set are nearly always fatal
 	// for the connection. It's likely that if this branch is taken that the
 	// connections to everyone will be severed (for this one client connection)
-	// and that the client will reconnect to try again.
+	// and that the client will reconnect to try again. The one exception is when
+	// the server is so busy that it cannot clear enough memory for the data to
+	// be stored, in which case the delete may work just fine.
 	metrics.IncCounter(MetricCmdSetL1)
 	start = timer.Now()
 
@@ -81,8 +80,30 @@ func (l *L1L2Orca) Set(req common.SetRequest) error {
 
 	if err != nil {
 		metrics.IncCounter(MetricCmdSetErrorsL1)
-		metrics.IncCounter(MetricCmdSetErrors)
-		return err
+
+		metrics.IncCounter(MetricCmdSetL1ErrorDeleteL1)
+
+		// in order to ensure consistency, attempt a delete from L1
+		// For keys that are unable to be set in L1 but were successfully set in
+		// L2 this may cause a shift in load. These keys tend to be large so this
+		// will probably put a significant burden on L2 if the data are large.
+		// Note that even if there's a major problem, e.g. the connection being
+		// closed, this will still return success.
+		dcmd := common.DeleteRequest{
+			Key: req.Key,
+		}
+
+		start = timer.Now()
+		err = l.l1.Delete(dcmd)
+		metrics.ObserveHist(HistDeleteL1, timer.Since(start))
+
+		if err == common.ErrKeyNotFound {
+			metrics.IncCounter(MetricCmdSetL1ErrorDeleteMissesL1)
+		} else if err != nil {
+			metrics.IncCounter(MetricCmdSetL1ErrorDeleteErrorsL1)
+		} else {
+			metrics.IncCounter(MetricCmdSetL1ErrorDeleteHitsL1)
+		}
 	}
 
 	metrics.IncCounter(MetricCmdSetSuccessL1)
@@ -615,7 +636,33 @@ func (l *L1L2Orca) Get(req common.GetRequest) error {
 
 					if err != nil {
 						metrics.IncCounter(MetricCmdGetSetErrorsL1)
-						return err
+
+						// TODO: REVIEW TO END OF BLOCK
+						metrics.IncCounter(MetricCmdGetSetErrorL1DeleteL1)
+
+						// in order to ensure consistency, attempt a delete from L1
+						// For keys that are unable to be set in L1 but were successfully set in
+						// L2 this may cause a shift in load. These keys tend to be large so this
+						// will probably put a significant burden on L2 if the data are large.
+						// Note that even if there's a major problem, e.g. the connection being
+						// closed, this will still return success.
+						dcmd := common.DeleteRequest{
+							Key: res.Key,
+						}
+
+						start = timer.Now()
+						err = l.l1.Delete(dcmd)
+						metrics.ObserveHist(HistDeleteL1, timer.Since(start))
+
+						if err == common.ErrKeyNotFound {
+							metrics.IncCounter(MetricCmdGetSetErrorL1DeleteMissesL1)
+						} else if err != nil {
+							metrics.IncCounter(MetricCmdGetSetErrorL1DeleteErrorsL1)
+						} else {
+							metrics.IncCounter(MetricCmdGetSetErrorL1DeleteHitsL1)
+						}
+
+						err = nil
 					}
 
 					metrics.IncCounter(MetricCmdGetSetSucessL1)
