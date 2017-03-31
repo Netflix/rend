@@ -16,6 +16,7 @@ package binprot
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"sync"
 
@@ -58,8 +59,8 @@ type ResponseHeader struct {
 	CASToken        uint64
 }
 
-func makeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int, opaque uint32) RequestHeader {
-	rh := reqHeadPool.Get().(RequestHeader)
+func makeRequestHeader(opcode uint8, keyLength, extraLength, totalBodyLength int, opaque uint32) *RequestHeader {
+	rh := reqHeadPool.Get().(*RequestHeader)
 	rh.Magic = MagicRequest
 	rh.Opcode = opcode
 	rh.KeyLength = uint16(keyLength)
@@ -81,42 +82,45 @@ var bufPool = &sync.Pool{
 
 var resHeadPool = &sync.Pool{
 	New: func() interface{} {
-		return ResponseHeader{}
+		return new(ResponseHeader)
 	},
 }
 
-func PutResponseHeader(rh ResponseHeader) {
+// PutResponseHeader returns the response header to the pool
+func PutResponseHeader(rh *ResponseHeader) {
 	resHeadPool.Put(rh)
 }
 
 var reqHeadPool = &sync.Pool{
 	New: func() interface{} {
-		return RequestHeader{}
+		return new(RequestHeader)
 	},
 }
 
-var (
-	emptyResHeader = ResponseHeader{}
-	emptyReqHeader = RequestHeader{}
-)
-
-func readRequestHeader(r io.Reader) (RequestHeader, error) {
+func readRequestHeader(r io.Reader) (*RequestHeader, error) {
 	buf := bufPool.Get().([]byte)
 
 	br, err := io.ReadAtLeast(r, buf, ReqHeaderLen)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
 		bufPool.Put(buf)
-		return emptyReqHeader, err
+		return nil, err
 	}
 
 	if buf[0] != MagicRequest {
+		fmt.Printf("%#v\n", buf)
 		bufPool.Put(buf)
 		metrics.IncCounter(MetricBinaryRequestHeadersBadMagic)
-		return emptyReqHeader, ErrBadMagic
+		println("FUCK")
+		return nil, ErrBadMagic
 	}
 
-	rh := reqHeadPool.Get().(RequestHeader)
+	rh := reqHeadPool.Get().(*RequestHeader)
+
+	if rh == nil {
+		println("FUCK")
+	}
+
 	rh.Magic = buf[0]
 	rh.Opcode = buf[1]
 	rh.KeyLength = binary.BigEndian.Uint16(buf[2:4])
@@ -139,7 +143,7 @@ func readRequestHeader(r io.Reader) (RequestHeader, error) {
 	return rh, nil
 }
 
-func writeRequestHeader(w io.Writer, rh RequestHeader) error {
+func writeRequestHeader(w io.Writer, rh *RequestHeader) error {
 	buf := bufPool.Get().([]byte)
 
 	buf[0] = rh.Magic
@@ -164,23 +168,23 @@ func writeRequestHeader(w io.Writer, rh RequestHeader) error {
 	return err
 }
 
-func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
+func ReadResponseHeader(r io.Reader) (*ResponseHeader, error) {
 	buf := bufPool.Get().([]byte)
 
 	br, err := io.ReadAtLeast(r, buf, resHeaderLen)
 	metrics.IncCounterBy(common.MetricBytesReadRemote, uint64(br))
 	if err != nil {
 		bufPool.Put(buf)
-		return emptyResHeader, err
+		return nil, err
 	}
 
 	if buf[0] != MagicResponse {
 		bufPool.Put(buf)
 		metrics.IncCounter(MetricBinaryResponseHeadersBadMagic)
-		return emptyResHeader, ErrBadMagic
+		return nil, ErrBadMagic
 	}
 
-	rh := resHeadPool.Get().(ResponseHeader)
+	rh := resHeadPool.Get().(*ResponseHeader)
 	rh.Magic = buf[0]
 	rh.Opcode = buf[1]
 	rh.KeyLength = binary.BigEndian.Uint16(buf[2:4])
@@ -201,7 +205,7 @@ func ReadResponseHeader(r io.Reader) (ResponseHeader, error) {
 	return rh, nil
 }
 
-func writeResponseHeader(w io.Writer, rh ResponseHeader) error {
+func writeResponseHeader(w io.Writer, rh *ResponseHeader) error {
 	buf := bufPool.Get().([]byte)
 
 	buf[0] = rh.Magic

@@ -77,7 +77,7 @@ var bufPool = &sync.Pool{
 
 var resPool = &sync.Pool{
 	New: func() interface{} {
-		return res{}
+		return &res{}
 	},
 }
 
@@ -125,20 +125,20 @@ type res struct {
 	CAS      uint64
 }
 
-func readRes(r io.Reader) (res, error) {
+func readRes(r io.Reader) (*res, error) {
 	buf := bufPool.Get().([]byte)
 
 	if _, err := io.ReadAtLeast(r, buf, 24); err != nil {
 		bufPool.Put(buf)
-		return res{}, err
+		return nil, err
 	}
 
 	if buf[0] != 0x81 {
 		bufPool.Put(buf)
-		return res{}, errors.New("Bad Magic")
+		return nil, errors.New("Bad Magic")
 	}
 
-	res := resPool.Get().(res)
+	res := resPool.Get().(*res)
 	res.Magic = buf[0]
 	res.Opcode = buf[1]
 	res.KeyLen = uint16(buf[2])<<8 | uint16(buf[3])

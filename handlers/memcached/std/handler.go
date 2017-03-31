@@ -23,10 +23,10 @@ import (
 	"github.com/netflix/rend/protocol/binprot"
 )
 
-func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
+func readResponseHeader(r *bufio.Reader) (*binprot.ResponseHeader, error) {
 	resHeader, err := binprot.ReadResponseHeader(r)
 	if err != nil {
-		return binprot.ResponseHeader{}, err
+		return nil, err
 	}
 
 	if err := binprot.DecodeError(resHeader); err != nil {

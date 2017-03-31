@@ -308,7 +308,7 @@ func getCommon(w *bufio.Writer, response common.GetResponse, opcode uint8) error
 func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraLength,
 	totalBodyLength int, opaque uint32, flush bool) error {
 
-	header := resHeadPool.Get().(ResponseHeader)
+	header := resHeadPool.Get().(*ResponseHeader)
 
 	header.Magic = MagicResponse
 	header.Opcode = opcode
@@ -339,7 +339,7 @@ func writeSuccessResponseHeader(w *bufio.Writer, opcode uint8, keyLength, extraL
 }
 
 func writeErrorResponseHeader(w *bufio.Writer, opcode uint8, status uint16, opaque uint32) error {
-	header := resHeadPool.Get().(ResponseHeader)
+	header := resHeadPool.Get().(*ResponseHeader)
 
 	header.Magic = MagicResponse
 	header.Opcode = opcode
