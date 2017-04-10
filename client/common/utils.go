@@ -25,7 +25,7 @@ import "time"
 // constants and configuration
 var letters = bytes.Repeat([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 10)
 
-const predataLength = 101 * 1024
+const predataLength = 10 * 1024 * 1024
 
 var predata []byte
 

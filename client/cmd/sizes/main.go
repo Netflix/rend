@@ -40,7 +40,8 @@ func main() {
 	wg.Add(f.NumWorkers)
 
 	for i := 0; i < f.NumWorkers; i++ {
-		go func(prot common.Prot, wg *sync.WaitGroup) {
+		go func(prot common.Prot, wg *sync.WaitGroup, id int) {
+
 			conn, err := common.Connect("localhost", f.Port)
 			if err != nil {
 				panic("Couldn't connect")
@@ -48,9 +49,21 @@ func main() {
 
 			r := rand.New(rand.NewSource(common.RandSeed()))
 			rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+			var i int
 
-			// 0 to 100k data
-			for i := 0; i < 102400; i++ {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Println("UH OH", id, i)
+				}
+			}()
+
+			// 0 to 1MB data in 100 byte increments
+			for i = 0; i < 1048576; i += 100 {
+
+				/*if i%10000 == 0 {
+					fmt.Println(id, i)
+				}*/
+
 				key := common.RandData(r, f.KeyLength, false)
 				value := common.RandData(nil, i, true)
 
@@ -60,7 +73,7 @@ func main() {
 
 			fmt.Println("Done.")
 			wg.Done()
-		}(prot, wg)
+		}(prot, wg, i)
 	}
 
 	wg.Wait()
