@@ -299,6 +299,8 @@ func readBatchGet(r io.Reader, header *RequestHeader) (common.GetRequest, error)
 	var noopOpaque uint32
 	var noopEnd bool
 
+	first := true
+
 	// while GETQ
 	// read key, read header
 	for header.Opcode == OpcodeGetQ {
@@ -313,7 +315,11 @@ func readBatchGet(r io.Reader, header *RequestHeader) (common.GetRequest, error)
 		quiet = append(quiet, true)
 
 		// read in the next header
-		reqHeadPool.Put(header)
+		if !first {
+			reqHeadPool.Put(header)
+		} else {
+			first = false
+		}
 		header, err = readRequestHeader(r)
 		if err != nil {
 			return common.GetRequest{}, err
@@ -362,6 +368,8 @@ func readBatchGetE(r io.Reader, header *RequestHeader) (common.GetRequest, error
 	var noopOpaque uint32
 	var noopEnd bool
 
+	first := true
+
 	// while GETQ
 	// read key, read header
 	for header.Opcode == OpcodeGetEQ {
@@ -376,7 +384,11 @@ func readBatchGetE(r io.Reader, header *RequestHeader) (common.GetRequest, error
 		quiet = append(quiet, true)
 
 		// read in the next header
-		reqHeadPool.Put(header)
+		if !first {
+			reqHeadPool.Put(header)
+		} else {
+			first = false
+		}
 		header, err = readRequestHeader(r)
 		if err != nil {
 			return common.GetRequest{}, err

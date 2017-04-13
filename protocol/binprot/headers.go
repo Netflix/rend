@@ -111,15 +111,10 @@ func readRequestHeader(r io.Reader) (*RequestHeader, error) {
 		fmt.Printf("%#v\n", buf)
 		bufPool.Put(buf)
 		metrics.IncCounter(MetricBinaryRequestHeadersBadMagic)
-		println("FUCK")
 		return nil, ErrBadMagic
 	}
 
 	rh := reqHeadPool.Get().(*RequestHeader)
-
-	if rh == nil {
-		println("FUCK")
-	}
 
 	rh.Magic = buf[0]
 	rh.Opcode = buf[1]
