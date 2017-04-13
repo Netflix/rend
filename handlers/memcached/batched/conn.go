@@ -19,8 +19,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"log"
 	"math/rand"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,6 +39,11 @@ var (
 )
 
 type conn struct {
+	id           uint32
+	sock         string
+	readerSize   uint32
+	writerSize   uint32
+	conn         net.Conn
 	rw           *bufio.ReadWriter
 	rand         *rand.Rand
 	batchDelay   time.Duration
@@ -46,6 +53,8 @@ type conn struct {
 	reqchan      chan request
 	batchchan    chan batch
 	expand       chan struct{}
+	recovered    chan struct{}
+	leftovers    chan batch
 }
 
 type batch struct {
@@ -53,12 +62,12 @@ type batch struct {
 	channels  []chan response
 }
 
-func newConn(c net.Conn, batchDelay time.Duration, batchSize, readerSize, writerSize uint32, expand chan struct{}) conn {
-	r := bufio.NewReaderSize(c, int(readerSize))
-	w := bufio.NewWriterSize(c, int(writerSize))
-
-	nc := conn{
-		rw:           bufio.NewReadWriter(r, w),
+func newConn(sock string, id uint32, batchDelay time.Duration, batchSize, readerSize, writerSize uint32, expand chan struct{}) conn {
+	c := conn{
+		id:           id,
+		sock:         sock,
+		readerSize:   readerSize,
+		writerSize:   writerSize,
 		rand:         rand.New(rand.NewSource(randSeed())),
 		batchDelay:   batchDelay,
 		batchSize:    batchSize,
@@ -67,12 +76,105 @@ func newConn(c net.Conn, batchDelay time.Duration, batchSize, readerSize, writer
 		reqchan:      make(chan request, batchSize),
 		batchchan:    make(chan batch, 1),
 		expand:       expand,
+
+		// This is set to 2 so the recovery goroutine isn't blocked on the batcher or reader
+		recovered: make(chan struct{}, 2),
+		leftovers: make(chan batch),
 	}
 
-	go nc.batcher()
-	go nc.reader()
+	c.reconnect()
 
-	return nc
+	go c.recoveryMonitor()
+	go c.batcher()
+	go c.reader()
+
+	return c
+}
+
+const connectTries = 10
+
+var reconnectCountMetrics []uint32
+
+func init() {
+	reconnectCountMetrics = make([]uint32, connectTries)
+
+	for i := range reconnectCountMetrics {
+		reconnectCountMetrics[i] = metrics.AddCounter(
+			"batch_connect",
+			metrics.Tags{"attempt": strconv.Itoa(i)},
+		)
+	}
+}
+
+func (c conn) reconnect() {
+	var nc net.Conn
+	var err error
+
+	// First, close the connection to ensure things get cleaned up,
+	// meaning the writes and reads will complete and fail with io.EOF
+	if c.conn != nil {
+		// we don't really care about errors here, it just needs to be closed.
+		// even if it's already closed because it was severed, that's fine.
+		c.conn.Close()
+	}
+	jitter := time.Duration(c.rand.Intn(1000)) * time.Microsecond
+	delay := 2*time.Millisecond + jitter
+	<-time.After(delay)
+
+	delay = time.Duration(1) * time.Millisecond
+
+	for i := 0; i < connectTries; i++ {
+		metrics.IncCounter(reconnectCountMetrics[i])
+
+		nc, err = net.Dial("unix", c.sock)
+		if err != nil {
+			// TODO: increment metric for try
+			metrics.IncCounter(MetricBatchConnectionFailure)
+
+			// on failure, delay between tries 1, 4, 9, 16, etc. milliseconds
+			// plus up to 1 millisecond of jitter
+			if i < connectTries-1 {
+				td := time.Duration(i + 1)
+				jitter := time.Duration(c.rand.Intn(1000)) * time.Microsecond
+				<-time.After(delay*td*td + jitter)
+			} else {
+				// i == connectTries - 1
+				// This means we have failed to open a connection...
+				// panic?
+			}
+		}
+
+		metrics.IncCounter(MetricBatchConnectionsCreated)
+	}
+
+	r := bufio.NewReaderSize(nc, int(c.readerSize))
+	w := bufio.NewWriterSize(nc, int(c.writerSize))
+
+	c.conn = nc
+	c.rw = bufio.NewReadWriter(r, w)
+}
+
+func (c conn) recoveryMonitor() {
+	for {
+		b := <-c.leftovers
+
+		for _, c := range b.channels {
+			c <- response{
+				err: errRetryRequestBecauseOfConnectionFailure,
+			}
+		}
+
+		var pipelinedBatch batch
+
+		// If there is a batch being gathered
+		select {
+		case <-time.After(2 * c.batchDelay * time.Microsecond):
+		case pipelinedBatch = <-c.batchchan:
+		}
+
+		c.reconnect()
+		c.recovered <- struct{}{}
+	}
 }
 
 func (c conn) batcher() {
@@ -130,7 +232,33 @@ func (c conn) batcher() {
 			batchTimeout = nil
 
 			// do
-			c.do(reqs)
+			// batch and perform requests
+			metrics.IncCounter(MetricBatchNumBatches)
+			buf, responses, channels := c.batchIntoBuffer(reqs)
+
+			// send the batch before the write because the write may block for a long time until
+			// some responses can be read from memcached.
+			c.batchchan <- batch{
+				responses: responses,
+				channels:  channels,
+			}
+
+			// Write out the whole buffer
+			n, _ := c.rw.Write(buf.Bytes())
+			metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
+			if err := c.rw.Flush(); err != nil {
+
+				// TODO: Error handling:
+				// request a reconnect and then block on that reconnect succeeding.
+				// once the reconnect is done, resend the batch to c.rw.
+
+				// send message to recovery routine then wait for the go-ahead to continue
+
+				oops(err, responses)
+			}
+
+			batcherPool.Put(buf)
+
 			reqs = reqs[:0]
 		}
 
@@ -146,28 +274,6 @@ func (c conn) batcher() {
 	}
 }
 
-func (c conn) do(reqs []request) {
-	// batch and perform requests
-	metrics.IncCounter(MetricBatchNumBatches)
-	buf, responses, channels := c.batchIntoBuffer(reqs)
-
-	// send the batch before the write because the write may block for a long time until
-	// some responses can be read from memcached.
-	c.batchchan <- batch{
-		responses: responses,
-		channels:  channels,
-	}
-
-	// Write out the whole buffer
-	n, _ := c.rw.Write(buf.Bytes())
-	metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
-	if err := c.rw.Flush(); err != nil {
-		oops(err, responses)
-	}
-
-	batcherPool.Put(buf)
-}
-
 // Need a struct here to hold all the metadata about the request.
 // Responses don't have all the metadata, so it needs to be kept to the side
 type reshandle struct {
@@ -180,7 +286,7 @@ type reshandle struct {
 // If something goes seriously wrong (i.e. an I/O error on this connection) then send back the
 // error to all of the connections waiting on responses from this connection.
 func oops(err error, res map[uint32]reshandle) {
-	println("OOPS", err.Error())
+	log.Println("Major error ", err.Error())
 	for _, c := range res {
 		c.reschan <- response{err: err}
 	}
@@ -341,7 +447,16 @@ func (c conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshand
 }
 
 func (c conn) reader() {
+	recovery := false
+
+readerOuter:
 	for {
+		// In recovery mode, we need to wait for the signal from the recovery goroutine
+		// that we are good to go
+		if recovery {
+			recovery = false
+			<-c.recovered
+		}
 
 		// read the next batch to process
 		batch := <-c.batchchan
@@ -350,7 +465,10 @@ func (c conn) reader() {
 		for len(batch.responses) > 0 {
 			resHeader, err := binprot.ReadResponseHeader(c.rw)
 			if err != nil {
-				oops(err, batch.responses)
+				// jump to error handling / reconnect / reset
+				c.leftovers <- batch
+				recovery = true
+				continue readerOuter
 			}
 
 			err = binprot.DecodeError(resHeader)
@@ -359,10 +477,15 @@ func (c conn) reader() {
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 
 				if ioerr != nil {
-					oops(ioerr, batch.responses)
+					// jump to error handling / reconnect / reset
+					c.leftovers <- batch
+					recovery = true
+					continue readerOuter
 				}
 
 				if err != common.ErrKeyNotFound && err != common.ErrKeyExists && err != common.ErrItemNotStored {
+					// TODO: fix this
+					// TODO: increment metric
 					println("UH OH", err.Error())
 				}
 
@@ -400,7 +523,10 @@ func (c conn) reader() {
 				n, err := io.ReadAtLeast(c.rw, b, 4)
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 				if err != nil {
-					oops(err, batch.responses)
+					// jump to error handling / reconnect / reset
+					c.leftovers <- batch
+					recovery = true
+					continue readerOuter
 				}
 				serverFlags := binary.BigEndian.Uint32(b)
 
@@ -409,7 +535,10 @@ func (c conn) reader() {
 					n, err = io.ReadAtLeast(c.rw, b, 4)
 					metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 					if err != nil {
-						oops(err, batch.responses)
+						// jump to error handling / reconnect / reset
+						c.leftovers <- batch
+						recovery = true
+						continue readerOuter
 					}
 					serverExp = binary.BigEndian.Uint32(b)
 				}
@@ -422,7 +551,10 @@ func (c conn) reader() {
 				n, err = io.ReadAtLeast(c.rw, buf, int(dataLen))
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 				if err != nil {
-					oops(err, batch.responses)
+					// jump to error handling / reconnect / reset
+					c.leftovers <- batch
+					recovery = true
+					continue readerOuter
 				}
 
 				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {
@@ -454,7 +586,10 @@ func (c conn) reader() {
 				n, err := c.rw.Discard(int(resHeader.TotalBodyLength))
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 				if err != nil {
-					oops(err, batch.responses)
+					// jump to error handling / reconnect / reset
+					c.leftovers <- batch
+					recovery = true
+					continue readerOuter
 				}
 
 				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {

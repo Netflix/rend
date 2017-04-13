@@ -15,11 +15,15 @@
 package batched
 
 import (
-	"encoding/binary"
-
 	crand "crypto/rand"
+	"encoding/binary"
+	"errors"
 
 	"github.com/netflix/rend/common"
+)
+
+var (
+	errRetryRequestBecauseOfConnectionFailure = errors.New("")
 )
 
 type request struct {

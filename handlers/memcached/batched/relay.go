@@ -16,7 +16,6 @@ package batched
 
 import (
 	"math/rand"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -102,20 +101,13 @@ func (r *relay) addConn() {
 	r.addConnLock.Lock()
 	defer r.addConnLock.Unlock()
 
-	c, err := net.Dial("unix", r.sock)
-	if err != nil {
-		// For now, just increment the metric and return.
-		metrics.IncCounter(MetricBatchConnectionFailure)
-		return
-	}
+	temp := r.conns.Load().([]conn)
 
-	metrics.IncCounter(MetricBatchConnectionsCreated)
-
+	connID := uint32(len(temp))
 	batchDelay := time.Duration(r.opts.BatchDelayMicros) * time.Microsecond
-	poolconn := newConn(c, batchDelay, r.opts.BatchSize, r.opts.ReadBufSize, r.opts.WriteBufSize, r.expand)
+	poolconn := newConn(r.sock, connID, batchDelay, r.opts.BatchSize, r.opts.ReadBufSize, r.opts.WriteBufSize, r.expand)
 
 	// Add the new connection (but with a new slice header)
-	temp := r.conns.Load().([]conn)
 	temp = append(temp, poolconn)
 
 	// Store the modified slice

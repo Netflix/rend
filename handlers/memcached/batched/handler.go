@@ -101,20 +101,35 @@ func (h Handler) Close() error {
 	return nil
 }
 
-// Set performs a set operation on the backend. It unconditionall sets a key to a value.
+const requestTries = 3
+
+func (h Handler) doSimpleRequest(cmd common.Request, reqType common.RequestType) error {
+	for i := 0; i < 3; i++ {
+		reschan := make(chan response)
+
+		h.relay.submit(h.rand, request{
+			req:     cmd,
+			reqtype: reqType,
+			reschan: reschan,
+		})
+
+		// wait for the response from the pool over the response channel
+		// and return whatever it gives as the error
+		res := <-reschan
+
+		// If the connection signals that the connection failed, we should retry
+		// a few times as connections get recreated
+		if res.err == errRetryRequestBecauseOfConnectionFailure {
+			// TODO: increment metric
+			continue
+		}
+		return res.err
+	}
+}
+
+// Set performs a set operation on the backend. It unconditionally sets a key to a value.
 func (h Handler) Set(cmd common.SetRequest) error {
-	reschan := make(chan response)
-
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestSet,
-		reschan: reschan,
-	})
-
-	// wait for the response from the pool over the response channel
-	// and return whatever it gives as the error
-	res := <-reschan
-	return res.err
+	return h.doSimpleRequest(cmd, common.RequestSet)
 }
 
 // Add performs an add operation on the backend. It only sets the value if it does not already exist.
