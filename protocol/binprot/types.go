@@ -83,7 +83,7 @@ const (
 	StatusInvalid        = uint16(0xFFFF)
 )
 
-func DecodeError(header ResponseHeader) error {
+func DecodeError(header *ResponseHeader) error {
 	switch header.Status {
 	case StatusKeyEnoent:
 		return common.ErrKeyNotFound
