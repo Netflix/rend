@@ -16,7 +16,7 @@ package metrics
 
 import "sync/atomic"
 
-const maxNumCounters = 1024
+const maxNumCounters = 10240
 
 var (
 	cnames       = make([]string, maxNumCounters)
