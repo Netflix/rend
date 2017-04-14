@@ -103,7 +103,11 @@ func (h Handler) Close() error {
 
 const requestTries = 3
 
+// TODO: retry metrics
+
 func (h Handler) doSimpleRequest(cmd common.Request, reqType common.RequestType) error {
+	var res response
+
 	for i := 0; i < 3; i++ {
 		reschan := make(chan response)
 
@@ -119,12 +123,14 @@ func (h Handler) doSimpleRequest(cmd common.Request, reqType common.RequestType)
 
 		// If the connection signals that the connection failed, we should retry
 		// a few times as connections get recreated
-		if res.err == errRetryRequestBecauseOfConnectionFailure {
-			// TODO: increment metric
-			continue
+		if res.err != errRetryRequestBecauseOfConnectionFailure {
+			break
 		}
-		return res.err
+
+		// TODO: increment metric for retrying
 	}
+
+	return res.err
 }
 
 // Set performs a set operation on the backend. It unconditionally sets a key to a value.
@@ -134,58 +140,32 @@ func (h Handler) Set(cmd common.SetRequest) error {
 
 // Add performs an add operation on the backend. It only sets the value if it does not already exist.
 func (h Handler) Add(cmd common.SetRequest) error {
-	reschan := make(chan response)
-
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestAdd,
-		reschan: reschan,
-	})
-
-	res := <-reschan
-	return res.err
+	return h.doSimpleRequest(cmd, common.RequestAdd)
 }
 
 // Replace performs a replace operation on the backend. It only sets the value if it already exists.
 func (h Handler) Replace(cmd common.SetRequest) error {
-	reschan := make(chan response)
-
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestReplace,
-		reschan: reschan,
-	})
-
-	res := <-reschan
-	return res.err
+	return h.doSimpleRequest(cmd, common.RequestReplace)
 }
 
 // Append performs an append operation on the backend. It will append the data to the value only if it already exists.
 func (h Handler) Append(cmd common.SetRequest) error {
-	reschan := make(chan response)
-
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestAppend,
-		reschan: reschan,
-	})
-
-	res := <-reschan
-	return res.err
+	return h.doSimpleRequest(cmd, common.RequestAppend)
 }
 
 // Prepend performs a prepend operation on the backend. It will prepend the data to the value only if it already exists.
 func (h Handler) Prepend(cmd common.SetRequest) error {
-	reschan := make(chan response)
+	return h.doSimpleRequest(cmd, common.RequestPrepend)
+}
 
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestPrepend,
-		reschan: reschan,
-	})
+// Delete performs a delete operation on the backend. It will unconditionally remove the value.
+func (h Handler) Delete(cmd common.DeleteRequest) error {
+	return h.doSimpleRequest(cmd, common.RequestDelete)
+}
 
-	res := <-reschan
-	return res.err
+// Touch performs a touch operation on the backend. It will overwrite the expiration time with a new one.
+func (h Handler) Touch(cmd common.TouchRequest) error {
+	return h.doSimpleRequest(cmd, common.RequestTouch)
 }
 
 func getEResponseToGetResponse(res common.GetEResponse) common.GetResponse {
@@ -197,6 +177,21 @@ func getEResponseToGetResponse(res common.GetEResponse) common.GetResponse {
 		Quiet:  res.Quiet,
 		Miss:   res.Miss,
 	}
+}
+
+// GAT performs a get-and-touch on the backend for the given key. It will retrieve the value while updating the TTL to
+// the one supplied.
+func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
+	reschan := make(chan response)
+
+	h.relay.submit(h.rand, request{
+		req:     cmd,
+		reqtype: common.RequestGat,
+		reschan: reschan,
+	})
+
+	res := <-reschan
+	return getEResponseToGetResponse(res.gr), res.err
 }
 
 // Get performs a get operation on the backend. It retrieves the whole of the batch of keys given as a group and returns
@@ -275,47 +270,4 @@ func realHandleGetE(h Handler, cmd common.GetRequest, dataOut chan common.GetERe
 
 		dataOut <- res.gr
 	}
-}
-
-// GAT performs a get-and-touch on the backend for the given key. It will retrieve the value while updating the TTL to
-// the one supplied.
-func (h Handler) GAT(cmd common.GATRequest) (common.GetResponse, error) {
-	reschan := make(chan response)
-
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestGat,
-		reschan: reschan,
-	})
-
-	res := <-reschan
-	return getEResponseToGetResponse(res.gr), res.err
-}
-
-// Delete performs a delete operation on the backend. It will unconditionally remove the value.
-func (h Handler) Delete(cmd common.DeleteRequest) error {
-	reschan := make(chan response)
-
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestDelete,
-		reschan: reschan,
-	})
-
-	res := <-reschan
-	return res.err
-}
-
-// Touch performs a touch operation on the backend. It will overwrite the expiration time with a new one.
-func (h Handler) Touch(cmd common.TouchRequest) error {
-	reschan := make(chan response)
-
-	h.relay.submit(h.rand, request{
-		req:     cmd,
-		reqtype: common.RequestTouch,
-		reschan: reschan,
-	})
-
-	res := <-reschan
-	return res.err
 }

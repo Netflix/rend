@@ -74,8 +74,12 @@ func newConn(sock string, id uint32, batchDelay time.Duration, batchSize, reader
 		maxBatchSize: new(uint32),
 		avgBatchData: new(uint64),
 		reqchan:      make(chan request, batchSize),
-		batchchan:    make(chan batch, 1),
 		expand:       expand,
+
+		// The batch channel is synchronous between the batcher and the reader
+		// so recovery can proceed without synchronization between the recovery
+		// goroutine and the batcher.
+		batchchan: make(chan batch),
 
 		// This is set to 2 so the recovery goroutine isn't blocked on the batcher or reader
 		recovered: make(chan struct{}, 2),
@@ -117,6 +121,8 @@ func (c conn) reconnect() {
 		// even if it's already closed because it was severed, that's fine.
 		c.conn.Close()
 	}
+
+	// Pause for an initial delay
 	jitter := time.Duration(c.rand.Intn(1000)) * time.Microsecond
 	delay := 2*time.Millisecond + jitter
 	<-time.After(delay)
@@ -131,12 +137,13 @@ func (c conn) reconnect() {
 			// TODO: increment metric for try
 			metrics.IncCounter(MetricBatchConnectionFailure)
 
-			// on failure, delay between tries 1, 4, 9, 16, etc. milliseconds
+			// on failure, delay between tries 4, 9, 16, 25, 36, etc. milliseconds
 			// plus up to 1 millisecond of jitter
 			if i < connectTries-1 {
-				td := time.Duration(i + 1)
+				td := time.Duration(i + 2)
 				jitter := time.Duration(c.rand.Intn(1000)) * time.Microsecond
 				<-time.After(delay*td*td + jitter)
+
 			} else {
 				// i == connectTries - 1
 				// This means we have failed to open a connection...
@@ -162,14 +169,6 @@ func (c conn) recoveryMonitor() {
 			c <- response{
 				err: errRetryRequestBecauseOfConnectionFailure,
 			}
-		}
-
-		var pipelinedBatch batch
-
-		// If there is a batch being gathered
-		select {
-		case <-time.After(2 * c.batchDelay * time.Microsecond):
-		case pipelinedBatch = <-c.batchchan:
 		}
 
 		c.reconnect()
@@ -247,14 +246,11 @@ func (c conn) batcher() {
 			n, _ := c.rw.Write(buf.Bytes())
 			metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
 			if err := c.rw.Flush(); err != nil {
+				// TODO: increment metric
 
-				// TODO: Error handling:
-				// request a reconnect and then block on that reconnect succeeding.
-				// once the reconnect is done, resend the batch to c.rw.
-
-				// send message to recovery routine then wait for the go-ahead to continue
-
-				oops(err, responses)
+				// In this case, if the connection fails to write it will be an I/O error
+				// This batch should be abandoned. The reader will clean up before accepting another
+				// batch through the channel
 			}
 
 			batcherPool.Put(buf)
@@ -448,6 +444,7 @@ func (c conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshand
 
 func (c conn) reader() {
 	recovery := false
+	var batch batch
 
 readerOuter:
 	for {
@@ -455,18 +452,18 @@ readerOuter:
 		// that we are good to go
 		if recovery {
 			recovery = false
+			c.leftovers <- batch
 			<-c.recovered
 		}
 
 		// read the next batch to process
-		batch := <-c.batchchan
+		batch = <-c.batchchan
 
 		// read in all of the responses
 		for len(batch.responses) > 0 {
 			resHeader, err := binprot.ReadResponseHeader(c.rw)
 			if err != nil {
 				// jump to error handling / reconnect / reset
-				c.leftovers <- batch
 				recovery = true
 				continue readerOuter
 			}
@@ -478,7 +475,6 @@ readerOuter:
 
 				if ioerr != nil {
 					// jump to error handling / reconnect / reset
-					c.leftovers <- batch
 					recovery = true
 					continue readerOuter
 				}
@@ -524,7 +520,6 @@ readerOuter:
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 				if err != nil {
 					// jump to error handling / reconnect / reset
-					c.leftovers <- batch
 					recovery = true
 					continue readerOuter
 				}
@@ -536,7 +531,6 @@ readerOuter:
 					metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 					if err != nil {
 						// jump to error handling / reconnect / reset
-						c.leftovers <- batch
 						recovery = true
 						continue readerOuter
 					}
@@ -552,7 +546,6 @@ readerOuter:
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 				if err != nil {
 					// jump to error handling / reconnect / reset
-					c.leftovers <- batch
 					recovery = true
 					continue readerOuter
 				}
@@ -587,7 +580,6 @@ readerOuter:
 				metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 				if err != nil {
 					// jump to error handling / reconnect / reset
-					c.leftovers <- batch
 					recovery = true
 					continue readerOuter
 				}
