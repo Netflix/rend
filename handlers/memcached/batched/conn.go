@@ -148,6 +148,7 @@ func (c conn) reconnect() {
 				// i == connectTries - 1
 				// This means we have failed to open a connection...
 				// panic?
+				panic("Reconnect took too long")
 			}
 		}
 
