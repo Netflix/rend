@@ -32,10 +32,11 @@ import (
 )
 
 var (
-	MetricBatchNumBatches      = metrics.AddCounter("batch_num_batches", nil)
-	MetricBatchFullBatches     = metrics.AddCounter("batch_full_batches", nil)
-	MetricBatchTimedoutBatches = metrics.AddCounter("batch_timedout_batches", nil)
-	MetricBatchWriteError      = metrics.AddCounter("batch_write_error", nil)
+	MetricBatchNumBatches           = metrics.AddCounter("batch_num_batches", nil)
+	MetricBatchFullBatches          = metrics.AddCounter("batch_full_batches", nil)
+	MetricBatchTimedoutBatches      = metrics.AddCounter("batch_timedout_batches", nil)
+	MetricBatchWriteError           = metrics.AddCounter("batch_write_error", nil)
+	MetricBatchReaderProtocolErrors = metrics.AddCounter("batch_reader_proto_errors", nil)
 )
 
 type conn struct {
@@ -509,23 +510,23 @@ readerOuter:
 					continue readerOuter
 				}
 
-				if err != common.ErrKeyNotFound && err != common.ErrKeyExists && err != common.ErrItemNotStored {
-					// TODO: fix this
-					// TODO: increment metric
-					println("UH OH", err.Error())
-				}
-
-				// TODO: these are not necessarily all misses, check the error
 				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {
-					// this is an application-level error and should be treated as such
-					rh.reschan <- response{
-						err: nil,
-						gr: common.GetEResponse{
-							Miss:   true,
-							Quiet:  rh.quiet,
-							Opaque: rh.opaque,
-							Key:    rh.key,
-						},
+					if err != common.ErrKeyNotFound && err != common.ErrKeyExists && err != common.ErrItemNotStored {
+						metrics.IncCounter(MetricBatchReaderProtocolErrors)
+						rh.reschan <- response{
+							err: err,
+						}
+					} else {
+						// this is an application-level error and should be treated as such
+						rh.reschan <- response{
+							err: nil,
+							gr: common.GetEResponse{
+								Miss:   true,
+								Quiet:  rh.quiet,
+								Opaque: rh.opaque,
+								Key:    rh.key,
+							},
+						}
 					}
 
 					delete(batch.responses, resHeader.OpaqueToken)
