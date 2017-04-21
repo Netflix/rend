@@ -60,7 +60,7 @@ type conn struct {
 
 type batch struct {
 	responses map[uint32]reshandle
-	channels  []chan response
+	channels  map[chan response]int
 }
 
 func newConn(sock string, id uint32, batchDelay time.Duration, batchSize, readerSize, writerSize uint32, expand chan struct{}) *conn {
@@ -204,12 +204,18 @@ func (c *conn) recoveryMonitor() {
 
 		metrics.IncCounter(metricBatchRecoveries)
 
-		for _, c := range b.channels {
-			select {
-			case c <- response{err: errRetryRequestBecauseOfConnectionFailure}:
-			case <-time.After(time.Millisecond):
+		// Some of the channels may have had their response given to them already
+		// before the error occurs. Thee receivers may no longer be listening to
+		// this channel. On the other hand, on a very busy box some receivers may
+		// not have had the chance to even call receive on the channel yet, so we
+		// need to keep track of the number of messages expected to be received
+		// by each channel and skip or send appropriately.
+		for ch, num := range b.channels {
+			if num > 0 {
+				ch <- response{err: errRetryRequestBecauseOfConnectionFailure}
 			}
-			close(c)
+
+			close(ch)
 		}
 
 		// true meaning delay a little bit before trying to connect
@@ -331,7 +337,7 @@ var batcherPool = &sync.Pool{
 // The base is a random uint32 value. This is done to prevent possible confusion between requests,
 // where one request would get another's data. This would be really bad if we sent things like user
 // information to the wrong place.
-func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshandle, []chan response) {
+func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshandle, map[chan response]int) {
 	// get random base value
 	// serialize all requests into a buffer
 	// while serializing, collect channels
@@ -341,16 +347,16 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 	opaque := uint32(c.rand.Int31())
 	buf := batcherPool.Get().(*bytes.Buffer)
 	buf.Reset()
-	responses := make(map[uint32]reshandle)
-	channels := make([]chan response, 0, len(reqs))
+	responses := make(map[uint32]reshandle, len(reqs))
+	channels := make(map[chan response]int, len(reqs))
 
 	for _, req := range reqs {
 
 		// maintain the "sequence number"
 		opaque++
 
-		// build slice of channels for closing later
-		channels = append(channels, req.reschan)
+		// number of responses expected from memcached
+		var numExpected int
 
 		// serialize the requests into the buffer. There's no error handling because writes to a bytes.Buffer
 		// never return an error.
@@ -366,6 +372,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				reschan: req.reschan,
 			}
 
+			numExpected = 1
+
 		case common.RequestAdd:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAddCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
@@ -376,6 +384,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				quiet:   cmd.Quiet,
 				reschan: req.reschan,
 			}
+
+			numExpected = 1
 
 		case common.RequestReplace:
 			cmd := req.req.(common.SetRequest)
@@ -388,6 +398,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				reschan: req.reschan,
 			}
 
+			numExpected = 1
+
 		case common.RequestAppend:
 			cmd := req.req.(common.SetRequest)
 			binprot.WriteAppendCmd(buf, cmd.Key, cmd.Flags, cmd.Exptime, uint32(len(cmd.Data)), opaque)
@@ -398,6 +410,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				quiet:   cmd.Quiet,
 				reschan: req.reschan,
 			}
+
+			numExpected = 1
 
 		case common.RequestPrepend:
 			cmd := req.req.(common.SetRequest)
@@ -410,6 +424,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				reschan: req.reschan,
 			}
 
+			numExpected = 1
+
 		case common.RequestDelete:
 			cmd := req.req.(common.DeleteRequest)
 			binprot.WriteDeleteCmd(buf, cmd.Key, opaque)
@@ -419,6 +435,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				quiet:   cmd.Quiet,
 				reschan: req.reschan,
 			}
+
+			numExpected = 1
 
 		case common.RequestTouch:
 			cmd := req.req.(common.TouchRequest)
@@ -430,6 +448,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				reschan: req.reschan,
 			}
 
+			numExpected = 1
+
 		case common.RequestGat:
 			cmd := req.req.(common.GATRequest)
 			binprot.WriteGATCmd(buf, cmd.Key, cmd.Exptime, opaque)
@@ -439,6 +459,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				quiet:   cmd.Quiet,
 				reschan: req.reschan,
 			}
+
+			numExpected = 1
 
 		case common.RequestGet:
 			cmd := req.req.(common.GetRequest)
@@ -454,6 +476,8 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				opaque++
 			}
 
+			numExpected = len(cmd.Keys)
+
 		case common.RequestGetE:
 			cmd := req.req.(common.GetRequest)
 
@@ -467,7 +491,12 @@ func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshan
 				}
 				opaque++
 			}
+
+			numExpected = len(cmd.Keys)
 		}
+
+		// build map of channels for closing later
+		channels[req.reschan] = numExpected
 	}
 
 	return buf, responses, channels
@@ -528,6 +557,8 @@ readerOuter:
 							},
 						}
 					}
+
+					batch.channels[rh.reschan]--
 
 					delete(batch.responses, resHeader.OpaqueToken)
 					binprot.PutResponseHeader(resHeader)
@@ -595,6 +626,7 @@ readerOuter:
 						},
 					}
 
+					batch.channels[rh.reschan]--
 					delete(batch.responses, resHeader.OpaqueToken)
 
 				} else {
@@ -618,6 +650,8 @@ readerOuter:
 				if rh, ok := batch.responses[resHeader.OpaqueToken]; ok {
 					// send the response back on the channel assigned to this token
 					rh.reschan <- response{}
+
+					batch.channels[rh.reschan]--
 					delete(batch.responses, resHeader.OpaqueToken)
 
 				} else {
@@ -629,8 +663,8 @@ readerOuter:
 		}
 
 		// close all of the channels to clean up and guarantee the get loops break
-		for _, c := range batch.channels {
-			close(c)
+		for ch := range batch.channels {
+			close(ch)
 		}
 	}
 }
