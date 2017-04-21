@@ -104,13 +104,13 @@ func (h Handler) Close() error {
 }
 
 const (
-	maxRetryMetrics            = 20
+	maxRetryMetrics            = 10
 	requestRetryMetricName     = "batch_request_retry"
 	requestRetryAttemptTagName = "attempt"
 )
 
 var (
-	requestRetryMetrics    []uint32
+	requestRetryMetrics    = make([]uint32, maxRetryMetrics)
 	metricRequestRetryHigh = metrics.AddCounter(
 		requestRetryMetricName,
 		metrics.Tags{requestRetryAttemptTagName: "high"},
