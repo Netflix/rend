@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"strconv"
@@ -36,6 +35,7 @@ var (
 	MetricBatchNumBatches      = metrics.AddCounter("batch_num_batches", nil)
 	MetricBatchFullBatches     = metrics.AddCounter("batch_full_batches", nil)
 	MetricBatchTimedoutBatches = metrics.AddCounter("batch_timedout_batches", nil)
+	MetricBatchWriteError      = metrics.AddCounter("batch_write_error", nil)
 )
 
 type conn struct {
@@ -62,8 +62,8 @@ type batch struct {
 	channels  []chan response
 }
 
-func newConn(sock string, id uint32, batchDelay time.Duration, batchSize, readerSize, writerSize uint32, expand chan struct{}) conn {
-	c := conn{
+func newConn(sock string, id uint32, batchDelay time.Duration, batchSize, readerSize, writerSize uint32, expand chan struct{}) *conn {
+	c := &conn{
 		id:           id,
 		sock:         sock,
 		readerSize:   readerSize,
@@ -81,12 +81,14 @@ func newConn(sock string, id uint32, batchDelay time.Duration, batchSize, reader
 		// goroutine and the batcher.
 		batchchan: make(chan batch),
 
-		// This is set to 2 so the recovery goroutine isn't blocked on the batcher or reader
-		recovered: make(chan struct{}, 2),
+		// This is synchronous so the reader and recovery routines are at known points
+		// when recovery finishes.
+		recovered: make(chan struct{}),
 		leftovers: make(chan batch),
 	}
 
-	c.reconnect()
+	// false meaning no initial delay
+	c.reconnect(false)
 
 	go c.recoveryMonitor()
 	go c.batcher()
@@ -95,22 +97,36 @@ func newConn(sock string, id uint32, batchDelay time.Duration, batchSize, reader
 	return c
 }
 
-const connectTries = 10
+const (
+	connectTries           = 20
+	batchConnectMetricName = "batch_connect"
+	attemptTagName         = "attempt"
+)
 
-var reconnectCountMetrics []uint32
+var (
+	connectCountMetrics           []uint32
+	metricBatchConnectAttemptHigh = metrics.AddCounter(
+		batchConnectMetricName,
+		metrics.Tags{attemptTagName: "high"},
+	)
+	metricBatchRecoveries = metrics.AddCounter("batch_recoveries", nil)
+
+	delaybase            = 1 * time.Millisecond
+	maximumReconnectWait = 1 * time.Second
+)
 
 func init() {
-	reconnectCountMetrics = make([]uint32, connectTries)
+	connectCountMetrics = make([]uint32, connectTries)
 
-	for i := range reconnectCountMetrics {
-		reconnectCountMetrics[i] = metrics.AddCounter(
-			"batch_connect",
-			metrics.Tags{"attempt": strconv.Itoa(i)},
+	for i := range connectCountMetrics {
+		connectCountMetrics[i] = metrics.AddCounter(
+			batchConnectMetricName,
+			metrics.Tags{attemptTagName: strconv.Itoa(i)},
 		)
 	}
 }
 
-func (c conn) reconnect() {
+func (c *conn) reconnect(initialDelay bool) {
 	var nc net.Conn
 	var err error
 
@@ -122,37 +138,56 @@ func (c conn) reconnect() {
 		c.conn.Close()
 	}
 
-	// Pause for an initial delay
-	jitter := time.Duration(c.rand.Intn(1000)) * time.Microsecond
-	delay := 2*time.Millisecond + jitter
-	<-time.After(delay)
+	if initialDelay {
+		// Pause for an initial delay, up to 100 ms
+		// this only happens on reconnects where we expect the process we're
+		// talking to has to restart by some external mechanism
+		delay := time.Duration(c.rand.Intn(100)) * time.Millisecond
+		<-time.After(delay)
+	}
 
-	delay = time.Duration(1) * time.Millisecond
-
-	for i := 0; i < connectTries; i++ {
-		metrics.IncCounter(reconnectCountMetrics[i])
+	var i int
+	for {
+		if i < connectTries {
+			metrics.IncCounter(connectCountMetrics[i])
+		} else {
+			metrics.IncCounter(metricBatchConnectAttemptHigh)
+		}
 
 		nc, err = net.Dial("unix", c.sock)
 		if err != nil {
-			// TODO: increment metric for try
 			metrics.IncCounter(MetricBatchConnectionFailure)
 
-			// on failure, delay between tries 4, 9, 16, 25, 36, etc. milliseconds
-			// plus up to 1 millisecond of jitter
-			if i < connectTries-1 {
-				td := time.Duration(i + 2)
-				jitter := time.Duration(c.rand.Intn(1000)) * time.Microsecond
-				<-time.After(delay*td*td + jitter)
+			// on failure, delay between tries with the cube of the try
+			// 1, 8, 27, 64, 125, 216, etc. milliseconds
+			// plus up to (delay/2) milliseconds of jitter
+			// cap this at 1 second, which happens around the 10th try
+			if i < connectTries {
+				td := time.Duration(i + 1)
+				total := delaybase * (td * td * td)
+
+				jitter := time.Duration(c.rand.Intn(int(total) / 2))
+				total += jitter
+
+				if total > maximumReconnectWait {
+					total = maximumReconnectWait
+				}
+				<-time.After(total)
 
 			} else {
 				// i == connectTries - 1
-				// This means we have failed to open a connection...
-				// panic?
-				panic("Reconnect took too long")
+				// This means we have failed to open a connection after all those tries
+				// instead of giving up, let's keep trying to reconnect indefinitely at the
+				// maximum cadence we gave above
+				<-time.After(maximumReconnectWait)
 			}
+
+			i++
+			continue
 		}
 
 		metrics.IncCounter(MetricBatchConnectionsCreated)
+		break
 	}
 
 	r := bufio.NewReaderSize(nc, int(c.readerSize))
@@ -162,22 +197,27 @@ func (c conn) reconnect() {
 	c.rw = bufio.NewReadWriter(r, w)
 }
 
-func (c conn) recoveryMonitor() {
+func (c *conn) recoveryMonitor() {
 	for {
 		b := <-c.leftovers
 
+		metrics.IncCounter(metricBatchRecoveries)
+
 		for _, c := range b.channels {
-			c <- response{
-				err: errRetryRequestBecauseOfConnectionFailure,
+			select {
+			case c <- response{err: errRetryRequestBecauseOfConnectionFailure}:
+			case <-time.After(time.Millisecond):
 			}
+			close(c)
 		}
 
-		c.reconnect()
+		// true meaning delay a little bit before trying to connect
+		c.reconnect(true)
 		c.recovered <- struct{}{}
 	}
 }
 
-func (c conn) batcher() {
+func (c *conn) batcher() {
 	var req request
 	var reqs []request
 	var batchTimeout <-chan time.Time
@@ -247,15 +287,13 @@ func (c conn) batcher() {
 			n, _ := c.rw.Write(buf.Bytes())
 			metrics.IncCounterBy(common.MetricBytesWrittenLocal, uint64(n))
 			if err := c.rw.Flush(); err != nil {
-				// TODO: increment metric
-
+				metrics.IncCounter(MetricBatchWriteError)
 				// In this case, if the connection fails to write it will be an I/O error
-				// This batch should be abandoned. The reader will clean up before accepting another
-				// batch through the channel
+				// This batch should be abandoned. The reader / recovery will clean up before
+				// accepting another batch through the c.batchchan channel
 			}
 
 			batcherPool.Put(buf)
-
 			reqs = reqs[:0]
 		}
 
@@ -280,15 +318,6 @@ type reshandle struct {
 	reschan chan response
 }
 
-// If something goes seriously wrong (i.e. an I/O error on this connection) then send back the
-// error to all of the connections waiting on responses from this connection.
-func oops(err error, res map[uint32]reshandle) {
-	log.Println("Major error ", err.Error())
-	for _, c := range res {
-		c.reschan <- response{err: err}
-	}
-}
-
 var batcherPool = &sync.Pool{
 	New: func() interface{} {
 		// 64k by default, may expand with use
@@ -301,7 +330,7 @@ var batcherPool = &sync.Pool{
 // The base is a random uint32 value. This is done to prevent possible confusion between requests,
 // where one request would get another's data. This would be really bad if we sent things like user
 // information to the wrong place.
-func (c conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshandle, []chan response) {
+func (c *conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshandle, []chan response) {
 	// get random base value
 	// serialize all requests into a buffer
 	// while serializing, collect channels
@@ -443,7 +472,7 @@ func (c conn) batchIntoBuffer(reqs []request) (*bytes.Buffer, map[uint32]reshand
 	return buf, responses, channels
 }
 
-func (c conn) reader() {
+func (c *conn) reader() {
 	recovery := false
 	var batch batch
 

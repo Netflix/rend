@@ -82,7 +82,7 @@ func getRelay(sock string, opts Opts) *relay {
 	}
 
 	// initialize the atomic value
-	r.conns.Store(make([]conn, 0))
+	r.conns.Store(make([]*conn, 0))
 
 	firstConnSetup := make(chan struct{})
 	go r.monitor(firstConnSetup)
@@ -101,7 +101,7 @@ func (r *relay) addConn() {
 	r.addConnLock.Lock()
 	defer r.addConnLock.Unlock()
 
-	temp := r.conns.Load().([]conn)
+	temp := r.conns.Load().([]*conn)
 
 	connID := uint32(len(temp))
 	batchDelay := time.Duration(r.opts.BatchDelayMicros) * time.Microsecond
@@ -120,7 +120,7 @@ func (r *relay) submit(rand *rand.Rand, req request) {
 	// use rand to select a connection to submit to
 	// the connection should notify the frontend by the channel
 	// in the request struct
-	cs := r.conns.Load().([]conn)
+	cs := r.conns.Load().([]*conn)
 	idx := rand.Intn(len(cs))
 	c := cs[idx]
 	c.reqchan <- req
@@ -162,7 +162,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 
 		//println("MONITOR RUNNING")
 
-		cs := r.conns.Load().([]conn)
+		cs := r.conns.Load().([]*conn)
 		/*
 			maxes := make([]uint32, len(cs))
 
@@ -223,7 +223,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		// add a connection if needed
 		if shouldAdd {
 			r.addConn()
-			metrics.SetIntGauge(MetricBatchPoolSize, uint64(len(r.conns.Load().([]conn))))
+			metrics.SetIntGauge(MetricBatchPoolSize, uint64(len(r.conns.Load().([]*conn))))
 		}
 	}
 }

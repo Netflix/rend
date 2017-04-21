@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	errRetryRequestBecauseOfConnectionFailure = errors.New("")
+	errRetryRequestBecauseOfConnectionFailure = errors.New("RETRY_CONN_FAILURE")
 )
 
 type request struct {
