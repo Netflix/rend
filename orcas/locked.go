@@ -125,6 +125,7 @@ func LockedWithExisting(oc OrcaConst, locksetID uint32) OrcaConst {
 
 func (l *LockedOrca) getlock(key []byte, read bool) sync.Locker {
 	h := l.hpool.Get().(hash.Hash32)
+	defer l.hpool.Put(h)
 	h.Reset()
 
 	// Calculate bucket using hash and mod. hash.Hash.Write() never returns an error.

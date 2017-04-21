@@ -59,8 +59,8 @@ func (d dummyIO) Write(p []byte) (int, error) {
 }
 
 var (
-	reqHeaderBenchmarkSink RequestHeader
-	resHeaderBenchmarkSink ResponseHeader
+	reqHeaderBenchmarkSink *RequestHeader
+	resHeaderBenchmarkSink *ResponseHeader
 	errBenchmarkSink       error
 )
 
@@ -71,7 +71,7 @@ func BenchmarkHeaders(b *testing.B) {
 		}
 	})
 	b.Run("writeRequestHeader", func(b *testing.B) {
-		temp := RequestHeader{}
+		temp := &RequestHeader{}
 		for i := 0; i < b.N; i++ {
 			errBenchmarkSink = writeRequestHeader(dummyIO{}, temp)
 		}
@@ -82,7 +82,7 @@ func BenchmarkHeaders(b *testing.B) {
 		}
 	})
 	b.Run("writeResponseHeader", func(b *testing.B) {
-		temp := ResponseHeader{}
+		temp := &ResponseHeader{}
 		for i := 0; i < b.N; i++ {
 			errBenchmarkSink = writeResponseHeader(dummyIO{}, temp)
 		}

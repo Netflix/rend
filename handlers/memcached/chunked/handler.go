@@ -96,10 +96,10 @@ var (
 	MetricCmdPrependMissesTokenL2 = metrics.AddCounter("cmd_prepend_misses_token_l2", nil)
 )
 
-func readResponseHeader(r *bufio.Reader) (binprot.ResponseHeader, error) {
+func readResponseHeader(r *bufio.Reader) (*binprot.ResponseHeader, error) {
 	resHeader, err := binprot.ReadResponseHeader(r)
 	if err != nil {
-		return binprot.ResponseHeader{}, err
+		return nil, err
 	}
 
 	if err := binprot.DecodeError(resHeader); err != nil {

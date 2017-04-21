@@ -129,11 +129,12 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, uint64, error
 	// read in the full header before any variable length fields
 	reqHeader, err := readRequestHeader(b.reader)
 	start := timer.Now()
-	defer reqHeadPool.Put(reqHeader)
 
 	if err != nil {
 		return nil, common.RequestUnknown, start, err
 	}
+
+	defer reqHeadPool.Put(reqHeader)
 
 	switch reqHeader.Opcode {
 	case OpcodeSet:
@@ -291,12 +292,14 @@ func (b BinaryParser) Parse() (common.Request, common.RequestType, uint64, error
 	return nil, common.RequestUnknown, start, common.ErrUnknownCmd
 }
 
-func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) {
+func readBatchGet(r io.Reader, header *RequestHeader) (common.GetRequest, error) {
 	var keys [][]byte
 	var opaques []uint32
 	var quiet []bool
 	var noopOpaque uint32
 	var noopEnd bool
+
+	first := true
 
 	// while GETQ
 	// read key, read header
@@ -312,7 +315,11 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 		quiet = append(quiet, true)
 
 		// read in the next header
-		reqHeadPool.Put(header)
+		if !first {
+			reqHeadPool.Put(header)
+		} else {
+			first = false
+		}
 		header, err = readRequestHeader(r)
 		if err != nil {
 			return common.GetRequest{}, err
@@ -354,12 +361,14 @@ func readBatchGet(r io.Reader, header RequestHeader) (common.GetRequest, error) 
 	}, nil
 }
 
-func readBatchGetE(r io.Reader, header RequestHeader) (common.GetRequest, error) {
+func readBatchGetE(r io.Reader, header *RequestHeader) (common.GetRequest, error) {
 	var keys [][]byte
 	var opaques []uint32
 	var quiet []bool
 	var noopOpaque uint32
 	var noopEnd bool
+
+	first := true
 
 	// while GETQ
 	// read key, read header
@@ -375,7 +384,11 @@ func readBatchGetE(r io.Reader, header RequestHeader) (common.GetRequest, error)
 		quiet = append(quiet, true)
 
 		// read in the next header
-		reqHeadPool.Put(header)
+		if !first {
+			reqHeadPool.Put(header)
+		} else {
+			first = false
+		}
 		header, err = readRequestHeader(r)
 		if err != nil {
 			return common.GetRequest{}, err
@@ -417,7 +430,7 @@ func readBatchGetE(r io.Reader, header RequestHeader) (common.GetRequest, error)
 	}, nil
 }
 
-func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool, start uint64) (common.SetRequest, common.RequestType, uint64, error) {
+func setRequest(r io.Reader, reqHeader *RequestHeader, reqType common.RequestType, quiet bool, start uint64) (common.SetRequest, common.RequestType, uint64, error) {
 	// flags, exptime, key, value
 	flags, err := readUInt32(r)
 	if err != nil {
@@ -459,7 +472,7 @@ func setRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType
 	}, reqType, start, nil
 }
 
-func appendPrependRequest(r io.Reader, reqHeader RequestHeader, reqType common.RequestType, quiet bool, start uint64) (common.SetRequest, common.RequestType, uint64, error) {
+func appendPrependRequest(r io.Reader, reqHeader *RequestHeader, reqType common.RequestType, quiet bool, start uint64) (common.SetRequest, common.RequestType, uint64, error) {
 	// key, value
 	key, err := readString(r, reqHeader.KeyLength)
 	if err != nil {
