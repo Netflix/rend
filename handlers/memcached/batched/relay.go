@@ -16,7 +16,6 @@ package batched
 
 import (
 	"math/rand"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -83,7 +82,7 @@ func getRelay(sock string, opts Opts) *relay {
 	}
 
 	// initialize the atomic value
-	r.conns.Store(make([]conn, 0))
+	r.conns.Store(make([]*conn, 0))
 
 	firstConnSetup := make(chan struct{})
 	go r.monitor(firstConnSetup)
@@ -102,20 +101,13 @@ func (r *relay) addConn() {
 	r.addConnLock.Lock()
 	defer r.addConnLock.Unlock()
 
-	c, err := net.Dial("unix", r.sock)
-	if err != nil {
-		// For now, just increment the metric and return.
-		metrics.IncCounter(MetricBatchConnectionFailure)
-		return
-	}
+	temp := r.conns.Load().([]*conn)
 
-	metrics.IncCounter(MetricBatchConnectionsCreated)
-
+	connID := uint32(len(temp))
 	batchDelay := time.Duration(r.opts.BatchDelayMicros) * time.Microsecond
-	poolconn := newConn(c, batchDelay, r.opts.BatchSize, r.opts.ReadBufSize, r.opts.WriteBufSize, r.expand)
+	poolconn := newConn(r.sock, connID, batchDelay, r.opts.BatchSize, r.opts.ReadBufSize, r.opts.WriteBufSize, r.expand)
 
 	// Add the new connection (but with a new slice header)
-	temp := r.conns.Load().([]conn)
 	temp = append(temp, poolconn)
 
 	// Store the modified slice
@@ -128,7 +120,7 @@ func (r *relay) submit(rand *rand.Rand, req request) {
 	// use rand to select a connection to submit to
 	// the connection should notify the frontend by the channel
 	// in the request struct
-	cs := r.conns.Load().([]conn)
+	cs := r.conns.Load().([]*conn)
 	idx := rand.Intn(len(cs))
 	c := cs[idx]
 	c.reqchan <- req
@@ -170,7 +162,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 
 		//println("MONITOR RUNNING")
 
-		cs := r.conns.Load().([]conn)
+		cs := r.conns.Load().([]*conn)
 		/*
 			maxes := make([]uint32, len(cs))
 
@@ -231,7 +223,7 @@ func (r *relay) monitor(firstConnSetup chan struct{}) {
 		// add a connection if needed
 		if shouldAdd {
 			r.addConn()
-			metrics.SetIntGauge(MetricBatchPoolSize, uint64(len(r.conns.Load().([]conn))))
+			metrics.SetIntGauge(MetricBatchPoolSize, uint64(len(r.conns.Load().([]*conn))))
 		}
 	}
 }
