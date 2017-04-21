@@ -16,8 +16,10 @@ package batched
 
 import (
 	"math/rand"
+	"strconv"
 
 	"github.com/netflix/rend/common"
+	"github.com/netflix/rend/metrics"
 )
 
 // Handler implements the handlers.Handler interface. It is an implementation of the interface
@@ -101,7 +103,28 @@ func (h Handler) Close() error {
 	return nil
 }
 
-// TODO: retry metrics
+const (
+	maxRetryMetrics            = 20
+	requestRetryMetricName     = "batch_request_retry"
+	requestRetryAttemptTagName = "attempt"
+)
+
+var (
+	requestRetryMetrics    []uint32
+	metricRequestRetryHigh = metrics.AddCounter(
+		requestRetryMetricName,
+		metrics.Tags{requestRetryAttemptTagName: "high"},
+	)
+)
+
+func init() {
+	for i := range requestRetryMetrics {
+		requestRetryMetrics[i] = metrics.AddCounter(
+			requestRetryMetricName,
+			metrics.Tags{requestRetryAttemptTagName: strconv.Itoa(i)},
+		)
+	}
+}
 
 func (h Handler) doRequest(cmd common.Request, reqType common.RequestType) (common.GetEResponse, error) {
 	var res response
@@ -118,6 +141,12 @@ func (h Handler) doRequest(cmd common.Request, reqType common.RequestType) (comm
 	maxTries := len(conns) * 2
 
 	for i := 0; i < maxTries; i++ {
+		if i < maxRetryMetrics {
+			metrics.IncCounter(requestRetryMetrics[i])
+		} else {
+			metrics.IncCounter(metricRequestRetryHigh)
+		}
+
 		reschan := make(chan response)
 
 		h.relay.submit(h.rand, request{
@@ -135,11 +164,6 @@ func (h Handler) doRequest(cmd common.Request, reqType common.RequestType) (comm
 		if res.err != errRetryRequestBecauseOfConnectionFailure {
 			break
 		}
-
-		// TODO: increment metric for retrying
-		/*if i < maxTries-1 {
-			<-time.After(time.Millisecond)
-		}*/
 	}
 
 	if res.err == errRetryRequestBecauseOfConnectionFailure {
@@ -287,6 +311,12 @@ func realHandleGet(h Handler, cmd common.GetRequest, dataOut chan common.GetResp
 	maxTries := len(conns) * 2
 
 	for i := 0; i < maxTries; i++ {
+		if i < maxRetryMetrics {
+			metrics.IncCounter(requestRetryMetrics[i])
+		} else {
+			metrics.IncCounter(metricRequestRetryHigh)
+		}
+
 		reschan := make(chan response)
 
 		if i > 0 {
@@ -366,6 +396,12 @@ func realHandleGetE(h Handler, cmd common.GetRequest, dataOut chan common.GetERe
 	maxTries := len(conns) * 2
 
 	for i := 0; i < maxTries; i++ {
+		if i < maxRetryMetrics {
+			metrics.IncCounter(requestRetryMetrics[i])
+		} else {
+			metrics.IncCounter(metricRequestRetryHigh)
+		}
+
 		reschan := make(chan response)
 
 		if i > 0 {
