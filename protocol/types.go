@@ -68,7 +68,7 @@ type Disambiguator interface {
 	CanParse() (bool, error)
 }
 
-// Components is a package of all the protocol-specific bits of the protocol impelmentation.
+// Components is a package of all the protocol-specific bits of the protocol implementation.
 // Packages are expected to provide an implementation of this interface to be usable in the
 // server.ListenAndServe loop.
 type Components interface {
