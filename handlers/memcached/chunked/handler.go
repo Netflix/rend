@@ -316,7 +316,7 @@ func (h Handler) handleSetCommon(cmd common.SetRequest, reqType common.RequestTy
 			// probably just disconnect and reconnect to clear OS buffers
 			h.reset()
 
-			// Discard repsonse body
+			// Discard response body
 			n, ioerr := h.rw.Discard(int(resHeader.TotalBodyLength))
 			metrics.IncCounterBy(common.MetricBytesReadLocal, uint64(n))
 			if ioerr != nil {

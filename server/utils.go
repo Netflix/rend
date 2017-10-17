@@ -51,5 +51,5 @@ func identifyPanic() string {
 		}
 	}
 
-	return fmt.Sprintf("Panic occured at: %v:%v (line %v)", file, name, line)
+	return fmt.Sprintf("Panic occurred at: %v:%v (line %v)", file, name, line)
 }

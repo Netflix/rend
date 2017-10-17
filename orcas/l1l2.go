@@ -499,7 +499,7 @@ func (l *L1L2Orca) Touch(req common.TouchRequest) error {
 	metrics.ObserveHist(HistTouchL1, timer.Since(start))
 
 	if err != nil {
-		// Touch misses in L1 after a hit in L2 are nto a big deal. The
+		// Touch misses in L1 after a hit in L2 are not a big deal. The
 		// touch operation here explicitly does *not* act as a pre-warm putting
 		// data into L1. A miss here after a hit is the same as a hit.
 		if err == common.ErrKeyNotFound {

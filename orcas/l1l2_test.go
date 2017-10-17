@@ -121,14 +121,14 @@ func TestL1L2Orca(t *testing.T) {
 						h1 := &testHandler{
 							errors: []error{common.ErrNoMem, nil},
 							responses: []common.GetResponse{
-								common.GetResponse{
+								{
 									Miss: true,
 								},
 							},
 						}
 						h2 := &testHandler{
 							eresponses: []common.GetEResponse{
-								common.GetEResponse{
+								{
 									Key:  []byte("key"),
 									Data: []byte("foo"),
 								},
@@ -164,14 +164,14 @@ func TestL1L2Orca(t *testing.T) {
 						h1 := &testHandler{
 							errors: []error{common.ErrNoMem, common.ErrKeyNotFound},
 							responses: []common.GetResponse{
-								common.GetResponse{
+								{
 									Miss: true,
 								},
 							},
 						}
 						h2 := &testHandler{
 							eresponses: []common.GetEResponse{
-								common.GetEResponse{
+								{
 									Key:  []byte("key"),
 									Data: []byte("foo"),
 								},
@@ -202,14 +202,14 @@ func TestL1L2Orca(t *testing.T) {
 						h1 := &testHandler{
 							errors: []error{common.ErrNoMem, io.EOF},
 							responses: []common.GetResponse{
-								common.GetResponse{
+								{
 									Miss: true,
 								},
 							},
 						}
 						h2 := &testHandler{
 							eresponses: []common.GetEResponse{
-								common.GetEResponse{
+								{
 									Key:  []byte("key"),
 									Data: []byte("foo"),
 								},
