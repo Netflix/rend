@@ -16,32 +16,30 @@ package server
 
 import (
 	"io"
+	"net"
 
 	"github.com/netflix/rend/metrics"
 	"github.com/netflix/rend/orcas"
 	"github.com/netflix/rend/protocol"
 )
 
+// ServerConst is a constructor function for servers. Each server implementation should have a
+// corresponding ServerConst to create it.
 type ServerConst func(conns []io.Closer, rp protocol.RequestParser, o orcas.Orca) Server
 
+// Server is the interface that ServerConst returns.
 type Server interface {
+	// Loop is intended to be an infinite loop serving a single connection which will only return when
+	// the connection is done being serviced. The server implementations should be able to runn a single
+	// connection based on the parameters of the ServerConst that created it.
 	Loop()
 }
 
-type ListenType int
+type ListenConst func() (Listener, error)
 
-const (
-	ListenTCP ListenType = iota
-	ListenUnix
-)
-
-type ListenArgs struct {
-	// The type of the connection. "tcp" or "unix" only.
-	Type ListenType
-	// TCP port to listen on, if applicable
-	Port int
-	// Unix domain socket path to listen on, if applicable
-	Path string
+type Listener interface {
+	Accept() (net.Conn, error)
+	ModifyConnSettings(net.Conn) error
 }
 
 var (

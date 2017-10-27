@@ -165,18 +165,12 @@ func init() {
 
 // And away we go
 func main() {
-	var l server.ListenArgs
+	var l server.ListenConst
 
 	if useDomainSocket {
-		l = server.ListenArgs{
-			Type: server.ListenUnix,
-			Path: sockPath,
-		}
+		l = server.UnixListener(sockPath)
 	} else {
-		l = server.ListenArgs{
-			Type: server.ListenTCP,
-			Port: port,
-		}
+		l = server.TCPListener(port)
 	}
 
 	protocols := []protocol.Components{binprot.Components, textprot.Components}
@@ -221,11 +215,7 @@ func main() {
 
 	if l2enabled {
 		// If L2 is enabled, start the batch L1 / L2 orchestrator
-		l = server.ListenArgs{
-			Type: server.ListenTCP,
-			Port: batchPort,
-		}
-
+		l = server.TCPListener(batchPort)
 		o := orcas.L1L2Batch
 
 		if locked {
