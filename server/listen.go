@@ -29,6 +29,64 @@ import (
 	"github.com/netflix/rend/protocol"
 )
 
+type tcpListener struct {
+	listener net.Listener
+}
+
+func (l *tcpListener) Accept() (net.Conn, error) {
+	return l.listener.Accept()
+}
+
+func (l *tcpListener) ModifyConnSettings(conn net.Conn) error {
+	tcpRemote := conn.(*net.TCPConn)
+
+	if err := tcpRemote.SetKeepAlive(true); err != nil {
+		return err
+	}
+
+	return tcpRemote.SetKeepAlivePeriod(30 * time.Second)
+}
+
+// TCPListener is a ListenConst that returns a tcp listener for the given port
+func TCPListener(port int) ListenConst {
+	return func() (Listener, error) {
+		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err != nil {
+			return nil, fmt.Errorf("Error binding to port %d: %v", port, err.Error())
+		}
+		return &tcpListener{listener: listener}, nil
+	}
+}
+
+type unixListener struct {
+	listener net.Listener
+}
+
+func (l *unixListener) Accept() (net.Conn, error) {
+	return l.listener.Accept()
+}
+
+func (l *unixListener) ModifyConnSettings(conn net.Conn) error {
+	return nil
+}
+
+// UnixListener is a ListenConst that returns a unix domain socket listener for the given path
+func UnixListener(path string) ListenConst {
+	return func() (Listener, error) {
+		err := os.Remove(path)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("Error removing previous unix socket file at %s", path)
+		}
+
+		listener, err := net.Listen("unix", path)
+		if err != nil {
+			return nil, fmt.Errorf("Error binding to unix socket at %s: %v", path, err.Error())
+		}
+
+		return &unixListener{listener: listener}, nil
+	}
+}
+
 // ListenAndServe is the main accept() loop of a server. It will use all of the components passed in
 // to construct a full set of components to serve a connection when the connection gets established.
 //
@@ -49,29 +107,11 @@ import (
 //
 // h1, h2 handlers.HandlerConst
 //   - Used to create the handlers.Handler instances as needed when the connection is established.
-func ListenAndServe(l ListenArgs, ps []protocol.Components, s ServerConst, o orcas.OrcaConst, h1, h2 handlers.HandlerConst) {
-	var listener net.Listener
-	var err error
-
-	switch l.Type {
-	case ListenTCP:
-		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", l.Port))
-		if err != nil {
-			log.Panicf("Error binding to port %d: %v\n", l.Port, err.Error())
-		}
-
-	case ListenUnix:
-		err = os.Remove(l.Path)
-		if err != nil && !os.IsNotExist(err) {
-			log.Panicf("Error removing previous unix socket file at %s\n", l.Path)
-		}
-		listener, err = net.Listen("unix", l.Path)
-		if err != nil {
-			log.Panicf("Error binding to unix socket at %s: %v\n", l.Path, err.Error())
-		}
-
-	default:
-		log.Panicf("Unsupported server listen type: %v", l.Type)
+func ListenAndServe(l ListenConst, ps []protocol.Components, s ServerConst, o orcas.OrcaConst, h1, h2 handlers.HandlerConst) {
+	listener, err := l()
+	if err != nil {
+		// At this point the server would be useless since we can't talk to the outside world.
+		panic(err)
 	}
 
 	for {
@@ -83,10 +123,11 @@ func ListenAndServe(l ListenArgs, ps []protocol.Components, s ServerConst, o orc
 		}
 		metrics.IncCounter(MetricConnectionsEstablishedExt)
 
-		if l.Type == ListenTCP {
-			tcpRemote := remote.(*net.TCPConn)
-			tcpRemote.SetKeepAlive(true)
-			tcpRemote.SetKeepAlivePeriod(30 * time.Second)
+		err = listener.ModifyConnSettings(remote)
+		if err != nil {
+			log.Println("Error modifying connection settings after accept:", err.Error())
+			remote.Close()
+			continue
 		}
 
 		// construct L1 handler using given constructor
