@@ -37,14 +37,18 @@ func (l *tcpListener) Accept() (net.Conn, error) {
 	return l.listener.Accept()
 }
 
-func (l *tcpListener) ModifyConnSettings(conn net.Conn) error {
+func (l *tcpListener) Configure(conn net.Conn) (net.Conn, error) {
 	tcpRemote := conn.(*net.TCPConn)
 
 	if err := tcpRemote.SetKeepAlive(true); err != nil {
-		return err
+		return conn, err
 	}
 
-	return tcpRemote.SetKeepAlivePeriod(30 * time.Second)
+	if err := tcpRemote.SetKeepAlivePeriod(30 * time.Second); err != nil {
+		return conn, err
+	}
+
+	return conn, nil
 }
 
 // TCPListener is a ListenConst that returns a tcp listener for the given port
@@ -66,8 +70,8 @@ func (l *unixListener) Accept() (net.Conn, error) {
 	return l.listener.Accept()
 }
 
-func (l *unixListener) ModifyConnSettings(conn net.Conn) error {
-	return nil
+func (l *unixListener) Configure(conn net.Conn) (net.Conn, error) {
+	return conn, nil
 }
 
 // UnixListener is a ListenConst that returns a unix domain socket listener for the given path
@@ -123,9 +127,9 @@ func ListenAndServe(l ListenConst, ps []protocol.Components, s ServerConst, o or
 		}
 		metrics.IncCounter(MetricConnectionsEstablishedExt)
 
-		err = listener.ModifyConnSettings(remote)
+		remote, err = listener.Configure(remote)
 		if err != nil {
-			log.Println("Error modifying connection settings after accept:", err.Error())
+			log.Println("Error configuring connection after accept:", err.Error())
 			remote.Close()
 			continue
 		}
