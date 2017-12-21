@@ -35,11 +35,13 @@ type Server interface {
 	Loop()
 }
 
+// ListenConst is a constructor function for listener implementations
 type ListenConst func() (Listener, error)
 
+// Listener is a type to accept and configure new connections
 type Listener interface {
 	Accept() (net.Conn, error)
-	ModifyConnSettings(net.Conn) error
+	Configure(net.Conn) (net.Conn, error)
 }
 
 var (
